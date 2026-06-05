@@ -3,8 +3,10 @@
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
 import { GripVertical, Maximize2, RotateCcw, Trash2, X } from "lucide-react";
 import {
+  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -57,6 +59,13 @@ type WidgetInteraction =
       startWidth: number;
       startHeight: number;
     };
+
+type PendingZoomScroll = {
+  anchorX: number;
+  anchorY: number;
+  worldX: number;
+  worldY: number;
+};
 
 function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
@@ -172,7 +181,7 @@ function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   );
 }
 
-function WidgetBody({ widget }: { widget: CanvasWidget }) {
+const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }) {
   const [renderErrors, setRenderErrors] = useState<OpenUIError[]>([]);
 
   if (widget.status === "error") {
@@ -209,7 +218,7 @@ function WidgetBody({ widget }: { widget: CanvasWidget }) {
       ) : null}
     </div>
   );
-}
+});
 
 function WidgetFrame({
   onDelete,
@@ -245,6 +254,7 @@ function WidgetFrame({
           height: widget.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
+          willChange: "transform",
           width: widget.width,
         }}
       >
@@ -350,6 +360,7 @@ export default function Home() {
     scrollTop: 0,
   });
   const widgetInteractionRef = useRef<WidgetInteraction | null>(null);
+  const pendingZoomScrollRef = useRef<PendingZoomScroll | null>(null);
 
   const [zoom, setZoom] = useState(100);
   const [isPanning, setIsPanning] = useState(false);
@@ -475,28 +486,84 @@ export default function Home() {
       }
 
       const currentScale = currentZoom / 100;
-      const nextScale = nextZoom / 100;
       const anchorX = anchor?.x ?? viewport.clientWidth / 2;
       const anchorY = anchor?.y ?? viewport.clientHeight / 2;
-      const worldX = (viewport.scrollLeft + anchorX) / currentScale;
-      const worldY = (viewport.scrollTop + anchorY) / currentScale;
+      const pendingScroll = pendingZoomScrollRef.current;
+      const effectiveScrollLeft = pendingScroll
+        ? pendingScroll.worldX * currentScale - pendingScroll.anchorX
+        : viewport.scrollLeft;
+      const effectiveScrollTop = pendingScroll
+        ? pendingScroll.worldY * currentScale - pendingScroll.anchorY
+        : viewport.scrollTop;
+      const worldX = (effectiveScrollLeft + anchorX) / currentScale;
+      const worldY = (effectiveScrollTop + anchorY) / currentScale;
 
       zoomRef.current = nextZoom;
+      pendingZoomScrollRef.current = {
+        anchorX,
+        anchorY,
+        worldX,
+        worldY,
+      };
       setZoom(nextZoom);
-
-      requestAnimationFrame(() => {
-        const nextViewport = viewportRef.current;
-
-        if (!nextViewport) {
-          return;
-        }
-
-        nextViewport.scrollLeft = worldX * nextScale - anchorX;
-        nextViewport.scrollTop = worldY * nextScale - anchorY;
-      });
     },
     [],
   );
+
+  useLayoutEffect(() => {
+    const pendingScroll = pendingZoomScrollRef.current;
+    const viewport = viewportRef.current;
+
+    if (!pendingScroll || !viewport) {
+      return;
+    }
+
+    const nextScale = zoom / 100;
+
+    viewport.scrollLeft = pendingScroll.worldX * nextScale - pendingScroll.anchorX;
+    viewport.scrollTop = pendingScroll.worldY * nextScale - pendingScroll.anchorY;
+    pendingZoomScrollRef.current = null;
+  }, [zoom]);
+
+  const adjustZoom = useCallback(
+    (factor: number) => {
+      const viewport = viewportRef.current;
+      const anchor = viewport
+        ? {
+            x: viewport.clientWidth / 2,
+            y: viewport.clientHeight / 2,
+          }
+        : undefined;
+
+      setCanvasZoom(zoomRef.current * factor, anchor);
+    },
+    [setCanvasZoom],
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "=" || event.key === "+" || event.key === "Add" || event.code === "NumpadAdd") {
+        event.preventDefault();
+        adjustZoom(1.12);
+        return;
+      }
+
+      if (event.key === "-" || event.key === "_" || event.code === "Subtract" || event.code === "NumpadSubtract") {
+        event.preventDefault();
+        adjustZoom(1 / 1.12);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [adjustZoom]);
 
   const canvasStyle = useMemo<CSSProperties>(() => {
     return {
@@ -867,6 +934,28 @@ export default function Home() {
           <span className="h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
           Canvas
           <span className="text-xs font-medium text-[#71717a]">{widgets.length} widgets</span>
+          <span className="text-xs font-medium text-[#71717a]">{Math.round(zoom)}%</span>
+        </div>
+
+        <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
+          <button
+            aria-label="Zoom out"
+            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+            onClick={() => adjustZoom(1 / 1.12)}
+            title="Zoom out"
+            type="button"
+          >
+            -
+          </button>
+          <button
+            aria-label="Zoom in"
+            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+            onClick={() => adjustZoom(1.12)}
+            title="Zoom in"
+            type="button"
+          >
+            +
+          </button>
         </div>
 
       </section>
