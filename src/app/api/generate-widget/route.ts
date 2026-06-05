@@ -1,7 +1,8 @@
 import Groq from "groq-sdk";
+import OpenAI from "openai";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ZodError, toJSONSchema } from "zod/v4";
+import { z, ZodError, toJSONSchema } from "zod/v4";
 import {
   exampleWidgetDataSchema,
   type ExampleWidgetData,
@@ -14,9 +15,28 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_UI_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_MOCK_DATA_MODEL = "openai/gpt-oss-20b";
+const DEFAULT_OPENAI_MODEL = "gpt-5.5";
 const OPENUI_PROMPT_PATH = join(process.cwd(), "src/generated/openui-dashboard-prompt.txt");
+const aiProviderSchema = z.enum(["openai", "groq"]);
 
 let cachedOpenUIPrompt: string | null = null;
+
+type AIProvider = z.infer<typeof aiProviderSchema>;
+type ModelClient = Groq | OpenAI;
+type ChatCompletionResult = {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+};
+type ChatCompletionStream = AsyncIterable<{
+  choices?: Array<{
+    delta?: {
+      content?: string | null;
+    };
+  }>;
+}>;
 
 function getOpenUIPrompt() {
   cachedOpenUIPrompt ??= readFileSync(OPENUI_PROMPT_PATH, "utf8");
@@ -41,6 +61,48 @@ function errorMessage(error: unknown) {
   return "Unexpected generation error.";
 }
 
+function resolveProvider(value: unknown): AIProvider {
+  const parsed = aiProviderSchema.safeParse(value);
+
+  return parsed.success ? parsed.data : "openai";
+}
+
+function providerDisplayName(provider: AIProvider) {
+  return provider === "openai" ? "OpenAI" : "Groq";
+}
+
+function getApiKey(provider: AIProvider) {
+  return provider === "openai" ? process.env.OPENAI_API_KEY : process.env.GROQ_API_KEY;
+}
+
+function getMockDataModel(provider: AIProvider) {
+  if (provider === "openai") {
+    return process.env.OPENAI_MOCK_DATA_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  }
+
+  return process.env.GROQ_MOCK_DATA_MODEL || DEFAULT_MOCK_DATA_MODEL;
+}
+
+function getUIModel(provider: AIProvider) {
+  if (provider === "openai") {
+    return process.env.OPENAI_UI_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  }
+
+  return process.env.GROQ_UI_MODEL || DEFAULT_UI_MODEL;
+}
+
+function createModelClient(provider: AIProvider, apiKey: string): ModelClient {
+  return provider === "openai" ? new OpenAI({ apiKey }) : new Groq({ apiKey });
+}
+
+async function createChatCompletion(client: ModelClient, params: Record<string, unknown>) {
+  const completions = client.chat.completions as unknown as {
+    create: (completionParams: Record<string, unknown>) => Promise<unknown>;
+  };
+
+  return completions.create(params);
+}
+
 function mockDataSystemPrompt() {
   return [
     "You generate realistic startup operating data for a dashboard widget.",
@@ -54,6 +116,10 @@ function mockDataSystemPrompt() {
     "When the request is vague, choose a credible B2B SaaS startup scenario and include enough specificity to make the widget feel real.",
     "Do not use famous company names, real customer names, private facts, or claims that imply the data came from a real business.",
     "Always set dataDisclosure to a concise sentence saying the values are AI-generated preview data.",
+    "For numeric dashboard requests, include both current metric values and a compact timeSeries whenever a recent trend is plausible.",
+    "For spend, runway, burn, MRR, cash, retention, conversion, usage, support, and pipeline requests, populate timeSeries unless the user explicitly asks for only a single number or KPI card.",
+    "Use table only for explicit table, list, breakdown, or detail requests.",
+    "Keep insights brief and secondary. Use 0 to 2 insights, and do not rely on insights as the main content unless the user asks for written analysis.",
     "Use empty arrays for sections that do not fit the request.",
     "For charts, keep 4 to 8 points and 1 to 3 series.",
     "For tables, keep 3 to 6 rows.",
@@ -71,6 +137,13 @@ function openuiUserPrompt(prompt: string, exampleData: ExampleWidgetData) {
     "",
     "Generate one compact OpenUI Lang widget from EXAMPLE_DATA.",
     "Use only values present in EXAMPLE_DATA.",
+    "Make the widget focused and graph-first for numeric dashboard requests.",
+    "If EXAMPLE_DATA.timeSeries.points has at least 2 points, include LineChart or BarChart as the primary visual block.",
+    "For current spend, runway left, MRR, burn, cash balance, retention, conversion, usage, support, and pipeline requests, use MetricGrid plus a chart when timeSeries data is available.",
+    "Do not add DataTable unless the user explicitly asks for a table, breakdown, list, or details.",
+    "Use at most two blocks: usually MetricGrid plus LineChart/BarChart, or just the chart for explicit graph requests.",
+    "Use InsightList only when the user explicitly asks for written analysis or no chart/table/metric block fits.",
+    "Avoid text-heavy layouts. Keep titles, subtitles, labels, and disclosure short.",
     "Return only OpenUI Lang.",
   ].join("\n");
 }
@@ -300,19 +373,19 @@ function normalizeExampleData(value: unknown) {
   };
 }
 
-function parseExampleData(content: string | null | undefined) {
+function parseExampleData(content: string | null | undefined, provider: AIProvider) {
   if (!content) {
-    throw new Error("Groq returned no example data.");
+    throw new Error(`${providerDisplayName(provider)} returned no example data.`);
   }
 
   return exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(content)));
 }
 
-async function createStrictExampleData(groq: Groq, prompt: string) {
+async function createStrictExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
   const schema = toJSONSchema(exampleWidgetDataSchema);
 
-  const completion = await groq.chat.completions.create({
-    model: process.env.GROQ_MOCK_DATA_MODEL || DEFAULT_MOCK_DATA_MODEL,
+  const completion = (await createChatCompletion(client, {
+    model: getMockDataModel(provider),
     messages: [
       {
         role: "system",
@@ -332,15 +405,15 @@ async function createStrictExampleData(groq: Groq, prompt: string) {
       },
     },
     reasoning_effort: "low",
-    temperature: 0.2,
-  });
+    ...(provider === "groq" ? { temperature: 0.2 } : {}),
+  })) as ChatCompletionResult;
 
-  return parseExampleData(completion.choices[0]?.message.content);
+  return parseExampleData(completion.choices?.[0]?.message?.content, provider);
 }
 
-async function createJsonObjectExampleData(groq: Groq, prompt: string) {
-  const completion = await groq.chat.completions.create({
-    model: process.env.GROQ_MOCK_DATA_MODEL || DEFAULT_MOCK_DATA_MODEL,
+async function createJsonObjectExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
+  const completion = (await createChatCompletion(client, {
+    model: getMockDataModel(provider),
     messages: [
       {
         role: "system",
@@ -360,28 +433,29 @@ async function createJsonObjectExampleData(groq: Groq, prompt: string) {
       type: "json_object",
     },
     reasoning_effort: "low",
-    temperature: 0.2,
-  });
+    ...(provider === "groq" ? { temperature: 0.2 } : {}),
+  })) as ChatCompletionResult;
 
-  return parseExampleData(completion.choices[0]?.message.content);
+  return parseExampleData(completion.choices?.[0]?.message?.content, provider);
 }
 
-async function createExampleData(groq: Groq, prompt: string) {
+async function createExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
   try {
-    return await createStrictExampleData(groq, prompt);
+    return await createStrictExampleData(client, provider, prompt);
   } catch {
-    return createJsonObjectExampleData(groq, prompt);
+    return createJsonObjectExampleData(client, provider, prompt);
   }
 }
 
 async function streamOpenUI(
-  groq: Groq,
+  client: ModelClient,
+  provider: AIProvider,
   prompt: string,
   exampleData: ExampleWidgetData,
   controller: ReadableStreamDefaultController,
 ) {
-  const stream = await groq.chat.completions.create({
-    model: process.env.GROQ_UI_MODEL || DEFAULT_UI_MODEL,
+  const stream = (await createChatCompletion(client, {
+    model: getUIModel(provider),
     messages: [
       {
         role: "system",
@@ -392,13 +466,13 @@ async function streamOpenUI(
         content: openuiUserPrompt(prompt, exampleData),
       },
     ],
-    temperature: 0.15,
     max_completion_tokens: 1800,
+    ...(provider === "openai" ? { reasoning_effort: "low" } : { temperature: 0.15 }),
     stream: true,
-  });
+  })) as ChatCompletionStream;
 
   for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta.content;
+    const delta = chunk.choices?.[0]?.delta?.content;
 
     if (delta) {
       streamEvent(controller, {
@@ -413,17 +487,18 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const apiKey = process.env.GROQ_API_KEY;
+        const body = (await request.json()) as { prompt?: unknown };
+        const provider = resolveProvider(process.env.AI_PROVIDER);
+        const apiKey = getApiKey(provider);
 
         if (!apiKey) {
           streamEvent(controller, {
             type: "error",
-            error: "Missing GROQ_API_KEY. Add it to your environment and retry.",
+            error: `Missing ${provider === "openai" ? "OPENAI_API_KEY" : "GROQ_API_KEY"}. Add it to your environment and retry.`,
           });
           return;
         }
 
-        const body = (await request.json()) as { prompt?: unknown };
         const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
 
         if (!prompt) {
@@ -434,15 +509,15 @@ export async function POST(request: Request) {
           return;
         }
 
-        const groq = new Groq({ apiKey });
-        const exampleData = await createExampleData(groq, prompt);
+        const client = createModelClient(provider, apiKey);
+        const exampleData = await createExampleData(client, provider, prompt);
 
         streamEvent(controller, {
           type: "exampleData",
           data: exampleData,
         });
 
-        await streamOpenUI(groq, prompt, exampleData, controller);
+        await streamOpenUI(client, provider, prompt, exampleData, controller);
 
         streamEvent(controller, {
           type: "done",
