@@ -2,6 +2,18 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Configure one or both AI providers before generating widgets:
+
+```bash
+# OpenAI is the default selection in the app.
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5.5
+
+# Optional Groq fallback/alternate provider.
+GROQ_API_KEY=...
+AI_PROVIDER=openai # or groq
+```
+
 First, run the development server:
 
 ```bash
