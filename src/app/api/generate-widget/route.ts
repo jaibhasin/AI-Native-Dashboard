@@ -116,6 +116,8 @@ function mockDataSystemPrompt() {
     "When the request is vague, choose a credible B2B SaaS startup scenario and include enough specificity to make the widget feel real.",
     "Do not use famous company names, real customer names, private facts, or claims that imply the data came from a real business.",
     "Always set dataDisclosure to a concise sentence saying the values are AI-generated preview data.",
+    "Prioritize structured visual data: metrics, timeSeries, and table should be populated whenever they fit the request.",
+    "Keep insights brief and secondary. Use 0 to 2 insights, and do not rely on insights as the main content unless the user asks for written analysis.",
     "Use empty arrays for sections that do not fit the request.",
     "For charts, keep 4 to 8 points and 1 to 3 series.",
     "For tables, keep 3 to 6 rows.",
@@ -133,6 +135,9 @@ function openuiUserPrompt(prompt: string, exampleData: ExampleWidgetData) {
     "",
     "Generate one compact OpenUI Lang widget from EXAMPLE_DATA.",
     "Use only values present in EXAMPLE_DATA.",
+    "Make the widget mostly visual: prefer MetricGrid, LineChart, BarChart, and DataTable blocks.",
+    "Use InsightList only when the user explicitly asks for written analysis or no chart/table/metric block fits.",
+    "Avoid text-heavy layouts. Keep titles, subtitles, labels, and disclosure short.",
     "Return only OpenUI Lang.",
   ].join("\n");
 }
