@@ -64,9 +64,13 @@ function clampZoom(value: number) {
 
 function isEditableTarget(target: EventTarget | null) {
   return (
-    target instanceof HTMLElement &&
+    target instanceof Element &&
     target.closest("input, textarea, select, [contenteditable='true']") !== null
   );
+}
+
+function hasClosestElement(target: EventTarget | null, selector: string) {
+  return target instanceof Element && target.closest(selector) !== null;
 }
 
 function createWidgetId() {
@@ -248,10 +252,7 @@ function WidgetFrame({
           <header
             className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-[#e5e7eb] bg-white px-2.5 active:cursor-grabbing"
             onPointerDown={(event) => {
-              if (
-                event.target instanceof HTMLElement &&
-                event.target.closest("[data-widget-control]")
-              ) {
+              if (hasClosestElement(event.target, "[data-widget-control]")) {
                 return;
               }
 
@@ -695,10 +696,7 @@ export default function Home() {
       return;
     }
 
-    if (
-      event.target instanceof HTMLElement &&
-      event.target.closest("[data-command-input], [data-widget]")
-    ) {
+    if (hasClosestElement(event.target, "[data-command-input], [data-widget]")) {
       return;
     }
 
