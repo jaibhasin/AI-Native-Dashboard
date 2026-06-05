@@ -3,15 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "generate:openui-prompt": "openui generate src/openui/dashboard-prompt-library.ts --out src/generated/openui-dashboard-prompt.txt --no-interactive",
+    "dev": "pnpm generate:openui-prompt && next dev",
+    "build": "pnpm generate:openui-prompt && next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@openuidev/cli": "^0.0.7",
+    "@openuidev/react-lang": "^0.2.6",
+    "groq-sdk": "^1.2.1",
+    "lucide-react": "^1.17.0",
     "next": "16.2.7",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
