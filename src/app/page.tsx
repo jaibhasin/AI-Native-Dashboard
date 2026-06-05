@@ -1,65 +1,355 @@
-import Image from "next/image";
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+  type WheelEvent,
+} from "react";
+
+const CANVAS_WIDTH = 3600;
+const CANVAS_HEIGHT = 2400;
+const GRID_SIZE = 24;
+const MAJOR_GRID_SIZE = 120;
+const MIN_ZOOM = 50;
+const MAX_ZOOM = 200;
+const ZOOM_STEP = 10;
+
+function clampZoom(value: number) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    target.closest("input, textarea, select, [contenteditable='true']") !== null
+  );
+}
 
 export default function Home() {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const cursorRef = useRef({
+    inside: false,
+    x: CANVAS_WIDTH / 2,
+    y: CANVAS_HEIGHT / 2,
+  });
+  const panRef = useRef({
+    active: false,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
+
+  const [zoom, setZoom] = useState(100);
+  const [isPanning, setIsPanning] = useState(false);
+  const [command, setCommand] = useState<{
+    x: number;
+    y: number;
+    value: string;
+  } | null>(null);
+
+  const scale = zoom / 100;
+  const commandPosition = command ? `${command.x}:${command.y}` : null;
+
+  const updateCursorPosition = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const viewport = viewportRef.current;
+
+      if (!viewport) {
+        return;
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const x = (viewport.scrollLeft + event.clientX - rect.left) / scale;
+      const y = (viewport.scrollTop + event.clientY - rect.top) / scale;
+
+      cursorRef.current = {
+        inside: true,
+        x: Math.min(CANVAS_WIDTH, Math.max(0, x)),
+        y: Math.min(CANVAS_HEIGHT, Math.max(0, y)),
+      };
+    },
+    [scale],
+  );
+
+  const openCommandAtCursor = useCallback(() => {
+    const cursor = cursorRef.current;
+
+    if (!cursor.inside) {
+      return;
+    }
+
+    setCommand({
+      x: cursor.x,
+      y: cursor.y,
+      value: "",
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/" || isEditableTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      openCommandAtCursor();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openCommandAtCursor]);
+
+  useEffect(() => {
+    if (!commandPosition) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      commandInputRef.current?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [commandPosition]);
+
+  const setCanvasZoom = useCallback(
+    (nextValue: number, anchor?: { x: number; y: number }) => {
+      const nextZoom = clampZoom(nextValue);
+      const viewport = viewportRef.current;
+
+      if (!viewport || nextZoom === zoom) {
+        setZoom(nextZoom);
+        return;
+      }
+
+      const currentScale = zoom / 100;
+      const nextScale = nextZoom / 100;
+      const anchorX = anchor?.x ?? viewport.clientWidth / 2;
+      const anchorY = anchor?.y ?? viewport.clientHeight / 2;
+      const worldX = (viewport.scrollLeft + anchorX) / currentScale;
+      const worldY = (viewport.scrollTop + anchorY) / currentScale;
+
+      setZoom(nextZoom);
+
+      requestAnimationFrame(() => {
+        const nextViewport = viewportRef.current;
+
+        if (!nextViewport) {
+          return;
+        }
+
+        nextViewport.scrollLeft = worldX * nextScale - anchorX;
+        nextViewport.scrollTop = worldY * nextScale - anchorY;
+      });
+    },
+    [zoom],
+  );
+
+  const canvasStyle = useMemo<CSSProperties>(() => {
+    return {
+      width: CANVAS_WIDTH * scale,
+      height: CANVAS_HEIGHT * scale,
+      backgroundImage:
+        "linear-gradient(#edf0f4 1px, transparent 1px), linear-gradient(90deg, #edf0f4 1px, transparent 1px), linear-gradient(#d9dee7 1px, transparent 1px), linear-gradient(90deg, #d9dee7 1px, transparent 1px)",
+      backgroundSize: `${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px`,
+      backgroundPosition: "-1px -1px",
+    };
+  }, [scale]);
+
+  const handleWheel = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const direction = event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+
+      setCanvasZoom(zoom + direction, {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+    },
+    [setCanvasZoom, zoom],
+  );
+
+  const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("[data-command-input]")
+    ) {
+      return;
+    }
+
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    panRef.current = {
+      active: true,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+
+    viewport.setPointerCapture(event.pointerId);
+    setIsPanning(true);
+  }, []);
+
+  const handlePointerMove = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      updateCursorPosition(event);
+
+      const viewport = viewportRef.current;
+      const pan = panRef.current;
+
+      if (!viewport || !pan.active) {
+        return;
+      }
+
+      viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+      viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+    },
+    [updateCursorPosition],
+  );
+
+  const endPan = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const viewport = viewportRef.current;
+
+    panRef.current.active = false;
+
+    if (viewport?.hasPointerCapture(event.pointerId)) {
+      viewport.releasePointerCapture(event.pointerId);
+    }
+
+    setIsPanning(false);
+  }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-[#f6f7f9] p-3 text-[#18181b] sm:p-5">
+      <section className="relative h-[calc(100vh-1.5rem)] overflow-hidden rounded-lg border border-[#dde1e7] bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:h-[calc(100vh-2.5rem)]">
+        <div
+          ref={viewportRef}
+          className={`absolute inset-0 overflow-auto bg-white [scrollbar-gutter:stable] ${
+            isPanning ? "cursor-grabbing" : "cursor-grab"
+          }`}
+          onPointerCancel={endPan}
+          onPointerDown={handlePointerDown}
+          onPointerEnter={updateCursorPosition}
+          onPointerLeave={(event) => {
+            cursorRef.current.inside = false;
+            endPan(event);
+          }}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endPan}
+          onWheel={handleWheel}
+        >
+          <div aria-label="Scrollable grid canvas" style={canvasStyle} />
+
+          {command ? (
+            <form
+              className="absolute z-20 flex h-10 w-[17rem] items-center gap-2 rounded-md border border-[#cfd6e1] bg-white/95 px-2.5 shadow-[0_12px_30px_rgba(15,23,42,0.16)] backdrop-blur sm:w-[19rem]"
+              data-command-input
+              onSubmit={(event) => {
+                event.preventDefault();
+              }}
+              style={{
+                left: command.x * scale + 8,
+                top: command.y * scale + 8,
+              }}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              <span className="select-none text-base font-semibold text-[#697386]">
+                /
+              </span>
+              <input
+                ref={commandInputRef}
+                aria-label="Canvas command"
+                className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-[#18181b] outline-none placeholder:text-[#9aa3af]"
+                onChange={(event) => {
+                  setCommand((current) =>
+                    current
+                      ? {
+                          ...current,
+                          value: event.target.value,
+                        }
+                      : current,
+                  );
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setCommand(null);
+                  }
+                }}
+                placeholder="command"
+                value={command.value}
+              />
+            </form>
+          ) : null}
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
+
+        <div className="absolute left-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-3 py-2 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:top-6">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
+          Canvas
         </div>
-      </main>
-    </div>
+
+        <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/90 p-1.5 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
+          <button
+            aria-label="Zoom out"
+            className="grid h-8 w-8 place-items-center rounded border border-[#e2e5ea] bg-white text-base leading-none transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={zoom === MIN_ZOOM}
+            onClick={() => setCanvasZoom(zoom - ZOOM_STEP)}
+            type="button"
+          >
+            -
+          </button>
+
+          <input
+            aria-label="Zoom level"
+            className="h-8 w-24 accent-[#18181b]"
+            max={MAX_ZOOM}
+            min={MIN_ZOOM}
+            onChange={(event) => setCanvasZoom(Number(event.target.value))}
+            step={ZOOM_STEP}
+            type="range"
+            value={zoom}
+          />
+
+          <div className="min-w-12 text-center tabular-nums">{zoom}%</div>
+
+          <button
+            aria-label="Zoom in"
+            className="grid h-8 w-8 place-items-center rounded border border-[#e2e5ea] bg-white text-base leading-none transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={zoom === MAX_ZOOM}
+            onClick={() => setCanvasZoom(zoom + ZOOM_STEP)}
+            type="button"
+          >
+            +
+          </button>
+        </div>
+      </section>
+    </main>
   );
 }
