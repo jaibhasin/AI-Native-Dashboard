@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -22,8 +23,21 @@ function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 }
 
+function isEditableTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    target.closest("input, textarea, select, [contenteditable='true']") !== null
+  );
+}
+
 export default function Home() {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const cursorRef = useRef({
+    inside: false,
+    x: CANVAS_WIDTH / 2,
+    y: CANVAS_HEIGHT / 2,
+  });
   const panRef = useRef({
     active: false,
     startX: 0,
@@ -34,6 +48,80 @@ export default function Home() {
 
   const [zoom, setZoom] = useState(100);
   const [isPanning, setIsPanning] = useState(false);
+  const [command, setCommand] = useState<{
+    x: number;
+    y: number;
+    value: string;
+  } | null>(null);
+
+  const scale = zoom / 100;
+  const commandPosition = command ? `${command.x}:${command.y}` : null;
+
+  const updateCursorPosition = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const viewport = viewportRef.current;
+
+      if (!viewport) {
+        return;
+      }
+
+      const rect = viewport.getBoundingClientRect();
+      const x = (viewport.scrollLeft + event.clientX - rect.left) / scale;
+      const y = (viewport.scrollTop + event.clientY - rect.top) / scale;
+
+      cursorRef.current = {
+        inside: true,
+        x: Math.min(CANVAS_WIDTH, Math.max(0, x)),
+        y: Math.min(CANVAS_HEIGHT, Math.max(0, y)),
+      };
+    },
+    [scale],
+  );
+
+  const openCommandAtCursor = useCallback(() => {
+    const cursor = cursorRef.current;
+
+    if (!cursor.inside) {
+      return;
+    }
+
+    setCommand({
+      x: cursor.x,
+      y: cursor.y,
+      value: "",
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/" || isEditableTarget(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      openCommandAtCursor();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openCommandAtCursor]);
+
+  useEffect(() => {
+    if (!commandPosition) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      commandInputRef.current?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [commandPosition]);
 
   const setCanvasZoom = useCallback(
     (nextValue: number, anchor?: { x: number; y: number }) => {
@@ -69,8 +157,6 @@ export default function Home() {
   );
 
   const canvasStyle = useMemo<CSSProperties>(() => {
-    const scale = zoom / 100;
-
     return {
       width: CANVAS_WIDTH * scale,
       height: CANVAS_HEIGHT * scale,
@@ -79,7 +165,7 @@ export default function Home() {
       backgroundSize: `${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px`,
       backgroundPosition: "-1px -1px",
     };
-  }, [zoom]);
+  }, [scale]);
 
   const handleWheel = useCallback(
     (event: WheelEvent<HTMLDivElement>) => {
@@ -105,6 +191,13 @@ export default function Home() {
       return;
     }
 
+    if (
+      event.target instanceof HTMLElement &&
+      event.target.closest("[data-command-input]")
+    ) {
+      return;
+    }
+
     const viewport = viewportRef.current;
 
     if (!viewport) {
@@ -123,17 +216,22 @@ export default function Home() {
     setIsPanning(true);
   }, []);
 
-  const handlePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    const viewport = viewportRef.current;
-    const pan = panRef.current;
+  const handlePointerMove = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      updateCursorPosition(event);
 
-    if (!viewport || !pan.active) {
-      return;
-    }
+      const viewport = viewportRef.current;
+      const pan = panRef.current;
 
-    viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
-    viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
-  }, []);
+      if (!viewport || !pan.active) {
+        return;
+      }
+
+      viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+      viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+    },
+    [updateCursorPosition],
+  );
 
   const endPan = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const viewport = viewportRef.current;
@@ -157,12 +255,57 @@ export default function Home() {
           }`}
           onPointerCancel={endPan}
           onPointerDown={handlePointerDown}
-          onPointerLeave={endPan}
+          onPointerEnter={updateCursorPosition}
+          onPointerLeave={(event) => {
+            cursorRef.current.inside = false;
+            endPan(event);
+          }}
           onPointerMove={handlePointerMove}
           onPointerUp={endPan}
           onWheel={handleWheel}
         >
           <div aria-label="Scrollable grid canvas" style={canvasStyle} />
+
+          {command ? (
+            <form
+              className="absolute z-20 flex h-10 w-[17rem] items-center gap-2 rounded-md border border-[#cfd6e1] bg-white/95 px-2.5 shadow-[0_12px_30px_rgba(15,23,42,0.16)] backdrop-blur sm:w-[19rem]"
+              data-command-input
+              onSubmit={(event) => {
+                event.preventDefault();
+              }}
+              style={{
+                left: command.x * scale + 8,
+                top: command.y * scale + 8,
+              }}
+            >
+              <span className="select-none text-base font-semibold text-[#697386]">
+                /
+              </span>
+              <input
+                ref={commandInputRef}
+                aria-label="Canvas command"
+                className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-[#18181b] outline-none placeholder:text-[#9aa3af]"
+                onChange={(event) => {
+                  setCommand((current) =>
+                    current
+                      ? {
+                          ...current,
+                          value: event.target.value,
+                        }
+                      : current,
+                  );
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setCommand(null);
+                  }
+                }}
+                placeholder="command"
+                value={command.value}
+              />
+            </form>
+          ) : null}
         </div>
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
