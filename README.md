@@ -1,13 +1,28 @@
 # Dashboard Canvas
 
-Prompt-driven dashboard prototyping built with Next.js, Groq, and OpenUI Lang.
+Demo frontend for an AI-native, whiteboard-based dashboard experience built with Next.js, Groq, and OpenUI Lang.
 
-The app gives you an infinite canvas where you can create generated dashboard widgets from short prompts. Each widget streams through two stages:
+The product idea is simple: dashboards should start from a question, not a chart builder.
+
+Instead of forcing users through fixed dashboard and chart-building flows, the app starts with a blank infinite canvas. Users press `/` anywhere on the canvas, type a natural language prompt, and the app generates a dashboard widget at that position. Widgets can then be arranged freely like blocks on a whiteboard.
+
+This project explores what dashboards could feel like for AI-native startups, where teams need better ways to understand what the AI layer is doing in the background: spend, token waste, failed runs, retries, model usage, oversized context, and operational tradeoffs that are hard to see in traditional BI tools.
+
+The current demo uses mock/demo data for UI prototyping. Each generated widget streams through two stages:
 
 1. Generate realistic preview data for the requested dashboard concept.
 2. Generate compact OpenUI Lang that renders the widget with the local component library.
 
-Widgets can be dragged, resized, retried, deleted, zoomed, and are persisted in browser `localStorage`.
+In the current demo, widgets can be generated, dragged, resized, retried, deleted, zoomed, and persisted in browser `localStorage`.
+
+## Example Prompts
+
+- `show our burn rate and runway`
+- `compare this month's spend with last month`
+- `show AI spend and token waste by workflow`
+- `break AI spend down by model`
+- `show wasted spend from failed runs, retries, and oversized context`
+- `forecast runway if AI spend grows 40% next month`
 
 ## Tech Stack
 
@@ -52,7 +67,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Usage
 
 - Move the pointer over the canvas and press `/` to open the command input at that location.
-- Enter a prompt such as `show burn rate by month` or `pipeline forecast by segment`.
+- Enter a prompt such as `show our burn rate and runway` or `show AI spend and token waste by workflow`.
 - Drag a widget by its header.
 - Resize a widget from the bottom-right handle.
 - Use the `+` and `-` controls, keyboard shortcuts, or trackpad pinch/zoom gestures to adjust zoom.
