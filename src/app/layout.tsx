@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Canvas",
-  description: "A clean canvas page with a subtle grid.",
+  title: "Dashboard Canvas",
+  description: "A prompt-driven canvas for generated dashboard widgets.",
 };
 
 export default function RootLayout({
