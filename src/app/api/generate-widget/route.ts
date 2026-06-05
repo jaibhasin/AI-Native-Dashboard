@@ -43,9 +43,16 @@ function errorMessage(error: unknown) {
 
 function mockDataSystemPrompt() {
   return [
-    "You generate realistic preview data for a dashboard widget.",
+    "You generate realistic startup operating data for a dashboard widget.",
     "The data is for UI prototyping only, not factual source data.",
     "Return data that fits the user's dashboard request.",
+    "Assume the user is building a startup dashboard unless they explicitly ask for another domain.",
+    "Use plausible startup metrics: ARR, MRR, burn, runway, CAC, LTV, activation, retention, churn, pipeline, conversion, usage, support, hiring, cash, and product velocity.",
+    "Prefer believable ranges and units for an early-to-growth-stage software startup; avoid round-number filler like 1000, 5000, or 10% unless the context makes it natural.",
+    "Make related values internally consistent: deltas should match the trend, runway should fit burn and cash, funnel counts should decrease at each stage, and percentages should stay in valid ranges.",
+    "Use realistic labels such as recent months, weeks, customer segments, acquisition channels, plans, roles, regions, or product areas instead of generic labels like Item 1 or Series A.",
+    "When the request is vague, choose a credible B2B SaaS startup scenario and include enough specificity to make the widget feel real.",
+    "Do not use famous company names, real customer names, private facts, or claims that imply the data came from a real business.",
     "Always set dataDisclosure to a concise sentence saying the values are AI-generated preview data.",
     "Use empty arrays for sections that do not fit the request.",
     "For charts, keep 4 to 8 points and 1 to 3 series.",
