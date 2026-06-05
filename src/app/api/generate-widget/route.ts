@@ -1,8 +1,12 @@
 import Groq from "groq-sdk";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { toJSONSchema } from "zod/v4";
-import { exampleWidgetDataSchema, type ExampleWidgetData } from "@/lib/dashboard-schemas";
+import { ZodError, toJSONSchema } from "zod/v4";
+import {
+  exampleWidgetDataSchema,
+  type ExampleWidgetData,
+  type Tone,
+} from "@/lib/dashboard-schemas";
 import type { WidgetStreamEvent } from "@/lib/widget-stream";
 
 export const runtime = "nodejs";
@@ -26,6 +30,10 @@ function streamEvent(controller: ReadableStreamDefaultController, event: WidgetS
 }
 
 function errorMessage(error: unknown) {
+  if (error instanceof ZodError) {
+    return "The generated preview data was not usable. Please retry the widget.";
+  }
+
   if (error instanceof Error) {
     return error.message;
   }
@@ -60,7 +68,240 @@ function openuiUserPrompt(prompt: string, exampleData: ExampleWidgetData) {
   ].join("\n");
 }
 
-async function createExampleData(groq: Groq, prompt: string) {
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asArray(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
+function asString(value: unknown, fallback = "") {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return fallback;
+}
+
+function asNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[$,%\s,]/g, ""));
+
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function normalizeTone(value: unknown): Tone {
+  return value === "positive" || value === "negative" || value === "warning" || value === "neutral"
+    ? value
+    : "neutral";
+}
+
+function normalizeMetrics(value: unknown) {
+  return asArray(value).map((item) => {
+    const record = asRecord(item);
+
+    return {
+      label: asString(record.label ?? record.name ?? record.metric, "Metric"),
+      value: asString(record.value ?? record.amount ?? record.count, "0"),
+      delta: asString(record.delta ?? record.change),
+      tone: normalizeTone(record.tone ?? record.status),
+    };
+  });
+}
+
+function normalizeInsights(value: unknown) {
+  return asArray(value).map((item) => {
+    const record = asRecord(item);
+
+    return {
+      label: asString(record.label ?? record.title ?? record.name, "Insight"),
+      detail: asString(record.detail ?? record.description ?? record.value, ""),
+      tone: normalizeTone(record.tone ?? record.status),
+    };
+  });
+}
+
+function normalizeTable(value: unknown) {
+  const record = asRecord(value);
+  const columns = asArray(record.columns).map((column) => asString(column)).filter(Boolean);
+  const rows = asArray(record.rows).map((row) => {
+    if (Array.isArray(row)) {
+      return {
+        cells: row.map((cell) => asString(cell)),
+      };
+    }
+
+    const rowRecord = asRecord(row);
+    const cells = Array.isArray(rowRecord.cells)
+      ? rowRecord.cells.map((cell) => asString(cell))
+      : columns.map((column) => asString(rowRecord[column]));
+
+    return {
+      cells,
+    };
+  });
+
+  return {
+    title: asString(record.title),
+    columns,
+    rows,
+  };
+}
+
+function normalizeFormFields(value: unknown) {
+  return asArray(value).map((item) => {
+    const record = asRecord(item);
+    const type = record.type === "number" || record.type === "date" || record.type === "select" ? record.type : "text";
+
+    return {
+      label: asString(record.label ?? record.name, "Field"),
+      placeholder: asString(record.placeholder ?? record.example),
+      type,
+    };
+  });
+}
+
+function normalizeTimeSeries(value: unknown) {
+  const record = asRecord(value);
+  const rawPoints = asArray(record.points ?? record.data ?? record.rows);
+  const inferredSeriesLabels: string[] = [];
+
+  const points = rawPoints.map((point, pointIndex) => {
+    const pointRecord = asRecord(point);
+    const label = asString(
+      pointRecord.label ?? pointRecord.month ?? pointRecord.week ?? pointRecord.day ?? pointRecord.date ?? pointRecord.name,
+      `Point ${pointIndex + 1}`,
+    );
+
+    if (Array.isArray(pointRecord.values)) {
+      return {
+        label,
+        values: pointRecord.values.map(asNumber).filter((item): item is number => item !== null),
+      };
+    }
+
+    const numericEntries = Object.entries(pointRecord).filter(([key, entryValue]) => {
+      return (
+        !["label", "month", "week", "day", "date", "name"].includes(key) &&
+        asNumber(entryValue) !== null
+      );
+    });
+
+    numericEntries.forEach(([key]) => {
+      if (!inferredSeriesLabels.includes(key)) {
+        inferredSeriesLabels.push(key);
+      }
+    });
+
+    return {
+      label,
+      values: numericEntries.map(([, entryValue]) => asNumber(entryValue) ?? 0),
+    };
+  });
+
+  const rawSeries = asArray(record.series);
+  const series =
+    rawSeries.length > 0
+      ? rawSeries.map((item, index) => {
+          const seriesRecord = asRecord(item);
+
+          return {
+            label: asString(seriesRecord.label ?? seriesRecord.name ?? item, `Series ${index + 1}`),
+            tone: normalizeTone(seriesRecord.tone),
+          };
+        })
+      : (inferredSeriesLabels.length > 0 ? inferredSeriesLabels : ["Value"]).map((label, index) => ({
+          label,
+          tone: normalizeTone(index === 0 ? "neutral" : undefined),
+        }));
+
+  return {
+    title: asString(record.title),
+    series,
+    points,
+    projectionStartIndex: asNumber(record.projectionStartIndex) ?? -1,
+  };
+}
+
+function normalizeRecommendedVisualization(value: unknown) {
+  const normalized = asString(value, "composite").toLowerCase().replace(/[\s-]+/g, "_");
+
+  if (normalized.includes("metric") || normalized.includes("kpi")) {
+    return "metrics";
+  }
+
+  if (normalized.includes("line")) {
+    return "line_chart";
+  }
+
+  if (normalized.includes("bar") || normalized.includes("column")) {
+    return "bar_chart";
+  }
+
+  if (normalized.includes("table") || normalized.includes("list")) {
+    return "table";
+  }
+
+  if (normalized.includes("insight")) {
+    return "insights";
+  }
+
+  if (normalized.includes("form")) {
+    return "form";
+  }
+
+  return normalized === "metrics" ||
+    normalized === "line_chart" ||
+    normalized === "bar_chart" ||
+    normalized === "table" ||
+    normalized === "insights" ||
+    normalized === "form" ||
+    normalized === "composite"
+    ? normalized
+    : "composite";
+}
+
+function normalizeExampleData(value: unknown) {
+  const record = asRecord(value);
+
+  return {
+    title: asString(record.title, "Generated widget"),
+    subtitle: asString(record.subtitle),
+    dataDisclosure: asString(record.dataDisclosure, "Values are AI-generated preview data."),
+    recommendedVisualization: normalizeRecommendedVisualization(record.recommendedVisualization),
+    metrics: normalizeMetrics(record.metrics),
+    timeSeries: normalizeTimeSeries(record.timeSeries ?? record.chart),
+    table: normalizeTable(record.table),
+    insights: normalizeInsights(record.insights),
+    formFields: normalizeFormFields(record.formFields ?? record.fields),
+  };
+}
+
+function parseExampleData(content: string | null | undefined) {
+  if (!content) {
+    throw new Error("Groq returned no example data.");
+  }
+
+  return exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(content)));
+}
+
+async function createStrictExampleData(groq: Groq, prompt: string) {
   const schema = toJSONSchema(exampleWidgetDataSchema);
 
   const completion = await groq.chat.completions.create({
@@ -87,13 +328,43 @@ async function createExampleData(groq: Groq, prompt: string) {
     temperature: 0.2,
   });
 
-  const content = completion.choices[0]?.message.content;
+  return parseExampleData(completion.choices[0]?.message.content);
+}
 
-  if (!content) {
-    throw new Error("Groq returned no example data.");
+async function createJsonObjectExampleData(groq: Groq, prompt: string) {
+  const completion = await groq.chat.completions.create({
+    model: process.env.GROQ_MOCK_DATA_MODEL || DEFAULT_MOCK_DATA_MODEL,
+    messages: [
+      {
+        role: "system",
+        content: [
+          mockDataSystemPrompt(),
+          "Return only valid JSON matching this TypeScript shape:",
+          "{ title: string, subtitle: string, dataDisclosure: string, recommendedVisualization: string, metrics: Metric[], timeSeries: { title: string, series: Series[], points: Point[], projectionStartIndex: number }, table: { title: string, columns: string[], rows: { cells: string[] }[] }, insights: Insight[], formFields: FormField[] }",
+          "All keys are required. Use empty arrays and empty strings where a section is not relevant.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+    response_format: {
+      type: "json_object",
+    },
+    reasoning_effort: "low",
+    temperature: 0.2,
+  });
+
+  return parseExampleData(completion.choices[0]?.message.content);
+}
+
+async function createExampleData(groq: Groq, prompt: string) {
+  try {
+    return await createStrictExampleData(groq, prompt);
+  } catch {
+    return createJsonObjectExampleData(groq, prompt);
   }
-
-  return exampleWidgetDataSchema.parse(JSON.parse(content));
 }
 
 async function streamOpenUI(

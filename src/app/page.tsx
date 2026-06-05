@@ -17,13 +17,17 @@ import { canvasWidgetSchema, type CanvasWidget } from "@/lib/dashboard-schemas";
 import type { WidgetStreamEvent } from "@/lib/widget-stream";
 import { dashboardRenderLibrary } from "@/openui/dashboard-render-library";
 
-const CANVAS_WIDTH = 3600;
-const CANVAS_HEIGHT = 2400;
+const LEGACY_CANVAS_WIDTH = 3600;
+const LEGACY_CANVAS_HEIGHT = 2400;
+const CANVAS_WIDTH = 200000;
+const CANVAS_HEIGHT = 200000;
+const CANVAS_CENTER_X = CANVAS_WIDTH / 2;
+const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2;
 const GRID_SIZE = 24;
 const MAJOR_GRID_SIZE = 120;
 const MIN_ZOOM = 50;
 const MAX_ZOOM = 200;
-const ZOOM_STEP = 10;
+const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
 const MIN_WIDGET_WIDTH = 280;
@@ -69,6 +73,24 @@ function createWidgetId() {
   return globalThis.crypto?.randomUUID?.() ?? `widget-${Date.now()}-${Math.random()}`;
 }
 
+function migrateLegacyWidgetPosition(widget: CanvasWidget) {
+  const isLegacyPosition =
+    widget.x >= 0 &&
+    widget.x <= LEGACY_CANVAS_WIDTH &&
+    widget.y >= 0 &&
+    widget.y <= LEGACY_CANVAS_HEIGHT;
+
+  if (!isLegacyPosition) {
+    return widget;
+  }
+
+  return {
+    ...widget,
+    x: widget.x + CANVAS_CENTER_X - LEGACY_CANVAS_WIDTH / 2,
+    y: widget.y + CANVAS_CENTER_Y - LEGACY_CANVAS_HEIGHT / 2,
+  };
+}
+
 function parseStoredWidgets() {
   if (typeof window === "undefined") {
     return [];
@@ -83,15 +105,17 @@ function parseStoredWidgets() {
   try {
     const widgets = z.array(canvasWidgetSchema).parse(JSON.parse(stored));
 
-    return widgets.map((widget) =>
-      widget.status === "streaming"
+    return widgets.map((widget) => {
+      const migratedWidget = migrateLegacyWidgetPosition(widget);
+
+      return migratedWidget.status === "streaming"
         ? {
-            ...widget,
+            ...migratedWidget,
             status: "error" as const,
             error: "Generation was interrupted. Retry this widget to continue.",
           }
-        : widget,
-    );
+        : migratedWidget;
+    });
   } catch {
     return [];
   }
@@ -223,7 +247,14 @@ function WidgetFrame({
         <div className="flex min-h-0 w-full flex-col">
           <header
             className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-[#e5e7eb] bg-white px-2.5 active:cursor-grabbing"
-            onPointerDown={(event) =>
+            onPointerDown={(event) => {
+              if (
+                event.target instanceof HTMLElement &&
+                event.target.closest("[data-widget-control]")
+              ) {
+                return;
+              }
+
               onStartInteraction(event, {
                 id: widget.id,
                 startClientX: event.clientX,
@@ -231,8 +262,8 @@ function WidgetFrame({
                 startX: widget.x,
                 startY: widget.y,
                 type: "drag",
-              })
-            }
+              });
+            }}
           >
             <GripVertical className="h-4 w-4 shrink-0 text-[#9aa3af]" />
             <div className="min-w-0 flex-1">
@@ -246,6 +277,7 @@ function WidgetFrame({
               <button
                 aria-label="Retry widget"
                 className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+                data-widget-control
                 onClick={(event) => {
                   event.stopPropagation();
                   onRetry(widget);
@@ -259,6 +291,7 @@ function WidgetFrame({
             <button
               aria-label="Delete widget"
               className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+              data-widget-control
               onClick={(event) => {
                 event.stopPropagation();
                 onDelete(widget.id);
@@ -277,6 +310,7 @@ function WidgetFrame({
           <button
             aria-label="Resize widget"
             className="absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[#d4d8df] bg-white/90 text-[#71717a] shadow-sm"
+            data-widget-control
             onPointerDown={(event) =>
               onStartInteraction(event, {
                 id: widget.id,
@@ -301,10 +335,11 @@ function WidgetFrame({
 export default function Home() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
+  const zoomRef = useRef(100);
   const cursorRef = useRef({
     inside: false,
-    x: CANVAS_WIDTH / 2,
-    y: CANVAS_HEIGHT / 2,
+    x: CANVAS_CENTER_X,
+    y: CANVAS_CENTER_Y,
   });
   const panRef = useRef({
     active: false,
@@ -335,6 +370,21 @@ export default function Home() {
   useEffect(() => {
     setWidgets(parseStoredWidgets());
     setHasHydratedWidgets(true);
+  }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const viewport = viewportRef.current;
+
+      if (!viewport || viewport.scrollLeft !== 0 || viewport.scrollTop !== 0) {
+        return;
+      }
+
+      viewport.scrollLeft = CANVAS_CENTER_X - viewport.clientWidth / 2;
+      viewport.scrollTop = CANVAS_CENTER_Y - viewport.clientHeight / 2;
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
@@ -415,19 +465,22 @@ export default function Home() {
     (nextValue: number, anchor?: { x: number; y: number }) => {
       const nextZoom = clampZoom(nextValue);
       const viewport = viewportRef.current;
+      const currentZoom = zoomRef.current;
 
-      if (!viewport || nextZoom === zoom) {
+      if (!viewport || nextZoom === currentZoom) {
+        zoomRef.current = nextZoom;
         setZoom(nextZoom);
         return;
       }
 
-      const currentScale = zoom / 100;
+      const currentScale = currentZoom / 100;
       const nextScale = nextZoom / 100;
       const anchorX = anchor?.x ?? viewport.clientWidth / 2;
       const anchorY = anchor?.y ?? viewport.clientHeight / 2;
       const worldX = (viewport.scrollLeft + anchorX) / currentScale;
       const worldY = (viewport.scrollTop + anchorY) / currentScale;
 
+      zoomRef.current = nextZoom;
       setZoom(nextZoom);
 
       requestAnimationFrame(() => {
@@ -441,7 +494,7 @@ export default function Home() {
         nextViewport.scrollTop = worldY * nextScale - anchorY;
       });
     },
-    [zoom],
+    [],
   );
 
   const canvasStyle = useMemo<CSSProperties>(() => {
@@ -610,24 +663,21 @@ export default function Home() {
 
   const handleWheel = useCallback(
     (event: WheelEvent<HTMLDivElement>) => {
-      if (
-        (!event.ctrlKey && !event.metaKey) ||
-        (event.target instanceof HTMLElement && event.target.closest("[data-widget]"))
-      ) {
+      if (!event.ctrlKey && !event.metaKey) {
         return;
       }
 
       event.preventDefault();
 
       const rect = event.currentTarget.getBoundingClientRect();
-      const direction = event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+      const nextZoom = zoomRef.current * Math.exp(-event.deltaY * ZOOM_SENSITIVITY);
 
-      setCanvasZoom(zoom + direction, {
+      setCanvasZoom(nextZoom, {
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
       });
     },
-    [setCanvasZoom, zoom],
+    [setCanvasZoom],
   );
 
   const startWidgetInteraction = useCallback(
@@ -736,7 +786,7 @@ export default function Home() {
       <section className="relative h-[calc(100vh-1.5rem)] overflow-hidden rounded-lg border border-[#dde1e7] bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:h-[calc(100vh-2.5rem)]">
         <div
           ref={viewportRef}
-          className={`absolute inset-0 overflow-auto bg-white [scrollbar-gutter:stable] ${
+          className={`absolute inset-0 overflow-auto bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
             isPanning ? "cursor-grabbing" : "cursor-grab"
           }`}
           onPointerCancel={endPointerInteraction}
@@ -821,40 +871,6 @@ export default function Home() {
           <span className="text-xs font-medium text-[#71717a]">{widgets.length} widgets</span>
         </div>
 
-        <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/90 p-1.5 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
-          <button
-            aria-label="Zoom out"
-            className="grid h-8 w-8 place-items-center rounded border border-[#e2e5ea] bg-white text-base leading-none transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={zoom === MIN_ZOOM}
-            onClick={() => setCanvasZoom(zoom - ZOOM_STEP)}
-            type="button"
-          >
-            -
-          </button>
-
-          <input
-            aria-label="Zoom level"
-            className="h-8 w-24 accent-[#18181b]"
-            max={MAX_ZOOM}
-            min={MIN_ZOOM}
-            onChange={(event) => setCanvasZoom(Number(event.target.value))}
-            step={ZOOM_STEP}
-            type="range"
-            value={zoom}
-          />
-
-          <div className="min-w-12 text-center tabular-nums">{zoom}%</div>
-
-          <button
-            aria-label="Zoom in"
-            className="grid h-8 w-8 place-items-center rounded border border-[#e2e5ea] bg-white text-base leading-none transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={zoom === MAX_ZOOM}
-            onClick={() => setCanvasZoom(zoom + ZOOM_STEP)}
-            type="button"
-          >
-            +
-          </button>
-        </div>
       </section>
     </main>
   );
