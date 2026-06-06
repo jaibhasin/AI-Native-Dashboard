@@ -60,6 +60,18 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Git Commits and Messages
+
+**Make sensible checkpoint commits. Keep messages human and project-focused.**
+
+When working with Git:
+- Create commits whenever a coherent unit of work is complete and verified.
+- Before committing, inspect `git status` and avoid including unrelated user changes.
+- Keep each commit scoped to one completed task or checkpoint.
+- Do not wait for the user to ask before committing if a commit would preserve useful progress.
+- Do not mention Codex, AI, agents, or automated assistance in commit messages.
+- Write commit messages as if they came from a project maintainer.
+- Prefer concise imperative messages, for example: `Add widget retry state` or `Fix dashboard prompt generation`.
+
 ---
-Dont mention Codex in github commit messages
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
