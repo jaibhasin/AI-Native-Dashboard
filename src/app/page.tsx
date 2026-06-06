@@ -32,9 +32,16 @@ const MAX_ZOOM = 200;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
+const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
+const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
 const MIN_WIDGET_WIDTH = 280;
 const MIN_WIDGET_HEIGHT = 200;
 const STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
+
+type ElementSize = {
+  height: number;
+  width: number;
+};
 
 type CommandState = {
   x: number;
@@ -146,6 +153,17 @@ function parserErrorKey(errors: OpenUIError[]) {
   return errors.map((error) => `${error.source}:${error.code}:${error.message}`).join("|");
 }
 
+function measuredSize(element: HTMLElement, minimum: ElementSize) {
+  return {
+    height: Math.max(minimum.height, element.offsetHeight, element.scrollHeight),
+    width: Math.max(minimum.width, element.offsetWidth, element.scrollWidth),
+  };
+}
+
+function sameSize(left: ElementSize, right: ElementSize) {
+  return left.height === right.height && left.width === right.width;
+}
+
 function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   return (
     <div className="h-full bg-[#fbfcfe] p-4">
@@ -183,6 +201,55 @@ function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
 
 const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }) {
   const [renderErrors, setRenderErrors] = useState<OpenUIError[]>([]);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [bodySize, setBodySize] = useState<ElementSize>({ height: 0, width: 0 });
+  const [stageSize, setStageSize] = useState<ElementSize>({
+    height: OPENUI_STAGE_MIN_HEIGHT,
+    width: OPENUI_STAGE_WIDTH,
+  });
+
+  useLayoutEffect(() => {
+    const bodyElement = bodyRef.current;
+    const stageElement = stageRef.current;
+
+    if (!bodyElement || !stageElement) {
+      return;
+    }
+
+    const updateSizes = () => {
+      const nextBodySize = {
+        height: bodyElement.clientHeight,
+        width: bodyElement.clientWidth,
+      };
+      const nextStageSize = measuredSize(stageElement, {
+        height: OPENUI_STAGE_MIN_HEIGHT,
+        width: OPENUI_STAGE_WIDTH,
+      });
+
+      setBodySize((current) => (sameSize(current, nextBodySize) ? current : nextBodySize));
+      setStageSize((current) => (sameSize(current, nextStageSize) ? current : nextStageSize));
+    };
+
+    updateSizes();
+
+    if (typeof ResizeObserver === "undefined") {
+      const frame = requestAnimationFrame(updateSizes);
+
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const observer = new ResizeObserver(updateSizes);
+    observer.observe(bodyElement);
+    observer.observe(stageElement);
+
+    const frame = requestAnimationFrame(updateSizes);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [widget.openuiSource]);
 
   if (widget.status === "error") {
     return (
@@ -199,18 +266,47 @@ const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }
     return <StreamingSkeleton widget={widget} />;
   }
 
+  const contentScale =
+    bodySize.width > 0 && bodySize.height > 0
+      ? Math.min(bodySize.width / stageSize.width, bodySize.height / stageSize.height)
+      : 1;
+
   return (
-    <div className="relative h-full overflow-hidden bg-[#fbfcfe]">
-      <Renderer
-        isStreaming={widget.status === "streaming"}
-        library={dashboardRenderLibrary}
-        onError={(errors) => {
-          setRenderErrors((current) =>
-            parserErrorKey(current) === parserErrorKey(errors) ? current : errors,
-          );
+    <div
+      ref={bodyRef}
+      className="relative grid h-full place-items-center overflow-hidden bg-[#fbfcfe]"
+      data-openui-fit-body
+    >
+      <div
+        className="relative"
+        data-openui-fit-shell
+        style={{
+          height: stageSize.height * contentScale,
+          width: stageSize.width * contentScale,
         }}
-        response={widget.openuiSource}
-      />
+      >
+        <div
+          ref={stageRef}
+          data-openui-fit-stage
+          style={{
+            minHeight: OPENUI_STAGE_MIN_HEIGHT,
+            transform: `scale(${contentScale})`,
+            transformOrigin: "top left",
+            width: OPENUI_STAGE_WIDTH,
+          }}
+        >
+          <Renderer
+            isStreaming={widget.status === "streaming"}
+            library={dashboardRenderLibrary}
+            onError={(errors) => {
+              setRenderErrors((current) =>
+                parserErrorKey(current) === parserErrorKey(errors) ? current : errors,
+              );
+            }}
+            response={widget.openuiSource}
+          />
+        </div>
+      </div>
       {renderErrors.length ? (
         <div className="absolute bottom-2 left-2 right-2 rounded border border-[#fed7aa] bg-[#fff7ed] px-2 py-1 text-[11px] font-medium text-[#9a3412] shadow-sm">
           Some generated UI was ignored: {renderErrors[0]?.message}

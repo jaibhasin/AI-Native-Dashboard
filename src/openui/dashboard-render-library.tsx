@@ -258,13 +258,13 @@ const DataTable = defineComponent({
     const rows = asArray(props.rows).slice(0, 8);
 
     return (
-      <div className="overflow-hidden rounded-md border border-[#e5e7eb] bg-white">
+      <div className="rounded-md border border-[#e5e7eb] bg-white">
         {props.title ? (
           <div className="border-b border-[#e5e7eb] px-3 py-2 text-sm font-semibold text-[#18181b]">
             {props.title}
           </div>
         ) : null}
-        <div className="max-h-[180px] overflow-auto">
+        <div>
           <table className="w-full border-collapse text-left text-xs">
             <thead className="sticky top-0 bg-[#f8fafc] text-[#52525b]">
               <tr>
@@ -385,7 +385,7 @@ const DashboardWidget = defineComponent({
     blocks: z.array(DashboardBlock),
   }),
   component: ({ props, renderNode }) => (
-    <div className="flex h-full min-h-0 flex-col bg-[#fbfcfe]">
+    <div className="flex min-h-[320px] flex-col bg-[#fbfcfe]">
       <div className="border-b border-[#eef0f3] px-4 py-3">
         <div className="truncate text-base font-semibold text-[#18181b]">{props.title}</div>
         {props.subtitle ? <div className="mt-0.5 truncate text-xs text-[#71717a]">{props.subtitle}</div> : null}
@@ -393,7 +393,7 @@ const DashboardWidget = defineComponent({
           {props.dataDisclosure}
         </div>
       </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">{renderNode(props.blocks)}</div>
+      <div className="flex-1 space-y-2 p-3">{renderNode(props.blocks)}</div>
     </div>
   ),
 });
