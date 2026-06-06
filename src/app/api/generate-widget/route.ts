@@ -64,7 +64,7 @@ function errorMessage(error: unknown) {
 function resolveProvider(value: unknown): AIProvider {
   const parsed = aiProviderSchema.safeParse(value);
 
-  return parsed.success ? parsed.data : "openai";
+  return parsed.success ? parsed.data : "groq";
 }
 
 function providerDisplayName(provider: AIProvider) {
