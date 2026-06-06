@@ -105,15 +105,17 @@ async function createChatCompletion(client: ModelClient, params: Record<string, 
 
 function mockDataSystemPrompt() {
   return [
-    "You generate realistic startup operating data for a dashboard widget.",
+    "You generate realistic AI-native startup operating data for a dashboard widget.",
     "The data is for UI prototyping only, not factual source data.",
     "Return data that fits the user's dashboard request.",
-    "Assume the user is building a startup dashboard unless they explicitly ask for another domain.",
-    "Use plausible startup metrics: ARR, MRR, burn, runway, CAC, LTV, activation, retention, churn, pipeline, conversion, usage, support, hiring, cash, and product velocity.",
+    "Assume the user is building a dashboard for a fast-growing AI startup unless they explicitly ask for another domain.",
+    "Use plausible startup metrics: ARR, MRR, burn, runway, CAC, LTV, activation, retention, churn, pipeline, conversion, usage, support, hiring, cash, product velocity, AI infra spend, token waste, retry cost, context length, eval pass rate, model mix, agent runs, and token efficiency.",
+    "Make vague requests feel like an AI company trying to tokenmaxx: show how the team is reducing wasted tokens, oversized prompts, failed runs, retries, and expensive model usage while growing useful AI output.",
     "Prefer believable ranges and units for an early-to-growth-stage software startup; avoid round-number filler like 1000, 5000, or 10% unless the context makes it natural.",
+    "Avoid flat charts. Every timeSeries should show believable movement: ramps, seasonality, step changes, optimizations, or forecast changes. Do not repeat the same value across points unless the prompt explicitly asks for a constant baseline.",
     "Make related values internally consistent: deltas should match the trend, runway should fit burn and cash, funnel counts should decrease at each stage, and percentages should stay in valid ranges.",
-    "Use realistic labels such as recent months, weeks, customer segments, acquisition channels, plans, roles, regions, or product areas instead of generic labels like Item 1 or Series A.",
-    "When the request is vague, choose a credible B2B SaaS startup scenario and include enough specificity to make the widget feel real.",
+    "Use realistic labels such as recent months, weeks, customer segments, acquisition channels, plans, roles, regions, product areas, agent workflows, model families, context tiers, or customer cohorts instead of generic labels like Item 1 or Series A.",
+    "When the request is vague, choose a credible B2B AI SaaS scenario and include enough specificity to make the widget feel real.",
     "Do not use famous company names, real customer names, private facts, or claims that imply the data came from a real business.",
     "Always set dataDisclosure to a concise sentence saying the values are AI-generated preview data.",
     "For numeric dashboard requests, include both current metric values and a compact timeSeries whenever a recent trend is plausible.",
@@ -388,6 +390,349 @@ function normalizeRunwayForecast(data: ExampleWidgetData, prompt: string): Examp
   };
 }
 
+function promptHash(prompt: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < prompt.length; index += 1) {
+    hash ^= prompt.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function applyVariance(value: number, seed: number, amount = 0.07) {
+  const wave = Math.sin(seed * 12.9898) * 43758.5453;
+  const normalized = wave - Math.floor(wave);
+  const multiplier = 1 + (normalized * 2 - 1) * amount;
+
+  return Math.round(value * multiplier * 10) / 10;
+}
+
+function hasTokenMaxxingIntent(prompt: string) {
+  return /\b(ai|llm|model|token|tokens|context|prompt|agent|agents|eval|inference|run|runs|retry|retries|waste|spend|cost|usage|workflow|native)\b/i.test(
+    prompt,
+  );
+}
+
+function hasRevenueIntent(prompt: string) {
+  return /\b(arr|mrr|revenue|sales|bookings|growth|customers?|logos?|churn|retention|activation)\b/i.test(
+    prompt,
+  );
+}
+
+function hasPipelineIntent(prompt: string) {
+  return /\b(pipeline|funnel|leads?|opportunities|demo|demos|conversion|trial|sales)\b/i.test(prompt);
+}
+
+function hasBreakdownIntent(prompt: string) {
+  return /\b(table|list|breakdown|by model|by workflow|by channel|by segment|by team|details?)\b/i.test(prompt);
+}
+
+function isGenericLabel(value: string) {
+  return /^(item|series|metric|value|point)\s*\d*$/i.test(value.trim());
+}
+
+function timeSeriesIsFlat(data: ExampleWidgetData) {
+  const { points, series } = data.timeSeries;
+
+  if (points.length < 4 || series.length === 0) {
+    return true;
+  }
+
+  return series.every((_, seriesIndex) => {
+    const values = points
+      .map((point) => point.values[seriesIndex])
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+    if (values.length < 4) {
+      return true;
+    }
+
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const average = values.reduce((sum, value) => sum + Math.abs(value), 0) / values.length;
+
+    return max - min <= Math.max(1, average * 0.025);
+  });
+}
+
+function hasGenericTimeSeries(data: ExampleWidgetData) {
+  return (
+    data.timeSeries.series.some((series) => isGenericLabel(series.label)) ||
+    data.timeSeries.points.some((point) => isGenericLabel(point.label))
+  );
+}
+
+function aiNativeMetrics(seed: number): ExampleWidgetData["metrics"] {
+  return [
+    {
+      label: "AI infra spend",
+      value: `$${applyVariance(48.6, seed, 0.09)}k`,
+      delta: "+16.8% vs last 30d",
+      tone: "warning",
+    },
+    {
+      label: "Token waste",
+      value: `${applyVariance(21.4, seed + 1, 0.08)}%`,
+      delta: "-4.6pp after prompt trimming",
+      tone: "positive",
+    },
+    {
+      label: "Agent runs",
+      value: `${Math.round(applyVariance(184, seed + 2, 0.1))}k`,
+      delta: "+31.2% with eval gate on",
+      tone: "positive",
+    },
+    {
+      label: "Retry cost",
+      value: `$${applyVariance(8.7, seed + 3, 0.12)}k`,
+      delta: "+$1.1k from tool failures",
+      tone: "negative",
+    },
+  ];
+}
+
+function aiNativeTrend(seed: number): ExampleWidgetData["timeSeries"] {
+  const points = [
+    { label: "Jan", values: [31.8, 12.6, 4.1] },
+    { label: "Feb", values: [35.9, 13.8, 5.4] },
+    { label: "Mar", values: [41.7, 15.9, 6.8] },
+    { label: "Apr", values: [47.2, 17.4, 8.6] },
+    { label: "May", values: [45.5, 13.1, 7.2] },
+    { label: "Jun", values: [48.6, 10.4, 8.7] },
+  ].map((point, pointIndex) => ({
+    ...point,
+    values: point.values.map((value, valueIndex) => applyVariance(value, seed + pointIndex * 7 + valueIndex, 0.055)),
+  }));
+
+  return {
+    title: "AI Spend Quality",
+    series: [
+      { label: "Productive spend ($k)", tone: "positive" },
+      { label: "Wasted spend ($k)", tone: "negative" },
+      { label: "Retry/tool spend ($k)", tone: "warning" },
+    ],
+    points,
+    projectionStartIndex: -1,
+  };
+}
+
+function revenueTrend(seed: number): ExampleWidgetData["timeSeries"] {
+  const points = [
+    { label: "Jan", values: [212, 29.4] },
+    { label: "Feb", values: [238, 31.7] },
+    { label: "Mar", values: [263, 36.2] },
+    { label: "Apr", values: [301, 42.8] },
+    { label: "May", values: [337, 45.5] },
+    { label: "Jun", values: [386, 48.6] },
+  ].map((point, pointIndex) => ({
+    ...point,
+    values: point.values.map((value, valueIndex) => applyVariance(value, seed + pointIndex * 5 + valueIndex, 0.045)),
+  }));
+
+  return {
+    title: "MRR and AI Cost Base",
+    series: [
+      { label: "MRR ($k)", tone: "positive" },
+      { label: "AI infra spend ($k)", tone: "warning" },
+    ],
+    points,
+    projectionStartIndex: -1,
+  };
+}
+
+function pipelineTrend(seed: number): ExampleWidgetData["timeSeries"] {
+  const points = [
+    { label: "Website", values: [840, 126, 38] },
+    { label: "PLG", values: [612, 174, 51] },
+    { label: "Founder-led", values: [148, 62, 29] },
+    { label: "Partners", values: [96, 37, 16] },
+    { label: "Outbound", values: [384, 54, 12] },
+  ].map((point, pointIndex) => ({
+    ...point,
+    values: point.values.map((value, valueIndex) => Math.round(applyVariance(value, seed + pointIndex * 11 + valueIndex, 0.08))),
+  }));
+
+  return {
+    title: "AI Startup Funnel by Channel",
+    series: [
+      { label: "Qualified leads", tone: "neutral" },
+      { label: "Trials", tone: "warning" },
+      { label: "Paid conversions", tone: "positive" },
+    ],
+    points,
+    projectionStartIndex: -1,
+  };
+}
+
+function runwayStartupData(seed: number): ExampleWidgetData {
+  const cash = applyVariance(2.9, seed, 0.06);
+  const burn = applyVariance(312, seed + 1, 0.08);
+  const aiSpend = applyVariance(48.6, seed + 2, 0.08);
+  const points = [2.9, 2.58, 2.25, 1.91, 1.55, 1.18, 0.79, 0.39].map((value, index) => ({
+    label: monthLabel(index),
+    values: [Math.max(0, applyVariance(value, seed + index, 0.035))],
+  }));
+
+  return {
+    title: "AI Startup Runway",
+    subtitle: "Cash forecast at current hiring and model-spend plan",
+    dataDisclosure: "Values are AI-generated preview data.",
+    recommendedVisualization: "line_chart",
+    metrics: [
+      { label: "Cash balance", value: `$${cash}M`, delta: "8.7 months remaining", tone: "warning" },
+      { label: "Monthly burn", value: `$${Math.round(burn)}k`, delta: "+$34k vs last month", tone: "negative" },
+      { label: "AI infra spend", value: `$${aiSpend}k`, delta: "15.6% of burn", tone: "warning" },
+      { label: "Token waste", value: "21.4%", delta: "-4.6pp after routing", tone: "positive" },
+    ],
+    timeSeries: {
+      title: "Projected Cash Remaining",
+      series: [{ label: "Cash remaining ($M)", tone: "warning" }],
+      points,
+      projectionStartIndex: 1,
+    },
+    table: {
+      title: "Cash runway forecast",
+      columns: ["Month", "Cash remaining"],
+      rows: points.map((point) => ({ cells: [point.label, `$${point.values[0]}M`] })),
+    },
+    insights: [
+      {
+        label: "AI spend is material",
+        detail: "Model and agent infrastructure now explain roughly one sixth of monthly burn.",
+        tone: "warning",
+      },
+    ],
+    formFields: [],
+  };
+}
+
+function createAiNativeStartupData(prompt: string): ExampleWidgetData {
+  const seed = promptHash(prompt || "ai-native-startup");
+  const normalizedPrompt = prompt.toLowerCase();
+
+  if (isRunwayPrompt(prompt)) {
+    return runwayStartupData(seed);
+  }
+
+  const isPipeline = hasPipelineIntent(normalizedPrompt);
+  const isRevenue = hasRevenueIntent(normalizedPrompt) && !hasTokenMaxxingIntent(normalizedPrompt);
+  const timeSeries = isPipeline ? pipelineTrend(seed) : isRevenue ? revenueTrend(seed) : aiNativeTrend(seed);
+  const metrics: ExampleWidgetData["metrics"] = isRevenue
+    ? [
+        { label: "MRR", value: `$${applyVariance(386, seed, 0.05)}k`, delta: "+14.5% MoM", tone: "positive" },
+        { label: "Net revenue retention", value: `${applyVariance(128.4, seed + 1, 0.03)}%`, delta: "+3.1pp QoQ", tone: "positive" },
+        { label: "AI gross margin drag", value: `${applyVariance(6.8, seed + 2, 0.08)}pp`, delta: "-1.4pp after routing", tone: "positive" },
+        { label: "Enterprise logos", value: `${Math.round(applyVariance(42, seed + 3, 0.08))}`, delta: "+7 this quarter", tone: "positive" },
+      ]
+    : isPipeline
+      ? [
+          { label: "Qualified leads", value: `${Math.round(applyVariance(2080, seed, 0.07))}`, delta: "+22.1% MoM", tone: "positive" },
+          { label: "Trials started", value: `${Math.round(applyVariance(453, seed + 1, 0.08))}`, delta: "+18.4% MoM", tone: "positive" },
+          { label: "Paid conversion", value: `${applyVariance(7.0, seed + 2, 0.07)}%`, delta: "+1.2pp from eval sandbox", tone: "positive" },
+          { label: "CAC payback", value: `${applyVariance(8.9, seed + 3, 0.05)} mo`, delta: "-0.8 mo", tone: "positive" },
+        ]
+      : aiNativeMetrics(seed);
+
+  const table = hasBreakdownIntent(normalizedPrompt)
+    ? {
+        title: "Tokenmaxxing Breakdown",
+        columns: ["Workflow", "Monthly runs", "AI spend", "Waste rate"],
+        rows: [
+          { cells: ["Research agent", "62.4k", "$14.8k", "18.2%"] },
+          { cells: ["Support copilot", "48.1k", "$8.6k", "12.7%"] },
+          { cells: ["Code review agent", "31.9k", "$11.3k", "24.5%"] },
+          { cells: ["Sales enrichment", "24.7k", "$6.2k", "19.8%"] },
+          { cells: ["Eval harness", "16.5k", "$7.7k", "9.4%"] },
+        ],
+      }
+    : {
+        title: "",
+        columns: [],
+        rows: [],
+      };
+
+  return {
+    title: isPipeline ? "AI Startup Growth Funnel" : isRevenue ? "AI Startup Revenue Pulse" : "Tokenmaxxing Operating Pulse",
+    subtitle: isPipeline
+      ? "Lead-to-paid motion across AI-native acquisition channels"
+      : isRevenue
+        ? "Revenue growth with AI infrastructure margin pressure"
+        : "Spend, wasted tokens, and useful AI output for a scaling agent platform",
+    dataDisclosure: "Values are AI-generated preview data.",
+    recommendedVisualization: hasBreakdownIntent(normalizedPrompt) ? "composite" : "line_chart",
+    metrics,
+    timeSeries,
+    table,
+    insights: [
+      {
+        label: "Routing is paying back",
+        detail: "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+        tone: "positive",
+      },
+      {
+        label: "Retries remain expensive",
+        detail: "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+        tone: "warning",
+      },
+    ],
+    formFields: [],
+  };
+}
+
+function needsAiNativeStartupReplacement(data: ExampleWidgetData, prompt: string) {
+  if (data.formFields.length > 0) {
+    return false;
+  }
+
+  return (
+    timeSeriesIsFlat(data) ||
+    hasGenericTimeSeries(data) ||
+    (hasTokenMaxxingIntent(prompt) && !/\b(ai|token|model|agent|context|retry|waste|spend)\b/i.test(data.title + data.subtitle))
+  );
+}
+
+function mergeRequestedTable(source: ExampleWidgetData, fallback: ExampleWidgetData, prompt: string) {
+  if (source.table.columns.length > 0 && source.table.rows.length > 0 && !hasGenericTimeSeries(source)) {
+    return source.table;
+  }
+
+  if (hasBreakdownIntent(prompt)) {
+    return fallback.table;
+  }
+
+  return {
+    title: "",
+    columns: [],
+    rows: [],
+  };
+}
+
+function enrichAiNativeStartupData(data: ExampleWidgetData, prompt: string): ExampleWidgetData {
+  const runwayNormalizedData = normalizeRunwayForecast(data, prompt);
+
+  if (!needsAiNativeStartupReplacement(runwayNormalizedData, prompt)) {
+    return {
+      ...runwayNormalizedData,
+      dataDisclosure: runwayNormalizedData.dataDisclosure || "Values are AI-generated preview data.",
+    };
+  }
+
+  const fallback = createAiNativeStartupData(prompt);
+
+  return {
+    ...fallback,
+    title: runwayNormalizedData.title && !/^generated widget$/i.test(runwayNormalizedData.title)
+      ? runwayNormalizedData.title
+      : fallback.title,
+    subtitle: runwayNormalizedData.subtitle || fallback.subtitle,
+    dataDisclosure: runwayNormalizedData.dataDisclosure || fallback.dataDisclosure,
+    table: mergeRequestedTable(runwayNormalizedData, fallback, prompt),
+    formFields: runwayNormalizedData.formFields,
+  };
+}
+
 function normalizeTone(value: unknown): Tone {
   return value === "positive" || value === "negative" || value === "warning" || value === "neutral"
     ? value
@@ -580,7 +925,7 @@ function parseExampleData(content: string | null | undefined, provider: AIProvid
     throw new Error(`${providerDisplayName(provider)} returned no example data.`);
   }
 
-  return normalizeRunwayForecast(exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(content))), prompt);
+  return enrichAiNativeStartupData(exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(content))), prompt);
 }
 
 async function createStrictExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
