@@ -107,6 +107,7 @@ export const canvasWidgetSchema = z.object({
   status: z.enum(["streaming", "done", "error"]),
   createdAt: z.number(),
   updatedAt: z.number(),
+  contentFitKey: z.string().optional(),
   error: z.string().optional(),
 });
 

@@ -32,6 +32,7 @@ const MAX_ZOOM = 200;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
+const WIDGET_HEADER_HEIGHT = 44;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
 const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
 const MIN_WIDGET_WIDTH = 280;
@@ -98,6 +99,36 @@ function hasClosestElement(target: EventTarget | null, selector: string) {
 
 function createWidgetId() {
   return globalThis.crypto?.randomUUID?.() ?? `widget-${Date.now()}-${Math.random()}`;
+}
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(31, hash) + value.charCodeAt(index);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+function contentFitKey(openuiSource: string, stageSize: ElementSize) {
+  return [
+    openuiSource.length,
+    hashString(openuiSource),
+    Math.round(stageSize.width),
+    Math.round(stageSize.height),
+  ].join(":");
+}
+
+function fittedWidgetHeight(widget: CanvasWidget, stageSize: ElementSize) {
+  if (stageSize.width <= 0 || stageSize.height <= 0) {
+    return widget.height;
+  }
+
+  const targetBodyHeight = (widget.width * stageSize.height) / stageSize.width;
+  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight);
+
+  return Math.min(CANVAS_HEIGHT - widget.y, Math.max(MIN_WIDGET_HEIGHT, targetWidgetHeight));
 }
 
 function migrateLegacyWidgetPosition(widget: CanvasWidget) {
@@ -206,7 +237,13 @@ function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   );
 }
 
-const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }) {
+const WidgetBody = memo(function WidgetBody({
+  onContentMeasured,
+  widget,
+}: {
+  onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
+  widget: CanvasWidget;
+}) {
   const [renderErrors, setRenderErrors] = useState<OpenUIError[]>([]);
   const bodyRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -215,6 +252,7 @@ const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }
     height: OPENUI_STAGE_MIN_HEIGHT,
     width: OPENUI_STAGE_WIDTH,
   });
+  const [measuredStageSource, setMeasuredStageSource] = useState("");
 
   useLayoutEffect(() => {
     const bodyElement = bodyRef.current;
@@ -236,6 +274,7 @@ const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }
 
       setBodySize((current) => (sameSize(current, nextBodySize) ? current : nextBodySize));
       setStageSize((current) => (sameSize(current, nextStageSize) ? current : nextStageSize));
+      setMeasuredStageSource(widget.openuiSource);
     };
 
     updateSizes();
@@ -257,6 +296,14 @@ const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }
       observer.disconnect();
     };
   }, [widget.openuiSource]);
+
+  useEffect(() => {
+    if (measuredStageSource !== widget.openuiSource || widget.status !== "done" || !widget.openuiSource) {
+      return;
+    }
+
+    onContentMeasured(widget.id, widget.openuiSource, stageSize);
+  }, [measuredStageSource, onContentMeasured, stageSize, widget.id, widget.openuiSource, widget.status]);
 
   if (widget.status === "error") {
     return (
@@ -325,12 +372,14 @@ const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }
 
 function WidgetFrame({
   onDelete,
+  onContentMeasured,
   onRetry,
   onStartInteraction,
   scale,
   widget,
 }: {
   onDelete: (id: string) => void;
+  onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
   onRetry: (widget: CanvasWidget) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
   scale: number;
@@ -418,7 +467,7 @@ function WidgetFrame({
           </header>
 
           <div className="min-h-0 flex-1 overflow-hidden">
-            <WidgetBody widget={widget} />
+            <WidgetBody onContentMeasured={onContentMeasured} widget={widget} />
           </div>
 
           <button
@@ -481,6 +530,30 @@ export default function Home() {
   const deleteWidget = useCallback((id: string) => {
     setWidgets((current) => current.filter((widget) => widget.id !== id));
   }, []);
+
+  const fitWidgetToContent = useCallback(
+    (id: string, openuiSource: string, stageSize: ElementSize) => {
+      const nextContentFitKey = contentFitKey(openuiSource, stageSize);
+
+      updateWidget(id, (widget) => {
+        if (
+          widget.status !== "done" ||
+          widget.openuiSource !== openuiSource ||
+          widget.contentFitKey === nextContentFitKey
+        ) {
+          return widget;
+        }
+
+        return {
+          ...widget,
+          contentFitKey: nextContentFitKey,
+          height: fittedWidgetHeight(widget, stageSize),
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    [updateWidget],
+  );
 
   useEffect(() => {
     setWidgets(parseStoredWidgets());
@@ -741,6 +814,7 @@ export default function Home() {
     async (id: string, prompt: string) => {
       updateWidget(id, (widget) => ({
         ...widget,
+        contentFitKey: undefined,
         error: undefined,
         exampleData: null,
         openuiSource: "",
@@ -990,6 +1064,7 @@ export default function Home() {
               <WidgetFrame
                 key={widget.id}
                 onDelete={deleteWidget}
+                onContentMeasured={fitWidgetToContent}
                 onRetry={retryWidget}
                 onStartInteraction={startWidgetInteraction}
                 scale={scale}
