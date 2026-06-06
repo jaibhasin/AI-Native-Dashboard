@@ -1,12 +1,18 @@
-# Dashboard Canvas
+# AI Native Dashboard
 
-Demo frontend for an AI-native, whiteboard-based dashboard experience built with Next.js, Groq, and OpenUI Lang.
+Build AI dashboards by asking questions on a canvas.
 
 The product idea is simple: dashboards should start from a question, not a chart builder.
 
-Instead of forcing users through fixed dashboard and chart-building flows, the app starts with a blank infinite canvas. Users press `/` anywhere on the canvas, type a natural language prompt, and the app generates a dashboard widget at that position. Widgets can then be arranged freely like blocks on a whiteboard.
+Instead of forcing users through fixed BI flows, the app starts with a blank canvas. Users press `/`, ask for what they want to see, and the app creates a dashboard widget in that spot. Widgets can then be moved, resized, retried, or deleted.
 
-This project explores what dashboards could feel like for AI-native startups, where teams need better ways to understand what the AI layer is doing in the background: spend, token waste, failed runs, retries, model usage, oversized context, and operational tradeoffs that are hard to see in traditional BI tools.
+The best use case is helping AI-heavy teams see where money and time are going: model spend, token waste, failed runs, retries, oversized context, agent quality, and runway impact. The goal is to turn messy AI activity into clear business dashboards.
+
+## Demo
+
+Watch the demo video: [Loom walkthrough](https://www.loom.com/share/8104d4c2219244449c500233dc6534ea)
+
+## Current Prototype
 
 The current demo uses mock/demo data for UI prototyping. Each generated widget streams through two stages:
 
@@ -14,6 +20,8 @@ The current demo uses mock/demo data for UI prototyping. Each generated widget s
 2. Generate compact OpenUI Lang that renders the widget with the local component library.
 
 In the current demo, widgets can be generated, dragged, resized, retried, deleted, zoomed, and persisted in browser `localStorage`.
+
+This is not positioned as a generic AI chart generator. Generic "prompt to chart" features are likely to become table stakes inside BI tools. The more valuable direction is an AI-native operating dashboard that connects to real model, agent, product, finance, and workflow data.
 
 ## Example Prompts
 
@@ -23,6 +31,16 @@ In the current demo, widgets can be generated, dragged, resized, retried, delete
 - `break AI spend down by model`
 - `show wasted spend from failed runs, retries, and oversized context`
 - `forecast runway if AI spend grows 40% next month`
+
+## Product Direction
+
+The prototype becomes more valuable when it moves from generated preview data to real operating data. High-leverage next steps:
+
+- Connect real AI-layer sources such as OpenAI, Anthropic, Groq, Langfuse, Helicone, Vercel AI SDK logs, or internal agent traces.
+- Define a canonical AI operations event schema for model calls, workflow runs, retries, failures, evals, human escalations, and cost.
+- Add opinionated AI-native metrics: cost per workflow, retry waste, failed-run rate, context efficiency, model ROI, human escalation rate, and runway impact.
+- Let users ask questions that combine AI activity with business data from Stripe, QuickBooks, GitHub, Linear, or CRM systems.
+- Move from passive widgets to recommended actions, such as changing a model, capping context, adding an eval, or routing failed runs to a human.
 
 ## Tech Stack
 
