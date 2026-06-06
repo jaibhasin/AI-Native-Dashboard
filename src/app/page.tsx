@@ -78,6 +78,13 @@ function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 }
 
+function clampCanvasPoint(point: { x: number; y: number }) {
+  return {
+    x: Math.min(CANVAS_WIDTH, Math.max(0, point.x)),
+    y: Math.min(CANVAS_HEIGHT, Math.max(0, point.y)),
+  };
+}
+
 function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof Element &&
@@ -517,26 +524,43 @@ export default function Home() {
 
       cursorRef.current = {
         inside: true,
-        x: Math.min(CANVAS_WIDTH, Math.max(0, x)),
-        y: Math.min(CANVAS_HEIGHT, Math.max(0, y)),
+        ...clampCanvasPoint({ x, y }),
       };
     },
     [scale],
   );
 
-  const openCommandAtCursor = useCallback(() => {
-    const cursor = cursorRef.current;
+  const getVisibleCanvasCenter = useCallback(() => {
+    const viewport = viewportRef.current;
 
-    if (!cursor.inside) {
-      return;
+    if (!viewport) {
+      return {
+        x: CANVAS_CENTER_X,
+        y: CANVAS_CENTER_Y,
+      };
     }
 
+    return clampCanvasPoint({
+      x: (viewport.scrollLeft + viewport.clientWidth / 2) / scale,
+      y: (viewport.scrollTop + viewport.clientHeight / 2) / scale,
+    });
+  }, [scale]);
+
+  const openCommandAtCursor = useCallback(() => {
+    const cursor = cursorRef.current;
+    const position = cursor.inside
+      ? clampCanvasPoint({
+          x: cursor.x,
+          y: cursor.y,
+        })
+      : getVisibleCanvasCenter();
+
     setCommand({
-      x: cursor.x,
-      y: cursor.y,
+      x: position.x,
+      y: position.y,
       value: "",
     });
-  }, []);
+  }, [getVisibleCanvasCenter]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
