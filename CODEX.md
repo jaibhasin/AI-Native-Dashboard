@@ -66,10 +66,13 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 When working with Git:
 - Create commits whenever a coherent unit of work is complete and verified.
+- Do not put links or numeric PR/issue references in git messages.
 - Before committing, inspect `git status` and avoid including unrelated user changes.
 - Keep each commit scoped to one completed task or checkpoint.
 - Do not wait for the user to ask before committing if a commit would preserve useful progress.
 - Do not mention Codex, AI, agents, or automated assistance in commit messages.
+- Do not use bracketed assistant or tool prefixes in PR titles, commit messages, or user-facing summaries.
+- In final user messages, avoid PR/issue shorthand with hash numbers; use a plain link or descriptive text when a reference is needed.
 - Write commit messages as if they came from a project maintainer.
 - Prefer concise imperative messages, for example: `Add widget retry state` or `Fix dashboard prompt generation`.
 

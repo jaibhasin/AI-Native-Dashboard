@@ -118,12 +118,20 @@ function mockDataSystemPrompt() {
     "When the request is vague, choose a credible B2B AI SaaS scenario and include enough specificity to make the widget feel real.",
     "Do not use famous company names, real customer names, private facts, or claims that imply the data came from a real business.",
     "Always set dataDisclosure to a concise sentence saying the values are AI-generated preview data.",
-    "For numeric dashboard requests, include both current metric values and a compact timeSeries whenever a recent trend is plausible.",
-    "For spend, runway, burn, MRR, cash, retention, conversion, usage, support, and pipeline requests, populate timeSeries unless the user explicitly asks for only a single number or KPI card.",
+    "Set recommendedVisualization to the best primary layout: metrics, line_chart, bar_chart, table, insights, form, or composite.",
+    "Use metrics for KPI, scorecard, current value, or snapshot requests.",
+    "Use line_chart or bar_chart for trend, forecast, comparison, graph, or chart requests.",
+    "Use table for table, list, breakdown, details, or by-segment requests.",
+    "Use insights for analysis, why, recommendation, risk, anomaly, or opportunity requests.",
+    "Use form for requested forms, inputs, planners, or calculators.",
+    "Use composite only when the prompt clearly benefits from multiple complementary blocks.",
+    "For numeric trend requests, include both current metric values and a compact timeSeries whenever a recent trend is plausible.",
+    "Do not populate timeSeries just to force a chart when the user asks for a table, form, written analysis, or KPI snapshot.",
+    "For spend, runway, burn, MRR, cash, retention, conversion, usage, support, and pipeline trend requests, populate timeSeries unless the user explicitly asks for only a single number or KPI card.",
     "For runway or runway-left requests, make timeSeries a forward-looking cash runway forecast: future month labels on the x-axis and cash remaining/money left on the y-axis.",
     "For runway charts, do not chart monthly burn, spend, or money spent as the primary series; burn can appear only as a supporting metric card.",
-    "Use table only for explicit table, list, breakdown, or detail requests.",
-    "Keep insights brief and secondary. Use 0 to 2 insights, and do not rely on insights as the main content unless the user asks for written analysis.",
+    "Use table data for explicit table, list, breakdown, by-segment, or detail requests.",
+    "Keep insights brief. Use them as primary content only when the user asks for analysis, recommendations, risks, anomalies, or opportunities.",
     "Use empty arrays for sections that do not fit the request.",
     "For charts, keep 4 to 8 points and 1 to 3 series.",
     "For tables, keep 3 to 6 rows.",
@@ -141,13 +149,16 @@ function openuiUserPrompt(prompt: string, exampleData: ExampleWidgetData) {
     "",
     "Generate one compact OpenUI Lang widget from EXAMPLE_DATA.",
     "Use only values present in EXAMPLE_DATA.",
-    "Make the widget focused and graph-first for numeric dashboard requests.",
-    "If EXAMPLE_DATA.timeSeries.points has at least 2 points, include LineChart or BarChart as the primary visual block.",
-    "For current spend, runway left, MRR, burn, cash balance, retention, conversion, usage, support, and pipeline requests, use MetricGrid plus a chart when timeSeries data is available.",
+    "Choose the layout from USER_PROMPT and EXAMPLE_DATA.recommendedVisualization.",
+    "Use MetricGrid only for KPI, scorecard, current value, or snapshot requests, or as a supporting summary.",
+    "Use LineChart or BarChart for trend, forecast, comparison, graph, or chart requests.",
+    "Use DataTable as the primary block for table, list, breakdown, details, or by-segment requests.",
+    "Use InsightList as the primary block for analysis, why, recommendation, risk, anomaly, or opportunity requests.",
+    "Use FormPreview as the primary block for requested forms, inputs, planners, or calculators.",
+    "For composite requests, use two or three complementary blocks. Good stacks include MetricGrid plus DataTable, chart plus InsightList, MetricGrid plus chart, or DataTable plus InsightList.",
     "For runway left requests, the chart must show future months and cash remaining/money left, not burn or spend history.",
-    "Do not add DataTable unless the user explicitly asks for a table, breakdown, list, or details.",
-    "Use at most two blocks: usually MetricGrid plus LineChart/BarChart, or just the chart for explicit graph requests.",
-    "Use InsightList only when the user explicitly asks for written analysis or no chart/table/metric block fits.",
+    "Do not put MetricGrid before every widget. Add it only when current metrics help answer the prompt.",
+    "Use one to three blocks. Avoid repeating the same MetricGrid plus chart stack across unrelated prompts.",
     "Avoid text-heavy layouts. Keep titles, subtitles, labels, and disclosure short.",
     "Return only OpenUI Lang.",
   ].join("\n");
@@ -429,6 +440,43 @@ function hasBreakdownIntent(prompt: string) {
   return /\b(table|list|breakdown|by model|by workflow|by channel|by segment|by team|details?)\b/i.test(prompt);
 }
 
+function hasChartIntent(prompt: string) {
+  return /\b(chart|graph|trend|forecast|projection|compare|comparison|over time|time series|timeseries|history|monthly|weekly|daily|line|bar)\b/i.test(
+    prompt,
+  );
+}
+
+function hasInsightIntent(prompt: string) {
+  return /\b(insights?|analysis|analyze|why|explain|recommend|recommendation|risk|risks|anomal(y|ies)|opportunit(y|ies)|diagnose|summarize|summary)\b/i.test(
+    prompt,
+  );
+}
+
+function hasFormIntent(prompt: string) {
+  return /\b(form|input|intake|planner|calculator|configure|configuration|scenario planner|budget planner)\b/i.test(prompt);
+}
+
+function hasMetricSnapshotIntent(prompt: string) {
+  return /\b(kpis?|scorecard|snapshot|current|status|single number|single metric|metrics only|cards only)\b/i.test(prompt);
+}
+
+function emptyTimeSeries(): ExampleWidgetData["timeSeries"] {
+  return {
+    title: "",
+    series: [],
+    points: [],
+    projectionStartIndex: -1,
+  };
+}
+
+function emptyTable(): ExampleWidgetData["table"] {
+  return {
+    title: "",
+    columns: [],
+    rows: [],
+  };
+}
+
 function isGenericLabel(value: string) {
   return /^(item|series|metric|value|point)\s*\d*$/i.test(value.trim());
 }
@@ -611,6 +659,39 @@ function runwayStartupData(seed: number): ExampleWidgetData {
 function createAiNativeStartupData(prompt: string): ExampleWidgetData {
   const seed = promptHash(prompt || "ai-native-startup");
   const normalizedPrompt = prompt.toLowerCase();
+  const wantsForm = hasFormIntent(normalizedPrompt);
+  const wantsTable = hasBreakdownIntent(normalizedPrompt);
+  const wantsChart = hasChartIntent(normalizedPrompt);
+  const wantsInsights = hasInsightIntent(normalizedPrompt);
+  const wantsMetricsSnapshot = hasMetricSnapshotIntent(normalizedPrompt);
+
+  if (wantsForm) {
+    return {
+      title: "AI Spend Scenario Planner",
+      subtitle: "Inputs for forecasting model budget and waste",
+      dataDisclosure: "Values are AI-generated preview data.",
+      recommendedVisualization: "form",
+      metrics: [
+        { label: "Current AI spend", value: `$${applyVariance(48.6, seed, 0.09)}k`, delta: "Latest month", tone: "warning" },
+        { label: "Current waste rate", value: `${applyVariance(21.4, seed + 1, 0.08)}%`, delta: "-4.6pp after routing", tone: "positive" },
+      ],
+      timeSeries: emptyTimeSeries(),
+      table: emptyTable(),
+      insights: [
+        {
+          label: "Scenario inputs are directional",
+          detail: "Use these fields to preview budget sensitivity before connecting real billing data.",
+          tone: "neutral",
+        },
+      ],
+      formFields: [
+        { label: "Monthly agent runs", type: "number", placeholder: `${Math.round(applyVariance(184000, seed + 2, 0.1))}` },
+        { label: "Target waste rate", type: "number", placeholder: "12%" },
+        { label: "Model budget cap", type: "number", placeholder: "$52000" },
+        { label: "Review date", type: "date", placeholder: "2026-07-01" },
+      ],
+    };
+  }
 
   if (isRunwayPrompt(prompt)) {
     return runwayStartupData(seed);
@@ -618,7 +699,10 @@ function createAiNativeStartupData(prompt: string): ExampleWidgetData {
 
   const isPipeline = hasPipelineIntent(normalizedPrompt);
   const isRevenue = hasRevenueIntent(normalizedPrompt) && !hasTokenMaxxingIntent(normalizedPrompt);
-  const timeSeries = isPipeline ? pipelineTrend(seed) : isRevenue ? revenueTrend(seed) : aiNativeTrend(seed);
+  const baseTimeSeries = isPipeline ? pipelineTrend(seed) : isRevenue ? revenueTrend(seed) : aiNativeTrend(seed);
+  const timeSeries = wantsChart || (!wantsTable && !wantsInsights && !wantsMetricsSnapshot)
+    ? baseTimeSeries
+    : emptyTimeSeries();
   const metrics: ExampleWidgetData["metrics"] = isRevenue
     ? [
         { label: "MRR", value: `$${applyVariance(386, seed, 0.05)}k`, delta: "+14.5% MoM", tone: "positive" },
@@ -635,7 +719,7 @@ function createAiNativeStartupData(prompt: string): ExampleWidgetData {
         ]
       : aiNativeMetrics(seed);
 
-  const table = hasBreakdownIntent(normalizedPrompt)
+  const table = wantsTable
     ? {
         title: "Tokenmaxxing Breakdown",
         columns: ["Workflow", "Monthly runs", "AI spend", "Waste rate"],
@@ -647,11 +731,46 @@ function createAiNativeStartupData(prompt: string): ExampleWidgetData {
           { cells: ["Eval harness", "16.5k", "$7.7k", "9.4%"] },
         ],
       }
-    : {
-        title: "",
-        columns: [],
-        rows: [],
-      };
+    : emptyTable();
+  const insights: ExampleWidgetData["insights"] = wantsInsights
+    ? [
+        {
+          label: "Retries are the biggest avoidable cost",
+          detail: "Tool failures and oversized contexts create most of the wasted model spend.",
+          tone: "warning",
+        },
+        {
+          label: "Routing is paying back",
+          detail: "Cheaper model routing reduced waste while useful output tokens kept growing.",
+          tone: "positive",
+        },
+        {
+          label: "Review code agents first",
+          detail: "The highest retry rate sits in workflows with long context and brittle tool calls.",
+          tone: "negative",
+        },
+      ]
+    : [
+        {
+          label: "Routing is paying back",
+          detail: "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+          tone: "positive",
+        },
+        {
+          label: "Retries remain expensive",
+          detail: "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+          tone: "warning",
+        },
+      ];
+  const recommendedVisualization: ExampleWidgetData["recommendedVisualization"] = wantsTable
+    ? wantsChart
+      ? "composite"
+      : "table"
+    : wantsInsights && !wantsChart
+      ? "insights"
+      : wantsMetricsSnapshot && !wantsChart
+        ? "metrics"
+        : "line_chart";
 
   return {
     title: isPipeline ? "AI Startup Growth Funnel" : isRevenue ? "AI Startup Revenue Pulse" : "Tokenmaxxing Operating Pulse",
@@ -661,28 +780,26 @@ function createAiNativeStartupData(prompt: string): ExampleWidgetData {
         ? "Revenue growth with AI infrastructure margin pressure"
         : "Spend, wasted tokens, and useful AI output for a scaling agent platform",
     dataDisclosure: "Values are AI-generated preview data.",
-    recommendedVisualization: hasBreakdownIntent(normalizedPrompt) ? "composite" : "line_chart",
+    recommendedVisualization,
     metrics,
     timeSeries,
     table,
-    insights: [
-      {
-        label: "Routing is paying back",
-        detail: "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
-        tone: "positive",
-      },
-      {
-        label: "Retries remain expensive",
-        detail: "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
-        tone: "warning",
-      },
-    ],
+    insights,
     formFields: [],
   };
 }
 
 function needsAiNativeStartupReplacement(data: ExampleWidgetData, prompt: string) {
   if (data.formFields.length > 0) {
+    return false;
+  }
+
+  const hasRequestedNonChartData =
+    (data.recommendedVisualization === "table" && data.table.columns.length > 0 && data.table.rows.length > 0) ||
+    (data.recommendedVisualization === "insights" && data.insights.length > 0) ||
+    (data.recommendedVisualization === "metrics" && data.metrics.length > 0);
+
+  if (hasRequestedNonChartData) {
     return false;
   }
 
