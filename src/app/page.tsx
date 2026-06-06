@@ -32,9 +32,17 @@ const MAX_ZOOM = 200;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
+const WIDGET_HEADER_HEIGHT = 44;
+const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
+const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
 const MIN_WIDGET_WIDTH = 280;
 const MIN_WIDGET_HEIGHT = 200;
 const STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
+
+type ElementSize = {
+  height: number;
+  width: number;
+};
 
 type CommandState = {
   x: number;
@@ -71,6 +79,13 @@ function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 }
 
+function clampCanvasPoint(point: { x: number; y: number }) {
+  return {
+    x: Math.min(CANVAS_WIDTH, Math.max(0, point.x)),
+    y: Math.min(CANVAS_HEIGHT, Math.max(0, point.y)),
+  };
+}
+
 function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof Element &&
@@ -84,6 +99,36 @@ function hasClosestElement(target: EventTarget | null, selector: string) {
 
 function createWidgetId() {
   return globalThis.crypto?.randomUUID?.() ?? `widget-${Date.now()}-${Math.random()}`;
+}
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = Math.imul(31, hash) + value.charCodeAt(index);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+function contentFitKey(openuiSource: string, stageSize: ElementSize) {
+  return [
+    openuiSource.length,
+    hashString(openuiSource),
+    Math.round(stageSize.width),
+    Math.round(stageSize.height),
+  ].join(":");
+}
+
+function fittedWidgetHeight(widget: CanvasWidget, stageSize: ElementSize) {
+  if (stageSize.width <= 0 || stageSize.height <= 0) {
+    return widget.height;
+  }
+
+  const targetBodyHeight = (widget.width * stageSize.height) / stageSize.width;
+  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight);
+
+  return Math.min(CANVAS_HEIGHT - widget.y, Math.max(MIN_WIDGET_HEIGHT, targetWidgetHeight));
 }
 
 function migrateLegacyWidgetPosition(widget: CanvasWidget) {
@@ -146,6 +191,17 @@ function parserErrorKey(errors: OpenUIError[]) {
   return errors.map((error) => `${error.source}:${error.code}:${error.message}`).join("|");
 }
 
+function measuredSize(element: HTMLElement, minimum: ElementSize) {
+  return {
+    height: Math.max(minimum.height, element.offsetHeight, element.scrollHeight),
+    width: Math.max(minimum.width, element.offsetWidth, element.scrollWidth),
+  };
+}
+
+function sameSize(left: ElementSize, right: ElementSize) {
+  return left.height === right.height && left.width === right.width;
+}
+
 function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   return (
     <div className="h-full bg-[#fbfcfe] p-4">
@@ -181,8 +237,73 @@ function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   );
 }
 
-const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }) {
+const WidgetBody = memo(function WidgetBody({
+  onContentMeasured,
+  widget,
+}: {
+  onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
+  widget: CanvasWidget;
+}) {
   const [renderErrors, setRenderErrors] = useState<OpenUIError[]>([]);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [bodySize, setBodySize] = useState<ElementSize>({ height: 0, width: 0 });
+  const [stageSize, setStageSize] = useState<ElementSize>({
+    height: OPENUI_STAGE_MIN_HEIGHT,
+    width: OPENUI_STAGE_WIDTH,
+  });
+  const [measuredStageSource, setMeasuredStageSource] = useState("");
+
+  useLayoutEffect(() => {
+    const bodyElement = bodyRef.current;
+    const stageElement = stageRef.current;
+
+    if (!bodyElement || !stageElement) {
+      return;
+    }
+
+    const updateSizes = () => {
+      const nextBodySize = {
+        height: bodyElement.clientHeight,
+        width: bodyElement.clientWidth,
+      };
+      const nextStageSize = measuredSize(stageElement, {
+        height: OPENUI_STAGE_MIN_HEIGHT,
+        width: OPENUI_STAGE_WIDTH,
+      });
+
+      setBodySize((current) => (sameSize(current, nextBodySize) ? current : nextBodySize));
+      setStageSize((current) => (sameSize(current, nextStageSize) ? current : nextStageSize));
+      setMeasuredStageSource(widget.openuiSource);
+    };
+
+    updateSizes();
+
+    if (typeof ResizeObserver === "undefined") {
+      const frame = requestAnimationFrame(updateSizes);
+
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const observer = new ResizeObserver(updateSizes);
+    observer.observe(bodyElement);
+    observer.observe(stageElement);
+
+    const frame = requestAnimationFrame(updateSizes);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [widget.openuiSource]);
+
+  useEffect(() => {
+    if (measuredStageSource !== widget.openuiSource || widget.status !== "done" || !widget.openuiSource) {
+      return;
+    }
+
+    onContentMeasured(widget.id, widget.openuiSource, stageSize);
+  }, [measuredStageSource, onContentMeasured, stageSize, widget.id, widget.openuiSource, widget.status]);
 
   if (widget.status === "error") {
     return (
@@ -199,18 +320,47 @@ const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }
     return <StreamingSkeleton widget={widget} />;
   }
 
+  const contentScale =
+    bodySize.width > 0 && bodySize.height > 0
+      ? Math.min(bodySize.width / stageSize.width, bodySize.height / stageSize.height)
+      : 1;
+
   return (
-    <div className="relative h-full overflow-hidden bg-[#fbfcfe]">
-      <Renderer
-        isStreaming={widget.status === "streaming"}
-        library={dashboardRenderLibrary}
-        onError={(errors) => {
-          setRenderErrors((current) =>
-            parserErrorKey(current) === parserErrorKey(errors) ? current : errors,
-          );
+    <div
+      ref={bodyRef}
+      className="relative grid h-full place-items-center overflow-hidden bg-[#fbfcfe]"
+      data-openui-fit-body
+    >
+      <div
+        className="relative"
+        data-openui-fit-shell
+        style={{
+          height: stageSize.height * contentScale,
+          width: stageSize.width * contentScale,
         }}
-        response={widget.openuiSource}
-      />
+      >
+        <div
+          ref={stageRef}
+          data-openui-fit-stage
+          style={{
+            minHeight: OPENUI_STAGE_MIN_HEIGHT,
+            transform: `scale(${contentScale})`,
+            transformOrigin: "top left",
+            width: OPENUI_STAGE_WIDTH,
+          }}
+        >
+          <Renderer
+            isStreaming={widget.status === "streaming"}
+            library={dashboardRenderLibrary}
+            onError={(errors) => {
+              setRenderErrors((current) =>
+                parserErrorKey(current) === parserErrorKey(errors) ? current : errors,
+              );
+            }}
+            response={widget.openuiSource}
+          />
+        </div>
+      </div>
       {renderErrors.length ? (
         <div className="absolute bottom-2 left-2 right-2 rounded border border-[#fed7aa] bg-[#fff7ed] px-2 py-1 text-[11px] font-medium text-[#9a3412] shadow-sm">
           Some generated UI was ignored: {renderErrors[0]?.message}
@@ -222,12 +372,14 @@ const WidgetBody = memo(function WidgetBody({ widget }: { widget: CanvasWidget }
 
 function WidgetFrame({
   onDelete,
+  onContentMeasured,
   onRetry,
   onStartInteraction,
   scale,
   widget,
 }: {
   onDelete: (id: string) => void;
+  onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
   onRetry: (widget: CanvasWidget) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
   scale: number;
@@ -315,7 +467,7 @@ function WidgetFrame({
           </header>
 
           <div className="min-h-0 flex-1 overflow-hidden">
-            <WidgetBody widget={widget} />
+            <WidgetBody onContentMeasured={onContentMeasured} widget={widget} />
           </div>
 
           <button
@@ -379,6 +531,30 @@ export default function Home() {
     setWidgets((current) => current.filter((widget) => widget.id !== id));
   }, []);
 
+  const fitWidgetToContent = useCallback(
+    (id: string, openuiSource: string, stageSize: ElementSize) => {
+      const nextContentFitKey = contentFitKey(openuiSource, stageSize);
+
+      updateWidget(id, (widget) => {
+        if (
+          widget.status !== "done" ||
+          widget.openuiSource !== openuiSource ||
+          widget.contentFitKey === nextContentFitKey
+        ) {
+          return widget;
+        }
+
+        return {
+          ...widget,
+          contentFitKey: nextContentFitKey,
+          height: fittedWidgetHeight(widget, stageSize),
+          updatedAt: Date.now(),
+        };
+      });
+    },
+    [updateWidget],
+  );
+
   useEffect(() => {
     setWidgets(parseStoredWidgets());
     setHasHydratedWidgets(true);
@@ -421,26 +597,43 @@ export default function Home() {
 
       cursorRef.current = {
         inside: true,
-        x: Math.min(CANVAS_WIDTH, Math.max(0, x)),
-        y: Math.min(CANVAS_HEIGHT, Math.max(0, y)),
+        ...clampCanvasPoint({ x, y }),
       };
     },
     [scale],
   );
 
-  const openCommandAtCursor = useCallback(() => {
-    const cursor = cursorRef.current;
+  const getVisibleCanvasCenter = useCallback(() => {
+    const viewport = viewportRef.current;
 
-    if (!cursor.inside) {
-      return;
+    if (!viewport) {
+      return {
+        x: CANVAS_CENTER_X,
+        y: CANVAS_CENTER_Y,
+      };
     }
 
+    return clampCanvasPoint({
+      x: (viewport.scrollLeft + viewport.clientWidth / 2) / scale,
+      y: (viewport.scrollTop + viewport.clientHeight / 2) / scale,
+    });
+  }, [scale]);
+
+  const openCommandAtCursor = useCallback(() => {
+    const cursor = cursorRef.current;
+    const position = cursor.inside
+      ? clampCanvasPoint({
+          x: cursor.x,
+          y: cursor.y,
+        })
+      : getVisibleCanvasCenter();
+
     setCommand({
-      x: cursor.x,
-      y: cursor.y,
+      x: position.x,
+      y: position.y,
       value: "",
     });
-  }, []);
+  }, [getVisibleCanvasCenter]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -621,6 +814,7 @@ export default function Home() {
     async (id: string, prompt: string) => {
       updateWidget(id, (widget) => ({
         ...widget,
+        contentFitKey: undefined,
         error: undefined,
         exampleData: null,
         openuiSource: "",
@@ -870,6 +1064,7 @@ export default function Home() {
               <WidgetFrame
                 key={widget.id}
                 onDelete={deleteWidget}
+                onContentMeasured={fitWidgetToContent}
                 onRetry={retryWidget}
                 onStartInteraction={startWidgetInteraction}
                 scale={scale}

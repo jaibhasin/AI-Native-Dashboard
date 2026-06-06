@@ -46,13 +46,14 @@ pnpm install
 Create `.env.local` with one or both provider keys:
 
 ```bash
-# OpenAI is the default provider.
+# Groq is the default provider.
+GROQ_API_KEY=your_groq_api_key
+AI_PROVIDER=groq # optional; groq is used when AI_PROVIDER is unset
+
+# Optional OpenAI alternate provider.
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_MODEL=gpt-5.5
-
-# Optional Groq fallback/alternate provider.
-GROQ_API_KEY=your_groq_api_key
-AI_PROVIDER=openai # or groq
+# AI_PROVIDER=openai
 ```
 
 Optional model overrides:
@@ -130,7 +131,7 @@ src/generated/openui-dashboard-prompt.txt Generated prompt bundle used by the AP
 ## Generation Flow
 
 1. The client posts `{ prompt }` to `/api/generate-widget`.
-2. The API chooses `OPENAI_API_KEY` or `GROQ_API_KEY` from `AI_PROVIDER`.
+2. The API chooses `GROQ_API_KEY` by default, or `OPENAI_API_KEY` when `AI_PROVIDER=openai`.
 3. The selected provider generates structured preview data and the API validates it with Zod.
 4. The API streams the preview data followed by OpenUI Lang deltas as NDJSON.
 5. The client renders OpenUI Lang through `@openuidev/react-lang` using the local component library.

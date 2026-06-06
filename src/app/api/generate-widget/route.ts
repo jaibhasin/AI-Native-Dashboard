@@ -64,7 +64,7 @@ function errorMessage(error: unknown) {
 function resolveProvider(value: unknown): AIProvider {
   const parsed = aiProviderSchema.safeParse(value);
 
-  return parsed.success ? parsed.data : "openai";
+  return parsed.success ? parsed.data : "groq";
 }
 
 function providerDisplayName(provider: AIProvider) {
@@ -118,6 +118,8 @@ function mockDataSystemPrompt() {
     "Always set dataDisclosure to a concise sentence saying the values are AI-generated preview data.",
     "For numeric dashboard requests, include both current metric values and a compact timeSeries whenever a recent trend is plausible.",
     "For spend, runway, burn, MRR, cash, retention, conversion, usage, support, and pipeline requests, populate timeSeries unless the user explicitly asks for only a single number or KPI card.",
+    "For runway or runway-left requests, make timeSeries a forward-looking cash runway forecast: future month labels on the x-axis and cash remaining/money left on the y-axis.",
+    "For runway charts, do not chart monthly burn, spend, or money spent as the primary series; burn can appear only as a supporting metric card.",
     "Use table only for explicit table, list, breakdown, or detail requests.",
     "Keep insights brief and secondary. Use 0 to 2 insights, and do not rely on insights as the main content unless the user asks for written analysis.",
     "Use empty arrays for sections that do not fit the request.",
@@ -140,6 +142,7 @@ function openuiUserPrompt(prompt: string, exampleData: ExampleWidgetData) {
     "Make the widget focused and graph-first for numeric dashboard requests.",
     "If EXAMPLE_DATA.timeSeries.points has at least 2 points, include LineChart or BarChart as the primary visual block.",
     "For current spend, runway left, MRR, burn, cash balance, retention, conversion, usage, support, and pipeline requests, use MetricGrid plus a chart when timeSeries data is available.",
+    "For runway left requests, the chart must show future months and cash remaining/money left, not burn or spend history.",
     "Do not add DataTable unless the user explicitly asks for a table, breakdown, list, or details.",
     "Use at most two blocks: usually MetricGrid plus LineChart/BarChart, or just the chart for explicit graph requests.",
     "Use InsightList only when the user explicitly asks for written analysis or no chart/table/metric block fits.",
@@ -176,14 +179,213 @@ function asNumber(value: unknown) {
   }
 
   if (typeof value === "string") {
-    const parsed = Number(value.replace(/[$,%\s,]/g, ""));
+    const compactMatch = value.replace(/[$,%\s,]/g, "").match(/^-?\d+(?:\.\d+)?$/);
+    const parsed = compactMatch ? Number(compactMatch[0]) : Number.NaN;
 
     if (Number.isFinite(parsed)) {
       return parsed;
     }
+
+    const magnitudeMatch = value.replace(/,/g, "").match(/(-?\d+(?:\.\d+)?)(?:\s*([kmb])(?=$|[^a-z]))?/i);
+
+    if (magnitudeMatch) {
+      const amount = Number(magnitudeMatch[1]);
+      const suffix = magnitudeMatch[2]?.toLowerCase();
+      const multiplier = suffix === "b" ? 1_000_000_000 : suffix === "m" ? 1_000_000 : suffix === "k" ? 1_000 : 1;
+
+      if (Number.isFinite(amount)) {
+        return amount * multiplier;
+      }
+    }
   }
 
   return null;
+}
+
+function isRunwayPrompt(prompt: string) {
+  const normalized = prompt.toLowerCase();
+
+  return (
+    /\brunway\b/.test(normalized) ||
+    /\bcash\s+(left|remaining|runout|run\s+out|depletion)\b/.test(normalized) ||
+    /\bmonths?\s+(left|remaining)\b/.test(normalized)
+  );
+}
+
+function looksLikeMoneyValue(value: string) {
+  return /[$€£]/.test(value) || /-?\d+(?:\.\d+)?\s*[kmb](?=$|[^a-z])/i.test(value);
+}
+
+function metricNumber(
+  metrics: ExampleWidgetData["metrics"],
+  matcher: RegExp,
+  options: { moneyOnly?: boolean; nonMoneyOnly?: boolean } = {},
+) {
+  for (const metric of metrics) {
+    if (matcher.test(metric.label.toLowerCase())) {
+      const hasMoneyUnit = looksLikeMoneyValue(metric.value);
+
+      if (options.moneyOnly && !hasMoneyUnit) {
+        continue;
+      }
+
+      if (options.nonMoneyOnly && hasMoneyUnit) {
+        continue;
+      }
+
+      const value = asNumber(metric.value);
+
+      if (value !== null) {
+        return value;
+      }
+    }
+  }
+
+  return null;
+}
+
+function monthLabel(monthOffset: number) {
+  const date = new Date();
+  date.setDate(1);
+  date.setMonth(date.getMonth() + monthOffset);
+
+  return date.toLocaleString("en-US", { month: "short" });
+}
+
+function runwayMoneyUnit(cashValue: number | null) {
+  return cashValue !== null && Math.abs(cashValue) >= 1_000_000 ? "millions" : "thousands";
+}
+
+function inferredRunwayMoneyUnit(cashValue: number | null, label: string, values: number[]) {
+  const normalizedLabel = label.toLowerCase();
+
+  if (/\$m|\bm\b|million/.test(normalizedLabel)) {
+    return "millions";
+  }
+
+  if (/\$k|\bk\b|thousand/.test(normalizedLabel)) {
+    return "thousands";
+  }
+
+  if (cashValue !== null) {
+    return runwayMoneyUnit(cashValue);
+  }
+
+  const maxValue = Math.max(...values.map((value) => Math.abs(value)), 0);
+
+  return maxValue >= 1_000_000 ? "millions" : "thousands";
+}
+
+function runwaySeriesLabel(unit: "millions" | "thousands") {
+  return unit === "millions" ? "Cash remaining ($M)" : "Cash remaining ($k)";
+}
+
+function runwayDisplayValue(value: number, unit: "millions" | "thousands") {
+  return `$${value}${unit === "millions" ? "M" : "k"}`;
+}
+
+function scaleRunwayCash(value: number, unit: "millions" | "thousands") {
+  const divisor = unit === "millions" ? 1_000_000 : 1_000;
+  const scaledValue = value / divisor;
+
+  return unit === "millions" ? Math.round(scaledValue * 10) / 10 : Math.round(scaledValue);
+}
+
+function normalizeExistingRunwayValue(value: number, unit: "millions" | "thousands") {
+  if (Math.abs(value) >= 10_000) {
+    return scaleRunwayCash(value, unit);
+  }
+
+  return unit === "millions" ? Math.round(value * 10) / 10 : Math.round(value);
+}
+
+function normalizeExistingRunwayCashSeries(data: ExampleWidgetData, cashValue: number | null): ExampleWidgetData {
+  const cashSeriesIndex = data.timeSeries.series.findIndex((series) => {
+    const label = series.label.toLowerCase();
+
+    return /\b(cash|money|remaining)\b/.test(label) && !/\b(burn|spend|spent)\b/.test(label);
+  });
+
+  if (cashSeriesIndex < 0) {
+    return data;
+  }
+
+  const rawValues = data.timeSeries.points.map((point) => point.values[cashSeriesIndex] ?? point.values[0] ?? 0);
+  const unit = inferredRunwayMoneyUnit(cashValue, data.timeSeries.series[cashSeriesIndex]?.label ?? "", rawValues);
+
+  return {
+    ...data,
+    recommendedVisualization: "line_chart",
+    timeSeries: {
+      ...data.timeSeries,
+      title: "Projected Cash Remaining",
+      series: [
+        {
+          label: runwaySeriesLabel(unit),
+          tone: data.timeSeries.series[cashSeriesIndex]?.tone ?? "warning",
+        },
+      ],
+      points: data.timeSeries.points.slice(0, 8).map((point, index) => ({
+        label: monthLabel(index),
+        values: [normalizeExistingRunwayValue(point.values[cashSeriesIndex] ?? point.values[0] ?? 0, unit)],
+      })),
+    },
+  };
+}
+
+function normalizeRunwayForecast(data: ExampleWidgetData, prompt: string): ExampleWidgetData {
+  if (!isRunwayPrompt(prompt)) {
+    return data;
+  }
+
+  const cashOnHand =
+    metricNumber(data.metrics, /\b(cash|balance|money left|money remaining)\b/, { moneyOnly: true }) ??
+    metricNumber(data.metrics, /\brunway\b/, { moneyOnly: true });
+  const monthlyBurn = metricNumber(data.metrics, /\b(burn|spend|spending)\b/, { moneyOnly: true });
+  const runwayMonths = metricNumber(data.metrics, /\b(runway|months? left|months? remaining)\b/, {
+    nonMoneyOnly: true,
+  });
+  const inferredBurn = monthlyBurn ?? (cashOnHand !== null && runwayMonths ? cashOnHand / runwayMonths : null);
+  const inferredCash = cashOnHand ?? (inferredBurn !== null && runwayMonths ? inferredBurn * runwayMonths : null);
+
+  if (inferredCash === null || inferredBurn === null || inferredBurn <= 0) {
+    return normalizeExistingRunwayCashSeries(data, cashOnHand);
+  }
+
+  const unit = runwayMoneyUnit(inferredCash);
+  const pointCount = Math.min(8, Math.max(4, Math.ceil(inferredCash / inferredBurn) + 1));
+  const points = Array.from({ length: pointCount }, (_, index) => {
+    const cashRemaining = Math.max(0, inferredCash - inferredBurn * index);
+
+    return {
+      label: monthLabel(index),
+      values: [scaleRunwayCash(cashRemaining, unit)],
+    };
+  });
+
+  return {
+    ...data,
+    recommendedVisualization: "line_chart",
+    subtitle: data.subtitle || "Future cash remaining at current burn",
+    table: {
+      title: "Cash runway forecast",
+      columns: ["Month", "Cash remaining"],
+      rows: points.map((point) => ({
+        cells: [point.label, runwayDisplayValue(point.values[0], unit)],
+      })),
+    },
+    timeSeries: {
+      title: "Projected Cash Remaining",
+      series: [
+        {
+          label: runwaySeriesLabel(unit),
+          tone: "warning",
+        },
+      ],
+      points,
+      projectionStartIndex: -1,
+    },
+  };
 }
 
 function normalizeTone(value: unknown): Tone {
@@ -373,12 +575,12 @@ function normalizeExampleData(value: unknown) {
   };
 }
 
-function parseExampleData(content: string | null | undefined, provider: AIProvider) {
+function parseExampleData(content: string | null | undefined, provider: AIProvider, prompt: string) {
   if (!content) {
     throw new Error(`${providerDisplayName(provider)} returned no example data.`);
   }
 
-  return exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(content)));
+  return normalizeRunwayForecast(exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(content))), prompt);
 }
 
 async function createStrictExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
@@ -408,7 +610,7 @@ async function createStrictExampleData(client: ModelClient, provider: AIProvider
     ...(provider === "groq" ? { temperature: 0.2 } : {}),
   })) as ChatCompletionResult;
 
-  return parseExampleData(completion.choices?.[0]?.message?.content, provider);
+  return parseExampleData(completion.choices?.[0]?.message?.content, provider, prompt);
 }
 
 async function createJsonObjectExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
@@ -436,7 +638,7 @@ async function createJsonObjectExampleData(client: ModelClient, provider: AIProv
     ...(provider === "groq" ? { temperature: 0.2 } : {}),
   })) as ChatCompletionResult;
 
-  return parseExampleData(completion.choices?.[0]?.message?.content, provider);
+  return parseExampleData(completion.choices?.[0]?.message?.content, provider, prompt);
 }
 
 async function createExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
