@@ -66,6 +66,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 When working with Git:
 - Create commits whenever a coherent unit of work is complete and verified.
+- Dont put any number of link in the git message
 - Before committing, inspect `git status` and avoid including unrelated user changes.
 - Keep each commit scoped to one completed task or checkpoint.
 - Do not wait for the user to ask before committing if a commit would preserve useful progress.

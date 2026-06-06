@@ -10,7 +10,7 @@ The best use case is helping AI-heavy teams see where money and time are going: 
 
 ## Demo
 
-Watch the demo video: [Loom walkthrough](https://www.loom.com/share/8104d4c2219244449c500233dc6534ea)
+Watch the demo video: [Loom walkthrough](https://www.loom.com/share/f4ab2c786f774835a6d59339d8baf712)
 
 ## Current Prototype
 
