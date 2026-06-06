@@ -88,6 +88,38 @@ function chartRows(points: ChartPoint[] | null | undefined, series: ChartSeries[
   });
 }
 
+function chartMoneyUnit(title: string, series: Array<Pick<ChartSeries, "label">>) {
+  const labelText = [title, ...series.map((item) => item.label)].join(" ").toLowerCase();
+
+  if (!/(\$|cash|money|revenue|arr|mrr|burn|spend|cost)/.test(labelText)) {
+    return null;
+  }
+
+  return /\$k|\bk\b|thousand/.test(labelText) ? "thousands" : "absolute";
+}
+
+function formatMoneyTick(value: number | string, unit: "absolute" | "thousands") {
+  const numericValue = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return safeText(value);
+  }
+
+  if (unit === "thousands") {
+    return `$${Math.round(numericValue)}k`;
+  }
+
+  if (Math.abs(numericValue) >= 1_000_000) {
+    return `$${Math.round(numericValue / 1_000_000)}M`;
+  }
+
+  if (Math.abs(numericValue) >= 1_000) {
+    return `$${Math.round(numericValue / 1_000)}k`;
+  }
+
+  return `$${Math.round(numericValue)}`;
+}
+
 function tableCell(row: { cells?: unknown[] } | unknown[] | null | undefined, columnIndex: number) {
   if (Array.isArray(row)) {
     return safeText(row[columnIndex]);
@@ -143,6 +175,7 @@ const LineChart = defineComponent({
       tone: safeTone(item?.tone),
     }));
     const rows = chartRows(props.data, series);
+    const moneyUnit = chartMoneyUnit(props.title, series);
 
     return (
       <div className="min-h-0 rounded-md border border-[#e5e7eb] bg-white p-2.5">
@@ -155,7 +188,7 @@ const LineChart = defineComponent({
             minWidth={1}
             width="100%"
           >
-            <RechartsLineChart data={rows} margin={{ bottom: 0, left: -24, right: 8, top: 8 }}>
+            <RechartsLineChart data={rows} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
               <CartesianGrid stroke="#eef0f3" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="label"
@@ -163,7 +196,12 @@ const LineChart = defineComponent({
                 tick={{ fill: "#71717a", fontSize: 10 }}
                 tickLine={false}
               />
-              <YAxis tick={{ fill: "#71717a", fontSize: 10 }} tickLine={false} width={42} />
+              <YAxis
+                tick={{ fill: "#71717a", fontSize: 10 }}
+                tickFormatter={moneyUnit ? (value) => formatMoneyTick(value, moneyUnit) : undefined}
+                tickLine={false}
+                width={56}
+              />
               <Tooltip
                 contentStyle={{
                   border: "1px solid #e5e7eb",
@@ -209,6 +247,7 @@ const BarChart = defineComponent({
       tone: safeTone(item?.tone),
     }));
     const rows = chartRows(props.data, series);
+    const moneyUnit = chartMoneyUnit(props.title, series);
 
     return (
       <div className="rounded-md border border-[#e5e7eb] bg-white p-2.5">
@@ -221,10 +260,15 @@ const BarChart = defineComponent({
             minWidth={1}
             width="100%"
           >
-            <RechartsBarChart data={rows} margin={{ bottom: 0, left: -24, right: 8, top: 8 }}>
+            <RechartsBarChart data={rows} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
               <CartesianGrid stroke="#eef0f3" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 10 }} tickLine={false} />
-              <YAxis tick={{ fill: "#71717a", fontSize: 10 }} tickLine={false} width={42} />
+              <YAxis
+                tick={{ fill: "#71717a", fontSize: 10 }}
+                tickFormatter={moneyUnit ? (value) => formatMoneyTick(value, moneyUnit) : undefined}
+                tickLine={false}
+                width={56}
+              />
               <Tooltip
                 contentStyle={{
                   border: "1px solid #e5e7eb",
