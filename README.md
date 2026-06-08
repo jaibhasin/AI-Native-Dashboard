@@ -1,18 +1,25 @@
 # AI Native Dashboard
 
-Build AI dashboards by asking questions on a canvas.
+Build AI dashboards by asking questions on an infinite canvas.
 
-The product idea is simple: dashboards should start from a question, not a chart builder.
+AI Native Dashboard is an OpenUI-powered prototype for creating operating dashboards from natural language. Instead of starting with a chart builder, the app starts with a blank canvas. Press `/`, ask for the metric or view you want, and the app generates a movable dashboard widget in that spot.
 
-Instead of forcing users through fixed BI flows, the app starts with a blank canvas. Users press `/`, ask for what they want to see, and the app creates a dashboard widget in that spot. Widgets can then be moved, resized, retried, or deleted.
+The demo focuses on AI-heavy teams that need to understand where money and time are going: model spend, token waste, failed runs, retries, oversized context, agent quality, and runway impact.
 
-The best use case is helping AI-heavy teams see where money and time are going: model spend, token waste, failed runs, retries, oversized context, agent quality, and runway impact. The goal is to turn messy AI activity into clear business dashboards.
+## Highlights
+
+- Natural-language widget generation from anywhere on the canvas
+- OpenUI Lang rendering through a local React component library
+- Streaming generation flow with preview data followed by generated UI
+- Drag, resize, retry, delete, zoom, and persist widgets locally
+- AI operations dashboard examples for spend, token waste, model usage, runway, and workflow quality
+- Groq-first server route with optional multi-key failover for deployed demos
 
 ## Demo
 
 Watch the demo video: [Loom walkthrough](https://www.loom.com/share/f4ab2c786f774835a6d59339d8baf712)
 
-## Current Prototype
+## How It Works
 
 The current demo uses mock/demo data for UI prototyping. Each generated widget streams through two stages:
 
@@ -21,7 +28,7 @@ The current demo uses mock/demo data for UI prototyping. Each generated widget s
 
 In the current demo, widgets can be generated, dragged, resized, retried, deleted, zoomed, and persisted in browser `localStorage`.
 
-This is not positioned as a generic AI chart generator. Generic "prompt to chart" features are likely to become table stakes inside BI tools. The more valuable direction is an AI-native operating dashboard that connects to real model, agent, product, finance, and workflow data.
+Generated values are preview data for UI prototyping. They are not sourced from real business systems.
 
 ## Example Prompts
 
@@ -55,6 +62,12 @@ The prototype becomes more valuable when it moves from generated preview data to
 
 ## Getting Started
 
+Prerequisites:
+
+- Node.js 20+
+- pnpm
+- A Groq API key, or an OpenAI API key if using the optional OpenAI provider
+
 Install dependencies:
 
 ```bash
@@ -67,6 +80,10 @@ Create `.env.local` with one or both provider keys:
 # Groq is the default provider.
 GROQ_API_KEY=your_groq_api_key
 AI_PROVIDER=groq # optional; groq is used when AI_PROVIDER is unset
+
+# Optional Groq failover pool for deployed demos.
+# Keep these server-side only. The app rotates to another key when a key returns 429.
+GROQ_API_KEYS=groq_key_1,groq_key_2,groq_key_3
 
 # Optional OpenAI alternate provider.
 OPENAI_API_KEY=your_openai_api_key
@@ -91,6 +108,26 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Deploy
+
+Vercel is the simplest deployment target because the app uses a Next.js server route at `/api/generate-widget`.
+
+Set these environment variables in Vercel:
+
+```bash
+AI_PROVIDER=groq
+GROQ_API_KEY=your_groq_api_key
+```
+
+For showcase demos, you can provide a small server-side key pool. The app rotates to another key when Groq returns a rate-limit response:
+
+```bash
+AI_PROVIDER=groq
+GROQ_API_KEYS=groq_key_1,groq_key_2,groq_key_3
+```
+
+Do not expose provider keys in the browser or commit `.env` files.
+
 ## Usage
 
 - Move the pointer over the canvas and press `/` to open the command input at that location.
@@ -100,7 +137,11 @@ Open [http://localhost:3000](http://localhost:3000).
 - Use the `+` and `-` controls, keyboard shortcuts, or trackpad pinch/zoom gestures to adjust zoom.
 - Retry failed widgets from their header control.
 
-Generated values are preview data for UI prototyping. They are not sourced from real business systems.
+## Maintainer
+
+Built and maintained by Jai Bhasin.
+
+Contact: [bhasinjai@gmail.com](mailto:bhasinjai@gmail.com)
 
 ## Scripts
 
@@ -149,7 +190,7 @@ src/generated/openui-dashboard-prompt.txt Generated prompt bundle used by the AP
 ## Generation Flow
 
 1. The client posts `{ prompt }` to `/api/generate-widget`.
-2. The API chooses `GROQ_API_KEY` by default, or `OPENAI_API_KEY` when `AI_PROVIDER=openai`.
+2. The API chooses `GROQ_API_KEYS` or `GROQ_API_KEY` by default, or `OPENAI_API_KEY` when `AI_PROVIDER=openai`.
 3. The selected provider generates structured preview data and the API validates it with Zod.
 4. The API streams the preview data followed by OpenUI Lang deltas as NDJSON.
 5. The client renders OpenUI Lang through `@openuidev/react-lang` using the local component library.
