@@ -38,6 +38,7 @@ const MAX_ZOOM = 200;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
+const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
 const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
@@ -615,6 +616,7 @@ export default function Home() {
   });
   const widgetInteractionRef = useRef<WidgetInteraction | null>(null);
   const pendingZoomScrollRef = useRef<PendingZoomScroll | null>(null);
+  const hasScrolledHydratedBoardRef = useRef(false);
 
   const [zoom, setZoom] = useState(100);
   const [isPanning, setIsPanning] = useState(false);
@@ -670,7 +672,7 @@ export default function Home() {
 
       if (!board || board.widgets.length === 0) {
         viewport.scrollLeft = CANVAS_CENTER_X * scale - viewport.clientWidth / 2;
-        viewport.scrollTop = CANVAS_CENTER_Y * scale - viewport.clientHeight / 2;
+        viewport.scrollTop = CANVAS_CENTER_Y * scale - viewport.clientHeight / 2 - TOP_CANVAS_SAFE_INSET;
         return;
       }
 
@@ -692,7 +694,7 @@ export default function Home() {
       const centerY = (bounds.minY + bounds.maxY) / 2;
 
       viewport.scrollLeft = centerX * scale - viewport.clientWidth / 2;
-      viewport.scrollTop = centerY * scale - viewport.clientHeight / 2;
+      viewport.scrollTop = centerY * scale - viewport.clientHeight / 2 - TOP_CANVAS_SAFE_INSET;
     },
     [scale],
   );
@@ -780,11 +782,24 @@ export default function Home() {
       }
 
       viewport.scrollLeft = CANVAS_CENTER_X - viewport.clientWidth / 2;
-      viewport.scrollTop = CANVAS_CENTER_Y - viewport.clientHeight / 2;
+      viewport.scrollTop = CANVAS_CENTER_Y - viewport.clientHeight / 2 - TOP_CANVAS_SAFE_INSET;
     });
 
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    if (!hasHydratedBoards || hasScrolledHydratedBoardRef.current) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      scrollToBoard(activeBoard);
+      hasScrolledHydratedBoardRef.current = true;
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [activeBoard, hasHydratedBoards, scrollToBoard]);
 
   useEffect(() => {
     if (!hasHydratedBoards) {
@@ -1338,7 +1353,7 @@ export default function Home() {
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
 
-        <div className="absolute left-4 right-24 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:top-6">
+        <div className="absolute left-4 right-36 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
             <span className="font-semibold text-[#18181b]">AI</span>
             <span className="font-medium text-[#71717a]">Whiteboards</span>
