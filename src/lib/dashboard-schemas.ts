@@ -112,3 +112,14 @@ export const canvasWidgetSchema = z.object({
 });
 
 export type CanvasWidget = z.infer<typeof canvasWidgetSchema>;
+
+export const canvasBoardSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  widgets: z.array(canvasWidgetSchema),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  templateId: z.string().optional(),
+});
+
+export type CanvasBoard = z.infer<typeof canvasBoardSchema>;
