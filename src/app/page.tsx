@@ -1,7 +1,7 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { ChevronDown, GripVertical, Maximize2, RotateCcw, Trash2, X } from "lucide-react";
+import { GripVertical, Maximize2, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import {
   memo,
   useCallback,
@@ -107,6 +107,10 @@ function hasClosestElement(target: EventTarget | null, selector: string) {
 
 function createWidgetId() {
   return globalThis.crypto?.randomUUID?.() ?? `widget-${Date.now()}-${Math.random()}`;
+}
+
+function createBoardId() {
+  return globalThis.crypto?.randomUUID?.() ?? `board-${Date.now()}-${Math.random()}`;
 }
 
 function hashString(value: string) {
@@ -278,6 +282,26 @@ function measuredSize(element: HTMLElement, minimum: ElementSize) {
 
 function sameSize(left: ElementSize, right: ElementSize) {
   return left.height === right.height && left.width === right.width;
+}
+
+function boardEmoji(boardId: string) {
+  if (boardId === "founder") {
+    return "🚀";
+  }
+
+  if (boardId === "engineering") {
+    return "🛠️";
+  }
+
+  if (boardId === "sales") {
+    return "💼";
+  }
+
+  if (boardId === "ops") {
+    return "⚙️";
+  }
+
+  return "✨";
 }
 
 function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
@@ -603,6 +627,8 @@ export default function Home() {
   const commandPosition = command ? `${command.x}:${command.y}` : null;
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
   const widgets = activeBoard?.widgets ?? [];
+  const personalBoards = boards.filter((board) => !board.templateId);
+  const prebuiltBoards = boards.filter((board) => board.templateId);
 
   const updateBoardWidgets = useCallback((boardId: string, updater: (widgets: CanvasWidget[]) => CanvasWidget[]) => {
     setBoards((current) =>
@@ -682,6 +708,29 @@ export default function Home() {
     },
     [boards, scrollToBoard],
   );
+
+  const createNamedBlankBoard = useCallback(() => {
+    const name = window.prompt("Name this blank whiteboard", "Untitled whiteboard")?.trim();
+
+    if (!name) {
+      return;
+    }
+
+    const now = Date.now();
+    const board: CanvasBoard = {
+      createdAt: now,
+      id: createBoardId(),
+      name: name.slice(0, 48),
+      updatedAt: now,
+      widgets: [],
+    };
+
+    setBoards((current) => [...current, board]);
+    setActiveBoardId(board.id);
+    setCommand(null);
+
+    requestAnimationFrame(() => scrollToBoard(board));
+  }, [scrollToBoard]);
 
   const addWidgetToBoard = useCallback(
     (boardId: string, widget: CanvasWidget) => {
@@ -1289,28 +1338,71 @@ export default function Home() {
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
 
-        <div className="absolute left-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:top-6">
+        <div className="absolute left-4 right-24 top-4 flex max-w-[calc(100vw-8.5rem)] items-center gap-2 overflow-x-auto rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur [scrollbar-width:none] sm:left-6 sm:right-auto sm:top-6 sm:max-w-[calc(100vw-12rem)] [&::-webkit-scrollbar]:hidden">
           <span className="h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
-          <label className="sr-only" htmlFor="board-select">
-            Whiteboard
-          </label>
-          <div className="relative">
-            <select
-              className="h-8 max-w-[11rem] appearance-none rounded border border-[#e5e7eb] bg-white py-1 pl-2.5 pr-8 text-sm font-semibold text-[#18181b] outline-none transition hover:bg-[#f6f7f9] sm:max-w-[14rem]"
-              id="board-select"
-              onChange={(event) => selectBoard(event.target.value)}
-              value={activeBoardId}
+          <span className="shrink-0 text-xs font-semibold uppercase text-[#71717a]">My whiteboards</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {personalBoards.map((board) => {
+              const isActive = board.id === activeBoardId;
+
+              return (
+                <button
+                  aria-pressed={isActive}
+                  className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                    isActive
+                      ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
+                      : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                  }`}
+                  key={board.id}
+                  onClick={() => selectBoard(board.id)}
+                  title={board.name}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
+                    {boardEmoji(board.id)}
+                  </span>
+                  <span className="leading-none">{board.name}</span>
+                </button>
+              );
+            })}
+            <button
+              className="flex h-8 shrink-0 items-center gap-1.5 rounded border border-dashed border-[#cfd6e1] px-2.5 text-sm font-semibold leading-none text-[#52525b] transition hover:border-[#b8c2d1] hover:bg-white"
+              onClick={createNamedBlankBoard}
+              title="Create blank whiteboard"
+              type="button"
             >
-              {boards.map((board) => (
-                <option key={board.id} value={board.id}>
-                  {board.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#71717a]" />
+              <Plus className="h-3.5 w-3.5" />
+              <span className="leading-none">New blank</span>
+            </button>
           </div>
-          <span className="text-xs font-medium text-[#71717a]">{widgets.length} widgets</span>
-          <span className="text-xs font-medium text-[#71717a]">{Math.round(zoom)}%</span>
+          <span className="h-5 w-px shrink-0 bg-[#e2e5ea]" />
+          <div className="flex shrink-0 items-center gap-1">
+            {prebuiltBoards.map((board) => {
+              const isActive = board.id === activeBoardId;
+
+              return (
+                <button
+                  aria-pressed={isActive}
+                  className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                    isActive
+                      ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
+                      : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                  }`}
+                  key={board.id}
+                  onClick={() => selectBoard(board.id)}
+                  title={board.name}
+                  type="button"
+                >
+                  <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
+                    {boardEmoji(board.id)}
+                  </span>
+                  <span className="leading-none">{board.name}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span className="shrink-0 text-xs font-medium text-[#71717a]">{widgets.length} widgets</span>
+          <span className="shrink-0 text-xs font-medium text-[#71717a]">{Math.round(zoom)}%</span>
         </div>
 
         <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
@@ -1332,6 +1424,10 @@ export default function Home() {
           >
             +
           </button>
+        </div>
+
+        <div className="pointer-events-none absolute bottom-4 left-4 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
+          Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
         </div>
 
       </section>
