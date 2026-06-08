@@ -17,9 +17,12 @@ const DEFAULT_UI_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_MOCK_DATA_MODEL = "openai/gpt-oss-20b";
 const DEFAULT_OPENAI_MODEL = "gpt-5.5";
 const OPENUI_PROMPT_PATH = join(process.cwd(), "src/generated/openui-dashboard-prompt.txt");
+const GROQ_RATE_LIMIT_COOLDOWN_MS = 60_000;
 const aiProviderSchema = z.enum(["openai", "groq"]);
 
 let cachedOpenUIPrompt: string | null = null;
+let groqKeyCursor = 0;
+const groqKeyCooldowns = new Map<string, number>();
 
 type AIProvider = z.infer<typeof aiProviderSchema>;
 type ModelClient = Groq | OpenAI;
@@ -71,8 +74,63 @@ function providerDisplayName(provider: AIProvider) {
   return provider === "openai" ? "OpenAI" : "Groq";
 }
 
-function getApiKey(provider: AIProvider) {
-  return provider === "openai" ? process.env.OPENAI_API_KEY : process.env.GROQ_API_KEY;
+function splitApiKeys(value: string | undefined) {
+  return (
+    value
+      ?.split(/[\s,]+/)
+      .map((key) => key.trim())
+      .filter(Boolean) ?? []
+  );
+}
+
+function getApiKeys(provider: AIProvider) {
+  if (provider === "openai") {
+    return splitApiKeys(process.env.OPENAI_API_KEY);
+  }
+
+  const keyPool = splitApiKeys(process.env.GROQ_API_KEYS);
+
+  return keyPool.length > 0 ? keyPool : splitApiKeys(process.env.GROQ_API_KEY);
+}
+
+function keyLabel(index: number, total: number) {
+  return total > 1 ? `Groq key ${index + 1}/${total}` : "Groq key";
+}
+
+function isRateLimitError(error: unknown) {
+  const record = asRecord(error);
+  const status = record.status;
+  const code = asString(record.code).toLowerCase();
+  const name = asString(record.name).toLowerCase();
+  const message = asString(record.message).toLowerCase();
+
+  return (
+    status === 429 ||
+    code.includes("rate") ||
+    name.includes("ratelimit") ||
+    message.includes("rate limit") ||
+    message.includes("rate_limit")
+  );
+}
+
+function chooseGroqKey(apiKeys: string[]) {
+  const now = Date.now();
+  const availableKeys = apiKeys
+    .map((apiKey, index) => ({ apiKey, index }))
+    .filter(({ apiKey }) => (groqKeyCooldowns.get(apiKey) ?? 0) <= now);
+
+  if (availableKeys.length === 0) {
+    return null;
+  }
+
+  const selected = availableKeys[groqKeyCursor % availableKeys.length];
+  groqKeyCursor = (groqKeyCursor + 1) % Number.MAX_SAFE_INTEGER;
+
+  return selected;
+}
+
+function coolDownGroqKey(apiKey: string) {
+  groqKeyCooldowns.set(apiKey, Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS);
 }
 
 function getMockDataModel(provider: AIProvider) {
@@ -92,7 +150,7 @@ function getUIModel(provider: AIProvider) {
 }
 
 function createModelClient(provider: AIProvider, apiKey: string): ModelClient {
-  return provider === "openai" ? new OpenAI({ apiKey }) : new Groq({ apiKey });
+  return provider === "openai" ? new OpenAI({ apiKey }) : new Groq({ apiKey, maxRetries: 0 });
 }
 
 async function createChatCompletion(client: ModelClient, params: Record<string, unknown>) {
@@ -1106,7 +1164,11 @@ async function createJsonObjectExampleData(client: ModelClient, provider: AIProv
 async function createExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
   try {
     return await createStrictExampleData(client, provider, prompt);
-  } catch {
+  } catch (error) {
+    if (isRateLimitError(error)) {
+      throw error;
+    }
+
     return createJsonObjectExampleData(client, provider, prompt);
   }
 }
@@ -1117,6 +1179,7 @@ async function streamOpenUI(
   prompt: string,
   exampleData: ExampleWidgetData,
   controller: ReadableStreamDefaultController,
+  streamState?: { emittedUiDelta: boolean },
 ) {
   const stream = (await createChatCompletion(client, {
     model: getUIModel(provider),
@@ -1139,6 +1202,10 @@ async function streamOpenUI(
     const delta = chunk.choices?.[0]?.delta?.content;
 
     if (delta) {
+      if (streamState) {
+        streamState.emittedUiDelta = true;
+      }
+
       streamEvent(controller, {
         type: "uiDelta",
         delta,
@@ -1147,18 +1214,87 @@ async function streamOpenUI(
   }
 }
 
+async function generateWithClient(
+  client: ModelClient,
+  provider: AIProvider,
+  prompt: string,
+  controller: ReadableStreamDefaultController,
+) {
+  const exampleData = await createExampleData(client, provider, prompt);
+  const streamState = { emittedUiDelta: false };
+
+  streamEvent(controller, {
+    type: "exampleData",
+    data: exampleData,
+  });
+
+  try {
+    await streamOpenUI(client, provider, prompt, exampleData, controller, streamState);
+  } catch (error) {
+    if (streamState.emittedUiDelta && isRateLimitError(error)) {
+      throw new Error(`${providerDisplayName(provider)} hit a rate limit while streaming. Retry the widget.`);
+    }
+
+    throw error;
+  }
+
+  streamEvent(controller, {
+    type: "done",
+  });
+}
+
+async function generateWithGroqFailover(
+  apiKeys: string[],
+  prompt: string,
+  controller: ReadableStreamDefaultController,
+) {
+  let lastRateLimitError: unknown = null;
+
+  for (let attempt = 0; attempt < apiKeys.length; attempt += 1) {
+    const selected = chooseGroqKey(apiKeys);
+
+    if (!selected) {
+      break;
+    }
+
+    const client = createModelClient("groq", selected.apiKey);
+
+    try {
+      await generateWithClient(client, "groq", prompt, controller);
+      return;
+    } catch (error) {
+      if (!isRateLimitError(error)) {
+        throw error;
+      }
+
+      lastRateLimitError = error;
+      coolDownGroqKey(selected.apiKey);
+
+      if (attempt < apiKeys.length - 1) {
+        console.warn(`${keyLabel(selected.index, apiKeys.length)} hit a rate limit; trying the next Groq key.`);
+      }
+    }
+  }
+
+  if (lastRateLimitError) {
+    throw new Error("All configured Groq API keys are currently rate limited. Wait a minute, then retry.");
+  }
+
+  throw new Error("All configured Groq API keys are cooling down. Wait a minute, then retry.");
+}
+
 export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
         const body = (await request.json()) as { prompt?: unknown };
         const provider = resolveProvider(process.env.AI_PROVIDER);
-        const apiKey = getApiKey(provider);
+        const apiKeys = getApiKeys(provider);
 
-        if (!apiKey) {
+        if (apiKeys.length === 0) {
           streamEvent(controller, {
             type: "error",
-            error: `Missing ${provider === "openai" ? "OPENAI_API_KEY" : "GROQ_API_KEY"}. Add it to your environment and retry.`,
+            error: `Missing ${provider === "openai" ? "OPENAI_API_KEY" : "GROQ_API_KEY or GROQ_API_KEYS"}. Add it to your environment and retry.`,
           });
           return;
         }
@@ -1173,19 +1309,11 @@ export async function POST(request: Request) {
           return;
         }
 
-        const client = createModelClient(provider, apiKey);
-        const exampleData = await createExampleData(client, provider, prompt);
-
-        streamEvent(controller, {
-          type: "exampleData",
-          data: exampleData,
-        });
-
-        await streamOpenUI(client, provider, prompt, exampleData, controller);
-
-        streamEvent(controller, {
-          type: "done",
-        });
+        if (provider === "groq") {
+          await generateWithGroqFailover(apiKeys, prompt, controller);
+        } else {
+          await generateWithClient(createModelClient(provider, apiKeys[0]), provider, prompt, controller);
+        }
       } catch (error) {
         streamEvent(controller, {
           type: "error",
