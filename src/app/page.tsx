@@ -1401,8 +1401,6 @@ export default function Home() {
               );
             })}
           </div>
-          <span className="shrink-0 text-xs font-medium text-[#71717a]">{widgets.length} widgets</span>
-          <span className="shrink-0 text-xs font-medium text-[#71717a]">{Math.round(zoom)}%</span>
         </div>
 
         <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
@@ -1428,6 +1426,10 @@ export default function Home() {
 
         <div className="pointer-events-none absolute bottom-4 left-4 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
           Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
+        </div>
+
+        <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
+          {Math.round(zoom)}%
         </div>
 
       </section>
