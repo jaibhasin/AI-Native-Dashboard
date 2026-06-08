@@ -1338,69 +1338,74 @@ export default function Home() {
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
 
-        <div className="absolute left-4 right-24 top-4 flex max-w-[calc(100vw-8.5rem)] items-center gap-2 overflow-x-auto rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur [scrollbar-width:none] sm:left-6 sm:right-auto sm:top-6 sm:max-w-[calc(100vw-12rem)] [&::-webkit-scrollbar]:hidden">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
-          <span className="shrink-0 text-xs font-semibold uppercase text-[#71717a]">My whiteboards</span>
-          <div className="flex shrink-0 items-center gap-1">
-            {personalBoards.map((board) => {
-              const isActive = board.id === activeBoardId;
+        <div className="absolute left-4 right-24 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:top-6">
+          <span className="flex shrink-0 items-baseline gap-1 text-sm">
+            <span className="font-semibold text-[#18181b]">AI</span>
+            <span className="font-medium text-[#71717a]">Whiteboards</span>
+          </span>
+          <span className="h-4 w-px shrink-0 bg-[#d4d4d8]" />
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex shrink-0 items-center gap-1">
+              {prebuiltBoards.map((board) => {
+                const isActive = board.id === activeBoardId;
 
-              return (
-                <button
-                  aria-pressed={isActive}
-                  className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
-                    isActive
-                      ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
-                      : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
-                  }`}
-                  key={board.id}
-                  onClick={() => selectBoard(board.id)}
-                  title={board.name}
-                  type="button"
-                >
-                  <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
-                    {boardEmoji(board.id)}
-                  </span>
-                  <span className="leading-none">{board.name}</span>
-                </button>
-              );
-            })}
-            <button
-              className="flex h-8 shrink-0 items-center gap-1.5 rounded border border-dashed border-[#cfd6e1] px-2.5 text-sm font-semibold leading-none text-[#52525b] transition hover:border-[#b8c2d1] hover:bg-white"
-              onClick={createNamedBlankBoard}
-              title="Create blank whiteboard"
-              type="button"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="leading-none">New blank</span>
-            </button>
-          </div>
-          <span className="h-5 w-px shrink-0 bg-[#e2e5ea]" />
-          <div className="flex shrink-0 items-center gap-1">
-            {prebuiltBoards.map((board) => {
-              const isActive = board.id === activeBoardId;
+                return (
+                  <button
+                    aria-pressed={isActive}
+                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                      isActive
+                        ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
+                        : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                    }`}
+                    key={board.id}
+                    onClick={() => selectBoard(board.id)}
+                    title={board.name}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
+                      {boardEmoji(board.id)}
+                    </span>
+                    <span className="leading-none">{board.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <span className="h-5 w-px shrink-0 bg-[#e2e5ea]" />
+            <div className="flex shrink-0 items-center gap-1">
+              {personalBoards.map((board) => {
+                const isActive = board.id === activeBoardId;
 
-              return (
-                <button
-                  aria-pressed={isActive}
-                  className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
-                    isActive
-                      ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
-                      : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
-                  }`}
-                  key={board.id}
-                  onClick={() => selectBoard(board.id)}
-                  title={board.name}
-                  type="button"
-                >
-                  <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
-                    {boardEmoji(board.id)}
-                  </span>
-                  <span className="leading-none">{board.name}</span>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    aria-pressed={isActive}
+                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                      isActive
+                        ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
+                        : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                    }`}
+                    key={board.id}
+                    onClick={() => selectBoard(board.id)}
+                    title={board.name}
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
+                      {boardEmoji(board.id)}
+                    </span>
+                    <span className="leading-none">{board.name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
+          <button
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded border border-transparent px-2.5 text-sm font-semibold leading-none text-[#52525b] transition hover:border-[#e5e7eb] hover:bg-white"
+            onClick={createNamedBlankBoard}
+            title="Create blank whiteboard"
+            type="button"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="leading-none">New</span>
+          </button>
         </div>
 
         <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
