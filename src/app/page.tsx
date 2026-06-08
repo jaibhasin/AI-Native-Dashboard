@@ -1,7 +1,7 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { GripVertical, Maximize2, RotateCcw, Trash2, X } from "lucide-react";
+import { ChevronDown, GripVertical, Maximize2, RotateCcw, Trash2, X } from "lucide-react";
 import {
   memo,
   useCallback,
@@ -15,7 +15,13 @@ import {
   type WheelEvent,
 } from "react";
 import { z } from "zod/v4";
-import { canvasWidgetSchema, type CanvasWidget } from "@/lib/dashboard-schemas";
+import { BLANK_BOARD_ID, BOARD_TEMPLATES, createBoardFromTemplate } from "@/lib/board-templates";
+import {
+  canvasBoardSchema,
+  canvasWidgetSchema,
+  type CanvasBoard,
+  type CanvasWidget,
+} from "@/lib/dashboard-schemas";
 import type { WidgetStreamEvent } from "@/lib/widget-stream";
 import { dashboardRenderLibrary } from "@/openui/dashboard-render-library";
 
@@ -37,7 +43,9 @@ const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
 const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
 const MIN_WIDGET_WIDTH = 280;
 const MIN_WIDGET_HEIGHT = 200;
-const STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
+const LEGACY_WIDGET_STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
+const BOARD_STORAGE_KEY = "new-dashboard.canvas.boards.v1";
+const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
 
 type ElementSize = {
   height: number;
@@ -149,12 +157,24 @@ function migrateLegacyWidgetPosition(widget: CanvasWidget) {
   };
 }
 
-function parseStoredWidgets() {
+function restoreStoredWidget(widget: CanvasWidget) {
+  const migratedWidget = migrateLegacyWidgetPosition(widget);
+
+  return migratedWidget.status === "streaming"
+    ? {
+        ...migratedWidget,
+        status: "error" as const,
+        error: "Generation was interrupted. Retry this widget to continue.",
+      }
+    : migratedWidget;
+}
+
+function parseLegacyStoredWidgets() {
   if (typeof window === "undefined") {
     return [];
   }
 
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  const stored = window.localStorage.getItem(LEGACY_WIDGET_STORAGE_KEY);
 
   if (!stored) {
     return [];
@@ -163,20 +183,78 @@ function parseStoredWidgets() {
   try {
     const widgets = z.array(canvasWidgetSchema).parse(JSON.parse(stored));
 
-    return widgets.map((widget) => {
-      const migratedWidget = migrateLegacyWidgetPosition(widget);
-
-      return migratedWidget.status === "streaming"
-        ? {
-            ...migratedWidget,
-            status: "error" as const,
-            error: "Generation was interrupted. Retry this widget to continue.",
-          }
-        : migratedWidget;
-    });
+    return widgets.map(restoreStoredWidget);
   } catch {
     return [];
   }
+}
+
+function createBlankBoard(widgets: CanvasWidget[] = [], now = Date.now()): CanvasBoard {
+  return {
+    createdAt: now,
+    id: BLANK_BOARD_ID,
+    name: "Blank",
+    updatedAt: now,
+    widgets,
+  };
+}
+
+function ensureBoardSet(boards: CanvasBoard[]) {
+  const now = Date.now();
+  const boardById = new Map<string, CanvasBoard>();
+
+  boards.forEach((board) => {
+    boardById.set(board.id, {
+      ...board,
+      widgets: board.widgets.map(restoreStoredWidget),
+    });
+  });
+
+  if (!boardById.has(BLANK_BOARD_ID)) {
+    boardById.set(BLANK_BOARD_ID, createBlankBoard([], now));
+  }
+
+  BOARD_TEMPLATES.forEach((template) => {
+    if (!boardById.has(template.id)) {
+      boardById.set(template.id, createBoardFromTemplate(template, now));
+    }
+  });
+
+  const orderedIds = [BLANK_BOARD_ID, ...BOARD_TEMPLATES.map((template) => template.id)];
+  const orderedBoards = orderedIds
+    .map((id) => boardById.get(id))
+    .filter((board): board is CanvasBoard => Boolean(board));
+  const extraBoards = [...boardById.values()].filter((board) => !orderedIds.includes(board.id));
+
+  return [...orderedBoards, ...extraBoards];
+}
+
+function parseStoredBoards() {
+  if (typeof window === "undefined") {
+    return ensureBoardSet([createBlankBoard()]);
+  }
+
+  const storedBoards = window.localStorage.getItem(BOARD_STORAGE_KEY);
+
+  if (storedBoards) {
+    try {
+      return ensureBoardSet(z.array(canvasBoardSchema).parse(JSON.parse(storedBoards)));
+    } catch {
+      return ensureBoardSet([createBlankBoard(parseLegacyStoredWidgets())]);
+    }
+  }
+
+  return ensureBoardSet([createBlankBoard(parseLegacyStoredWidgets())]);
+}
+
+function storedActiveBoardId(boards: CanvasBoard[]) {
+  if (typeof window === "undefined") {
+    return BLANK_BOARD_ID;
+  }
+
+  const stored = window.localStorage.getItem(ACTIVE_BOARD_STORAGE_KEY);
+
+  return boards.some((board) => board.id === stored) ? stored ?? BLANK_BOARD_ID : BLANK_BOARD_ID;
 }
 
 function streamErrorMessage(error: unknown) {
@@ -517,25 +595,106 @@ export default function Home() {
   const [zoom, setZoom] = useState(100);
   const [isPanning, setIsPanning] = useState(false);
   const [command, setCommand] = useState<CommandState | null>(null);
-  const [widgets, setWidgets] = useState<CanvasWidget[]>([]);
-  const [hasHydratedWidgets, setHasHydratedWidgets] = useState(false);
+  const [boards, setBoards] = useState<CanvasBoard[]>(() => ensureBoardSet([createBlankBoard()]));
+  const [activeBoardId, setActiveBoardId] = useState(BLANK_BOARD_ID);
+  const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
 
   const scale = zoom / 100;
   const commandPosition = command ? `${command.x}:${command.y}` : null;
+  const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
+  const widgets = activeBoard?.widgets ?? [];
 
-  const updateWidget = useCallback((id: string, updater: (widget: CanvasWidget) => CanvasWidget) => {
-    setWidgets((current) => current.map((widget) => (widget.id === id ? updater(widget) : widget)));
+  const updateBoardWidgets = useCallback((boardId: string, updater: (widgets: CanvasWidget[]) => CanvasWidget[]) => {
+    setBoards((current) =>
+      current.map((board) =>
+        board.id === boardId
+          ? {
+              ...board,
+              updatedAt: Date.now(),
+              widgets: updater(board.widgets),
+            }
+          : board,
+      ),
+    );
   }, []);
 
-  const deleteWidget = useCallback((id: string) => {
-    setWidgets((current) => current.filter((widget) => widget.id !== id));
-  }, []);
+  const updateWidget = useCallback(
+    (boardId: string, id: string, updater: (widget: CanvasWidget) => CanvasWidget) => {
+      updateBoardWidgets(boardId, (current) =>
+        current.map((widget) => (widget.id === id ? updater(widget) : widget)),
+      );
+    },
+    [updateBoardWidgets],
+  );
+
+  const deleteWidget = useCallback(
+    (id: string) => {
+      updateBoardWidgets(activeBoardId, (current) => current.filter((widget) => widget.id !== id));
+    },
+    [activeBoardId, updateBoardWidgets],
+  );
+
+  const scrollToBoard = useCallback(
+    (board: CanvasBoard | undefined) => {
+      const viewport = viewportRef.current;
+
+      if (!viewport) {
+        return;
+      }
+
+      if (!board || board.widgets.length === 0) {
+        viewport.scrollLeft = CANVAS_CENTER_X * scale - viewport.clientWidth / 2;
+        viewport.scrollTop = CANVAS_CENTER_Y * scale - viewport.clientHeight / 2;
+        return;
+      }
+
+      const bounds = board.widgets.reduce(
+        (current, widget) => ({
+          maxX: Math.max(current.maxX, widget.x + widget.width),
+          maxY: Math.max(current.maxY, widget.y + widget.height),
+          minX: Math.min(current.minX, widget.x),
+          minY: Math.min(current.minY, widget.y),
+        }),
+        {
+          maxX: Number.NEGATIVE_INFINITY,
+          maxY: Number.NEGATIVE_INFINITY,
+          minX: Number.POSITIVE_INFINITY,
+          minY: Number.POSITIVE_INFINITY,
+        },
+      );
+      const centerX = (bounds.minX + bounds.maxX) / 2;
+      const centerY = (bounds.minY + bounds.maxY) / 2;
+
+      viewport.scrollLeft = centerX * scale - viewport.clientWidth / 2;
+      viewport.scrollTop = centerY * scale - viewport.clientHeight / 2;
+    },
+    [scale],
+  );
+
+  const selectBoard = useCallback(
+    (boardId: string) => {
+      setActiveBoardId(boardId);
+      setCommand(null);
+
+      requestAnimationFrame(() => {
+        scrollToBoard(boards.find((board) => board.id === boardId));
+      });
+    },
+    [boards, scrollToBoard],
+  );
+
+  const addWidgetToBoard = useCallback(
+    (boardId: string, widget: CanvasWidget) => {
+      updateBoardWidgets(boardId, (current) => [...current, widget]);
+    },
+    [updateBoardWidgets],
+  );
 
   const fitWidgetToContent = useCallback(
     (id: string, openuiSource: string, stageSize: ElementSize) => {
       const nextContentFitKey = contentFitKey(openuiSource, stageSize);
 
-      updateWidget(id, (widget) => {
+      updateWidget(activeBoardId, id, (widget) => {
         if (
           widget.status !== "done" ||
           widget.openuiSource !== openuiSource ||
@@ -552,12 +711,15 @@ export default function Home() {
         };
       });
     },
-    [updateWidget],
+    [activeBoardId, updateWidget],
   );
 
   useEffect(() => {
-    setWidgets(parseStoredWidgets());
-    setHasHydratedWidgets(true);
+    const storedBoards = parseStoredBoards();
+
+    setBoards(storedBoards);
+    setActiveBoardId(storedActiveBoardId(storedBoards));
+    setHasHydratedBoards(true);
   }, []);
 
   useEffect(() => {
@@ -576,12 +738,13 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!hasHydratedWidgets) {
+    if (!hasHydratedBoards) {
       return;
     }
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets));
-  }, [hasHydratedWidgets, widgets]);
+    window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(boards));
+    window.localStorage.setItem(ACTIVE_BOARD_STORAGE_KEY, activeBoardId);
+  }, [activeBoardId, boards, hasHydratedBoards]);
 
   const updateCursorPosition = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -770,11 +933,11 @@ export default function Home() {
   }, [scale]);
 
   const handleStreamEvent = useCallback(
-    (id: string, event: WidgetStreamEvent) => {
+    (boardId: string, id: string, event: WidgetStreamEvent) => {
       const now = Date.now();
 
       if (event.type === "exampleData") {
-        updateWidget(id, (widget) => ({
+        updateWidget(boardId, id, (widget) => ({
           ...widget,
           exampleData: event.data,
           updatedAt: now,
@@ -783,7 +946,7 @@ export default function Home() {
       }
 
       if (event.type === "uiDelta") {
-        updateWidget(id, (widget) => ({
+        updateWidget(boardId, id, (widget) => ({
           ...widget,
           openuiSource: `${widget.openuiSource}${event.delta}`,
           updatedAt: now,
@@ -792,7 +955,7 @@ export default function Home() {
       }
 
       if (event.type === "error") {
-        updateWidget(id, (widget) => ({
+        updateWidget(boardId, id, (widget) => ({
           ...widget,
           error: event.error,
           status: "error",
@@ -801,7 +964,7 @@ export default function Home() {
         return;
       }
 
-      updateWidget(id, (widget) => ({
+      updateWidget(boardId, id, (widget) => ({
         ...widget,
         status: "done",
         updatedAt: now,
@@ -811,8 +974,8 @@ export default function Home() {
   );
 
   const generateWidget = useCallback(
-    async (id: string, prompt: string) => {
-      updateWidget(id, (widget) => ({
+    async (boardId: string, id: string, prompt: string) => {
+      updateWidget(boardId, id, (widget) => ({
         ...widget,
         contentFitKey: undefined,
         error: undefined,
@@ -856,7 +1019,7 @@ export default function Home() {
 
             const event = JSON.parse(line) as WidgetStreamEvent;
             sawTerminalEvent = event.type === "done" || event.type === "error" || sawTerminalEvent;
-            handleStreamEvent(id, event);
+            handleStreamEvent(boardId, id, event);
           }
 
           if (done) {
@@ -867,14 +1030,14 @@ export default function Home() {
         if (buffer.trim()) {
           const event = JSON.parse(buffer) as WidgetStreamEvent;
           sawTerminalEvent = event.type === "done" || event.type === "error" || sawTerminalEvent;
-          handleStreamEvent(id, event);
+          handleStreamEvent(boardId, id, event);
         }
 
         if (!sawTerminalEvent) {
           throw new Error("Generation stopped before the widget finished.");
         }
       } catch (error) {
-        updateWidget(id, (widget) => ({
+        updateWidget(boardId, id, (widget) => ({
           ...widget,
           error: streamErrorMessage(error),
           status: "error",
@@ -888,6 +1051,7 @@ export default function Home() {
   const createWidgetFromCommand = useCallback(
     (nextCommand: CommandState) => {
       const prompt = nextCommand.value.trim();
+      const boardId = activeBoardId;
 
       if (!prompt) {
         return;
@@ -909,18 +1073,18 @@ export default function Home() {
         y: Math.min(nextCommand.y, CANVAS_HEIGHT - DEFAULT_WIDGET_HEIGHT),
       };
 
-      setWidgets((current) => [...current, widget]);
+      addWidgetToBoard(boardId, widget);
       setCommand(null);
-      void generateWidget(id, prompt);
+      void generateWidget(boardId, id, prompt);
     },
-    [generateWidget],
+    [activeBoardId, addWidgetToBoard, generateWidget],
   );
 
   const retryWidget = useCallback(
     (widget: CanvasWidget) => {
-      void generateWidget(widget.id, widget.prompt);
+      void generateWidget(activeBoardId, widget.id, widget.prompt);
     },
-    [generateWidget],
+    [activeBoardId, generateWidget],
   );
 
   const handleWheel = useCallback(
@@ -990,14 +1154,14 @@ export default function Home() {
         const deltaY = (event.clientY - interaction.startClientY) / scale;
 
         if (interaction.type === "drag") {
-          updateWidget(interaction.id, (widget) => ({
+          updateWidget(activeBoardId, interaction.id, (widget) => ({
             ...widget,
             updatedAt: Date.now(),
             x: Math.min(CANVAS_WIDTH - widget.width, Math.max(0, interaction.startX + deltaX)),
             y: Math.min(CANVAS_HEIGHT - widget.height, Math.max(0, interaction.startY + deltaY)),
           }));
         } else {
-          updateWidget(interaction.id, (widget) => ({
+          updateWidget(activeBoardId, interaction.id, (widget) => ({
             ...widget,
             height: Math.min(
               CANVAS_HEIGHT - widget.y,
@@ -1024,7 +1188,7 @@ export default function Home() {
       viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
       viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
     },
-    [scale, updateCursorPosition, updateWidget],
+    [activeBoardId, scale, updateCursorPosition, updateWidget],
   );
 
   const endPointerInteraction = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -1125,9 +1289,26 @@ export default function Home() {
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
 
-        <div className="absolute left-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-3 py-2 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:top-6">
+        <div className="absolute left-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:top-6">
           <span className="h-2.5 w-2.5 rounded-full bg-[#22c55e]" />
-          Canvas
+          <label className="sr-only" htmlFor="board-select">
+            Whiteboard
+          </label>
+          <div className="relative">
+            <select
+              className="h-8 max-w-[11rem] appearance-none rounded border border-[#e5e7eb] bg-white py-1 pl-2.5 pr-8 text-sm font-semibold text-[#18181b] outline-none transition hover:bg-[#f6f7f9] sm:max-w-[14rem]"
+              id="board-select"
+              onChange={(event) => selectBoard(event.target.value)}
+              value={activeBoardId}
+            >
+              {boards.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#71717a]" />
+          </div>
           <span className="text-xs font-medium text-[#71717a]">{widgets.length} widgets</span>
           <span className="text-xs font-medium text-[#71717a]">{Math.round(zoom)}%</span>
         </div>
