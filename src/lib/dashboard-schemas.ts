@@ -120,6 +120,7 @@ export const canvasBoardSchema = z.object({
   createdAt: z.number(),
   updatedAt: z.number(),
   templateId: z.string().optional(),
+  templateVersion: z.number().optional(),
 });
 
 export type CanvasBoard = z.infer<typeof canvasBoardSchema>;
