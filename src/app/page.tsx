@@ -1,7 +1,7 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { ChevronLeft, ChevronRight, GripVertical, Maximize2, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, GripVertical, Maximize2, Minus, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import {
   memo,
   useCallback,
@@ -38,8 +38,9 @@ const CANVAS_CENTER_X = CANVAS_WIDTH / 2;
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2;
 const GRID_SIZE = 24;
 const MAJOR_GRID_SIZE = 120;
-const MIN_ZOOM = 50;
+const MIN_ZOOM = 20;
 const MAX_ZOOM = 200;
+const ZOOM_STEP_FACTOR = 1.12;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
@@ -545,7 +546,6 @@ function WidgetFrame({
   onContentMeasured,
   onRetry,
   onStartInteraction,
-  scale,
   widget,
 }: {
   onBringToFront: (id: string) => void;
@@ -553,7 +553,6 @@ function WidgetFrame({
   onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
   onRetry: (widget: CanvasWidget) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
-  scale: number;
   widget: CanvasWidget;
 }) {
   const title = widget.exampleData?.title || widget.prompt;
@@ -570,19 +569,16 @@ function WidgetFrame({
         }
       }}
       style={{
-        height: widget.height * scale,
-        left: widget.x * scale,
-        top: widget.y * scale,
-        width: widget.width * scale,
+        height: widget.height,
+        left: widget.x,
+        top: widget.y,
+        width: widget.width,
       }}
     >
       <article
         className="flex h-full overflow-hidden rounded-md border border-[#d7dce4] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.14)]"
         style={{
           height: widget.height,
-          transform: `scale(${scale})`,
-          transformOrigin: "top left",
-          willChange: "transform",
           width: widget.width,
         }}
       >
@@ -715,6 +711,8 @@ export default function Home() {
   const personalBoards = boards.filter((board) => !board.templateId);
   const prebuiltBoards = boards.filter((board) => board.templateId);
   const totalBoardCount = prebuiltBoards.length + personalBoards.length;
+  const canZoomOut = zoom > MIN_ZOOM;
+  const canZoomIn = zoom < MAX_ZOOM;
 
   const updateBoardTabsScrollState = useCallback(() => {
     const scrollport = boardTabsScrollRef.current;
@@ -1252,13 +1250,13 @@ export default function Home() {
 
       if (event.key === "=" || event.key === "+" || event.key === "Add" || event.code === "NumpadAdd") {
         event.preventDefault();
-        adjustZoom(1.12);
+        adjustZoom(ZOOM_STEP_FACTOR);
         return;
       }
 
       if (event.key === "-" || event.key === "_" || event.code === "Subtract" || event.code === "NumpadSubtract") {
         event.preventDefault();
-        adjustZoom(1 / 1.12);
+        adjustZoom(1 / ZOOM_STEP_FACTOR);
       }
     };
 
@@ -1277,6 +1275,16 @@ export default function Home() {
         "linear-gradient(#edf0f4 1px, transparent 1px), linear-gradient(90deg, #edf0f4 1px, transparent 1px), linear-gradient(#d9dee7 1px, transparent 1px), linear-gradient(90deg, #d9dee7 1px, transparent 1px)",
       backgroundSize: `${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px`,
       backgroundPosition: "-1px -1px",
+    };
+  }, [scale]);
+
+  const canvasWorldStyle = useMemo<CSSProperties>(() => {
+    return {
+      height: CANVAS_HEIGHT,
+      transform: `scale(${scale})`,
+      transformOrigin: "top left",
+      width: CANVAS_WIDTH,
+      willChange: "transform",
     };
   }, [scale]);
 
@@ -1571,19 +1579,20 @@ export default function Home() {
           onPointerUp={endPointerInteraction}
           onWheel={handleWheel}
         >
-          <div aria-label="Scrollable grid canvas" className="relative" style={canvasStyle}>
-            {widgets.map((widget) => (
-              <WidgetFrame
-                key={widget.id}
-                onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
-                onDelete={deleteWidget}
-                onContentMeasured={fitWidgetToContent}
-                onRetry={retryWidget}
-                onStartInteraction={startWidgetInteraction}
-                scale={scale}
-                widget={widget}
-              />
-            ))}
+          <div aria-label="Scrollable grid canvas" className="relative overflow-hidden" style={canvasStyle}>
+            <div className="absolute left-0 top-0" style={canvasWorldStyle}>
+              {widgets.map((widget) => (
+                <WidgetFrame
+                  key={widget.id}
+                  onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
+                  onDelete={deleteWidget}
+                  onContentMeasured={fitWidgetToContent}
+                  onRetry={retryWidget}
+                  onStartInteraction={startWidgetInteraction}
+                  widget={widget}
+                />
+              ))}
+            </div>
           </div>
 
           {command ? (
@@ -1825,21 +1834,23 @@ export default function Home() {
         <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
           <button
             aria-label="Zoom out"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
-            onClick={() => adjustZoom(1 / 1.12)}
+            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            disabled={!canZoomOut}
+            onClick={() => adjustZoom(1 / ZOOM_STEP_FACTOR)}
             title="Zoom out"
             type="button"
           >
-            -
+            <Minus className="h-3.5 w-3.5" />
           </button>
           <button
             aria-label="Zoom in"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
-            onClick={() => adjustZoom(1.12)}
+            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            disabled={!canZoomIn}
+            onClick={() => adjustZoom(ZOOM_STEP_FACTOR)}
             title="Zoom in"
             type="button"
           >
-            +
+            <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
 
