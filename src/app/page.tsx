@@ -478,6 +478,7 @@ const WidgetBody = memo(function WidgetBody({
 });
 
 function WidgetFrame({
+  onBringToFront,
   onDelete,
   onContentMeasured,
   onRetry,
@@ -485,6 +486,7 @@ function WidgetFrame({
   scale,
   widget,
 }: {
+  onBringToFront: (id: string) => void;
   onDelete: (id: string) => void;
   onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
   onRetry: (widget: CanvasWidget) => void;
@@ -500,6 +502,11 @@ function WidgetFrame({
     <div
       className="absolute z-10"
       data-widget
+      onPointerDownCapture={(event) => {
+        if (event.button === 0) {
+          onBringToFront(widget.id);
+        }
+      }}
       style={{
         height: widget.height * scale,
         left: widget.x * scale,
@@ -661,6 +668,36 @@ export default function Home() {
     },
     [updateBoardWidgets],
   );
+
+  const bringWidgetToFront = useCallback((boardId: string, id: string) => {
+    setBoards((current) => {
+      const boardIndex = current.findIndex((board) => board.id === boardId);
+
+      if (boardIndex === -1) {
+        return current;
+      }
+
+      const board = current[boardIndex];
+      const widgetIndex = board.widgets.findIndex((widget) => widget.id === id);
+
+      if (widgetIndex === -1 || widgetIndex === board.widgets.length - 1) {
+        return current;
+      }
+
+      const nextWidgets = [...board.widgets];
+      const [widget] = nextWidgets.splice(widgetIndex, 1);
+
+      return current.map((currentBoard, index) =>
+        index === boardIndex
+          ? {
+              ...currentBoard,
+              updatedAt: Date.now(),
+              widgets: [...nextWidgets, widget],
+            }
+          : currentBoard,
+      );
+    });
+  }, []);
 
   const deleteWidget = useCallback(
     (id: string) => {
@@ -1353,6 +1390,7 @@ export default function Home() {
             {widgets.map((widget) => (
               <WidgetFrame
                 key={widget.id}
+                onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
                 onDelete={deleteWidget}
                 onContentMeasured={fitWidgetToContent}
                 onRetry={retryWidget}
