@@ -699,6 +699,33 @@ export default function Home() {
     [scale],
   );
 
+  const deleteBoard = useCallback(
+    (boardId: string) => {
+      if (boardId === BLANK_BOARD_ID) {
+        return;
+      }
+
+      const blankBoard = boards.find((board) => board.id === BLANK_BOARD_ID);
+
+      setBoards((current) => {
+        const boardToDelete = current.find((board) => board.id === boardId);
+
+        if (!boardToDelete || boardToDelete.templateId) {
+          return current;
+        }
+
+        return current.filter((board) => board.id !== boardId);
+      });
+
+      if (activeBoardId === boardId) {
+        setActiveBoardId(BLANK_BOARD_ID);
+        setCommand(null);
+        requestAnimationFrame(() => scrollToBoard(blankBoard));
+      }
+    },
+    [activeBoardId, boards, scrollToBoard],
+  );
+
   const selectBoard = useCallback(
     (boardId: string) => {
       setActiveBoardId(boardId);
@@ -1353,7 +1380,7 @@ export default function Home() {
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
 
-        <div className="absolute left-4 right-36 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:right-40 sm:top-6">
+        <div className="absolute left-4 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
             <span className="font-semibold text-[#18181b]">AI</span>
             <span className="font-medium text-[#71717a]">Whiteboards</span>
@@ -1389,25 +1416,44 @@ export default function Home() {
             <div className="flex shrink-0 items-center gap-1">
               {personalBoards.map((board) => {
                 const isActive = board.id === activeBoardId;
+                const canDelete = board.id !== BLANK_BOARD_ID;
 
                 return (
-                  <button
-                    aria-pressed={isActive}
-                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                  <div
+                    className={`group flex h-8 shrink-0 items-center rounded border text-sm font-semibold leading-none transition ${
                       isActive
-                        ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
-                        : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                        ? "border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
+                        : "border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
                     }`}
                     key={board.id}
-                    onClick={() => selectBoard(board.id)}
                     title={board.name}
-                    type="button"
                   >
-                    <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
-                      {boardEmoji(board.id)}
-                    </span>
-                    <span className="leading-none">{board.name}</span>
-                  </button>
+                    <button
+                      aria-pressed={isActive}
+                      className="flex h-full min-w-0 items-center gap-1.5 rounded-l px-2.5 text-inherit"
+                      onClick={() => selectBoard(board.id)}
+                      type="button"
+                    >
+                      <span aria-hidden="true" className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none">
+                        {boardEmoji(board.id)}
+                      </span>
+                      <span className="max-w-32 truncate leading-none">{board.name}</span>
+                    </button>
+                    {canDelete ? (
+                      <button
+                        aria-label={`Delete ${board.name} whiteboard`}
+                        className="mr-1 grid h-6 w-6 shrink-0 place-items-center rounded text-[#71717a] opacity-0 transition hover:bg-[#e5e7eb] hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteBoard(board.id);
+                        }}
+                        title="Delete whiteboard"
+                        type="button"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -1423,7 +1469,7 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
+        <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
           <button
             aria-label="Zoom out"
             className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
