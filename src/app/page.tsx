@@ -215,7 +215,9 @@ function ensureBoardSet(boards: CanvasBoard[]) {
     });
   });
 
-  if (!boardById.has(BLANK_BOARD_ID)) {
+  const hasPersonalBoard = [...boardById.values()].some((board) => !board.templateId);
+
+  if (!hasPersonalBoard) {
     boardById.set(BLANK_BOARD_ID, createBlankBoard([], now));
   }
 
@@ -259,7 +261,9 @@ function storedActiveBoardId(boards: CanvasBoard[]) {
 
   const stored = window.localStorage.getItem(ACTIVE_BOARD_STORAGE_KEY);
 
-  return boards.some((board) => board.id === stored) ? stored ?? BLANK_BOARD_ID : BLANK_BOARD_ID;
+  return boards.some((board) => board.id === stored)
+    ? stored ?? boards[0]?.id ?? BLANK_BOARD_ID
+    : boards[0]?.id ?? BLANK_BOARD_ID;
 }
 
 function streamErrorMessage(error: unknown) {
@@ -601,6 +605,7 @@ function WidgetFrame({
 export default function Home() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
+  const boardNameInputRef = useRef<HTMLInputElement>(null);
   const zoomRef = useRef(100);
   const cursorRef = useRef({
     inside: false,
@@ -623,6 +628,8 @@ export default function Home() {
   const [command, setCommand] = useState<CommandState | null>(null);
   const [boards, setBoards] = useState<CanvasBoard[]>(() => ensureBoardSet([createBlankBoard()]));
   const [activeBoardId, setActiveBoardId] = useState(BLANK_BOARD_ID);
+  const [isCreatingBoardName, setIsCreatingBoardName] = useState(false);
+  const [boardNameDraft, setBoardNameDraft] = useState("");
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
 
   const scale = zoom / 100;
@@ -699,9 +706,36 @@ export default function Home() {
     [scale],
   );
 
+  const deleteBoard = useCallback(
+    (boardId: string) => {
+      const personalBoardsAfterDelete = boards.filter((board) => !board.templateId && board.id !== boardId);
+      const fallbackBoard = personalBoardsAfterDelete[0] ?? boards.find((board) => board.id !== boardId);
+
+      setBoards((current) => {
+        const boardToDelete = current.find((board) => board.id === boardId);
+        const personalBoardCount = current.filter((board) => !board.templateId).length;
+
+        if (!boardToDelete || boardToDelete.templateId || personalBoardCount <= 1) {
+          return current;
+        }
+
+        return current.filter((board) => board.id !== boardId);
+      });
+
+      if (activeBoardId === boardId) {
+        setActiveBoardId(fallbackBoard?.id ?? BLANK_BOARD_ID);
+        setCommand(null);
+        requestAnimationFrame(() => scrollToBoard(fallbackBoard));
+      }
+    },
+    [activeBoardId, boards, scrollToBoard],
+  );
+
   const selectBoard = useCallback(
     (boardId: string) => {
       setActiveBoardId(boardId);
+      setIsCreatingBoardName(false);
+      setBoardNameDraft("");
       setCommand(null);
 
       requestAnimationFrame(() => {
@@ -711,10 +745,21 @@ export default function Home() {
     [boards, scrollToBoard],
   );
 
-  const createNamedBlankBoard = useCallback(() => {
-    const name = window.prompt("Name this blank whiteboard", "Untitled whiteboard")?.trim();
+  const openBoardNameCreate = useCallback(() => {
+    setIsCreatingBoardName(true);
+    setBoardNameDraft("");
+    setCommand(null);
+  }, []);
 
-    if (!name) {
+  const cancelBoardNameCreate = useCallback(() => {
+    setIsCreatingBoardName(false);
+    setBoardNameDraft("");
+  }, []);
+
+  const createNamedBlankBoard = useCallback(() => {
+    const nextName = boardNameDraft.trim().slice(0, 48);
+
+    if (!nextName) {
       return;
     }
 
@@ -722,17 +767,19 @@ export default function Home() {
     const board: CanvasBoard = {
       createdAt: now,
       id: createBoardId(),
-      name: name.slice(0, 48),
+      name: nextName,
       updatedAt: now,
       widgets: [],
     };
 
     setBoards((current) => [...current, board]);
     setActiveBoardId(board.id);
+    setIsCreatingBoardName(false);
+    setBoardNameDraft("");
     setCommand(null);
 
     requestAnimationFrame(() => scrollToBoard(board));
-  }, [scrollToBoard]);
+  }, [boardNameDraft, scrollToBoard]);
 
   const addWidgetToBoard = useCallback(
     (boardId: string, widget: CanvasWidget) => {
@@ -892,6 +939,21 @@ export default function Home() {
       cancelAnimationFrame(frame);
     };
   }, [commandPosition]);
+
+  useEffect(() => {
+    if (!isCreatingBoardName) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      boardNameInputRef.current?.focus();
+      boardNameInputRef.current?.select();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [isCreatingBoardName]);
 
   const setCanvasZoom = useCallback(
     (nextValue: number, anchor?: { x: number; y: number }) => {
@@ -1353,7 +1415,7 @@ export default function Home() {
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
 
-        <div className="absolute left-4 right-36 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:right-40 sm:top-6">
+        <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
             <span className="font-semibold text-[#18181b]">AI</span>
             <span className="font-medium text-[#71717a]">Whiteboards</span>
@@ -1367,20 +1429,23 @@ export default function Home() {
                 return (
                   <button
                     aria-pressed={isActive}
-                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                    className={`relative flex h-8 shrink-0 items-center justify-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition focus:outline-none focus-visible:outline-none ${
                       isActive
-                        ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
-                        : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
+                        : "text-[#52525b] hover:text-[#18181b]"
                     }`}
                     key={board.id}
                     onClick={() => selectBoard(board.id)}
                     title={board.name}
                     type="button"
                   >
-                    <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
+                    <span
+                      aria-hidden="true"
+                      className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none"
+                    >
                       {boardEmoji(board.id)}
                     </span>
-                    <span className="leading-none">{board.name}</span>
+                    <span className="min-w-0 truncate leading-none">{board.name}</span>
                   </button>
                 );
               })}
@@ -1389,41 +1454,96 @@ export default function Home() {
             <div className="flex shrink-0 items-center gap-1">
               {personalBoards.map((board) => {
                 const isActive = board.id === activeBoardId;
+                const canDelete = personalBoards.length > 1;
 
                 return (
-                  <button
-                    aria-pressed={isActive}
-                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                  <div
+                    className={`group relative flex h-8 shrink-0 items-center text-sm font-semibold leading-none transition ${
                       isActive
-                        ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
-                        : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
+                        : "text-[#52525b] hover:text-[#18181b]"
                     }`}
                     key={board.id}
-                    onClick={() => selectBoard(board.id)}
                     title={board.name}
-                    type="button"
                   >
-                    <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
-                      {boardEmoji(board.id)}
-                    </span>
-                    <span className="leading-none">{board.name}</span>
-                  </button>
+                    <button
+                      aria-pressed={isActive}
+                      className="flex h-full max-w-40 items-center justify-center gap-1.5 px-2.5 text-inherit focus:outline-none focus-visible:outline-none"
+                      onClick={() => selectBoard(board.id)}
+                      type="button"
+                    >
+                      <span className="min-w-0 truncate leading-none">{board.name}</span>
+                    </button>
+                    {canDelete ? (
+                      <button
+                        aria-label={`Delete ${board.name} whiteboard`}
+                        className="absolute right-0 top-1/2 z-10 grid h-3.5 w-3.5 translate-x-1/2 -translate-y-1/2 place-items-center text-[#71717a] opacity-0 transition hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteBoard(board.id);
+                        }}
+                        type="button"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
           </div>
-          <button
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded border border-transparent px-2.5 text-sm font-semibold leading-none text-[#52525b] transition hover:border-[#e5e7eb] hover:bg-white"
-            onClick={createNamedBlankBoard}
-            title="Create blank whiteboard"
-            type="button"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="leading-none">New</span>
-          </button>
+          {isCreatingBoardName ? (
+            <form
+              className="flex h-8 shrink-0 items-center gap-1.5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                createNamedBlankBoard();
+              }}
+            >
+              <input
+                aria-label="New whiteboard name"
+                className="h-8 w-36 rounded border border-[#d4d4d8] bg-white px-2 text-sm font-medium text-[#18181b] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#2563eb]"
+                maxLength={48}
+                onChange={(event) => setBoardNameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    cancelBoardNameCreate();
+                  }
+                }}
+                placeholder="Name"
+                ref={boardNameInputRef}
+                value={boardNameDraft}
+              />
+              <button
+                className="h-8 rounded border border-[#18181b] bg-[#18181b] px-2.5 text-sm font-semibold leading-none text-white transition hover:bg-[#27272a] disabled:cursor-not-allowed disabled:border-[#d4d4d8] disabled:bg-[#e4e4e7] disabled:text-[#a1a1aa]"
+                disabled={!boardNameDraft.trim()}
+                type="submit"
+              >
+                Create
+              </button>
+              <button
+                className="h-8 rounded border border-transparent px-2.5 text-sm font-semibold leading-none text-[#71717a] transition hover:bg-white hover:text-[#18181b]"
+                onClick={cancelBoardNameCreate}
+                type="button"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <button
+              aria-label="Create blank whiteboard"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded border border-transparent text-[#52525b] transition hover:border-[#e5e7eb] hover:bg-white hover:text-[#18181b]"
+              onClick={openBoardNameCreate}
+              title="Create blank whiteboard"
+              type="button"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
-        <div className="absolute right-4 top-4 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
+        <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
           <button
             aria-label="Zoom out"
             className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
