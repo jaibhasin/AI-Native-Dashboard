@@ -215,7 +215,9 @@ function ensureBoardSet(boards: CanvasBoard[]) {
     });
   });
 
-  if (!boardById.has(BLANK_BOARD_ID)) {
+  const hasPersonalBoard = [...boardById.values()].some((board) => !board.templateId);
+
+  if (!hasPersonalBoard) {
     boardById.set(BLANK_BOARD_ID, createBlankBoard([], now));
   }
 
@@ -259,7 +261,9 @@ function storedActiveBoardId(boards: CanvasBoard[]) {
 
   const stored = window.localStorage.getItem(ACTIVE_BOARD_STORAGE_KEY);
 
-  return boards.some((board) => board.id === stored) ? stored ?? BLANK_BOARD_ID : BLANK_BOARD_ID;
+  return boards.some((board) => board.id === stored)
+    ? stored ?? boards[0]?.id ?? BLANK_BOARD_ID
+    : boards[0]?.id ?? BLANK_BOARD_ID;
 }
 
 function streamErrorMessage(error: unknown) {
@@ -701,16 +705,14 @@ export default function Home() {
 
   const deleteBoard = useCallback(
     (boardId: string) => {
-      if (boardId === BLANK_BOARD_ID) {
-        return;
-      }
-
-      const blankBoard = boards.find((board) => board.id === BLANK_BOARD_ID);
+      const personalBoardsAfterDelete = boards.filter((board) => !board.templateId && board.id !== boardId);
+      const fallbackBoard = personalBoardsAfterDelete[0] ?? boards.find((board) => board.id !== boardId);
 
       setBoards((current) => {
         const boardToDelete = current.find((board) => board.id === boardId);
+        const personalBoardCount = current.filter((board) => !board.templateId).length;
 
-        if (!boardToDelete || boardToDelete.templateId) {
+        if (!boardToDelete || boardToDelete.templateId || personalBoardCount <= 1) {
           return current;
         }
 
@@ -718,9 +720,9 @@ export default function Home() {
       });
 
       if (activeBoardId === boardId) {
-        setActiveBoardId(BLANK_BOARD_ID);
+        setActiveBoardId(fallbackBoard?.id ?? BLANK_BOARD_ID);
         setCommand(null);
-        requestAnimationFrame(() => scrollToBoard(blankBoard));
+        requestAnimationFrame(() => scrollToBoard(fallbackBoard));
       }
     },
     [activeBoardId, boards, scrollToBoard],
@@ -1380,7 +1382,7 @@ export default function Home() {
 
         <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
 
-        <div className="absolute left-4 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-6 sm:right-40 sm:top-6">
+        <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
             <span className="font-semibold text-[#18181b]">AI</span>
             <span className="font-medium text-[#71717a]">Whiteboards</span>
@@ -1394,10 +1396,10 @@ export default function Home() {
                 return (
                   <button
                     aria-pressed={isActive}
-                    className={`flex h-8 shrink-0 items-center gap-1.5 rounded px-2.5 text-sm font-semibold leading-none transition ${
+                    className={`relative flex h-8 shrink-0 items-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition ${
                       isActive
-                        ? "border border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
-                        : "border border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[#2563eb]"
+                        : "text-[#52525b] hover:text-[#18181b]"
                     }`}
                     key={board.id}
                     onClick={() => selectBoard(board.id)}
@@ -1416,33 +1418,33 @@ export default function Home() {
             <div className="flex shrink-0 items-center gap-1">
               {personalBoards.map((board) => {
                 const isActive = board.id === activeBoardId;
-                const canDelete = board.id !== BLANK_BOARD_ID;
+                const canDelete = personalBoards.length > 1;
 
                 return (
                   <div
-                    className={`group flex h-8 shrink-0 items-center rounded border text-sm font-semibold leading-none transition ${
+                    className={`group relative flex h-8 shrink-0 items-center text-sm font-semibold leading-none transition ${
                       isActive
-                        ? "border-[#c7d2fe] bg-[#eef2ff] text-[#312e81]"
-                        : "border-transparent text-[#52525b] hover:border-[#e5e7eb] hover:bg-white"
+                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[#2563eb]"
+                        : "text-[#52525b] hover:text-[#18181b]"
                     }`}
                     key={board.id}
                     title={board.name}
-                  >
-                    <button
-                      aria-pressed={isActive}
-                      className="flex h-full min-w-0 items-center gap-1.5 rounded-l px-2.5 text-inherit"
-                      onClick={() => selectBoard(board.id)}
-                      type="button"
                     >
-                      <span aria-hidden="true" className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none">
-                        {boardEmoji(board.id)}
-                      </span>
-                      <span className="max-w-32 truncate leading-none">{board.name}</span>
-                    </button>
+                      <button
+                        aria-pressed={isActive}
+                        className="flex h-full min-w-0 items-center gap-1.5 rounded px-2.5 text-inherit"
+                        onClick={() => selectBoard(board.id)}
+                        type="button"
+                      >
+                        <span aria-hidden="true" className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none">
+                          {boardEmoji(board.id)}
+                        </span>
+                        <span className="max-w-32 truncate leading-none">{board.name}</span>
+                      </button>
                     {canDelete ? (
                       <button
                         aria-label={`Delete ${board.name} whiteboard`}
-                        className="mr-1 grid h-6 w-6 shrink-0 place-items-center rounded text-[#71717a] opacity-0 transition hover:bg-[#e5e7eb] hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
+                        className="absolute -bottom-1 -right-1 z-10 grid h-4 w-4 place-items-center rounded-full border border-[#d7dce4] bg-white text-[#71717a] opacity-0 shadow-sm transition hover:bg-[#f6f7f9] hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
                         onClick={(event) => {
                           event.stopPropagation();
                           deleteBoard(board.id);
@@ -1450,7 +1452,7 @@ export default function Home() {
                         title="Delete whiteboard"
                         type="button"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-2.5 w-2.5" />
                       </button>
                     ) : null}
                   </div>
