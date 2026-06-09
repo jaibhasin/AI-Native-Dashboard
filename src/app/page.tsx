@@ -1396,9 +1396,9 @@ export default function Home() {
                 return (
                   <button
                     aria-pressed={isActive}
-                    className={`relative flex h-8 shrink-0 items-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition ${
+                    className={`relative flex h-8 shrink-0 items-center justify-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition focus:outline-none focus-visible:outline-none ${
                       isActive
-                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[#2563eb]"
+                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
                         : "text-[#52525b] hover:text-[#18181b]"
                     }`}
                     key={board.id}
@@ -1406,10 +1406,13 @@ export default function Home() {
                     title={board.name}
                     type="button"
                   >
-                    <span aria-hidden="true" className="grid h-4 w-4 place-items-center text-[15px] leading-none">
+                    <span
+                      aria-hidden="true"
+                      className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none"
+                    >
                       {boardEmoji(board.id)}
                     </span>
-                    <span className="leading-none">{board.name}</span>
+                    <span className="min-w-0 truncate leading-none">{board.name}</span>
                   </button>
                 );
               })}
@@ -1424,23 +1427,26 @@ export default function Home() {
                   <div
                     className={`group relative flex h-8 shrink-0 items-center text-sm font-semibold leading-none transition ${
                       isActive
-                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:bg-[#2563eb]"
+                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
                         : "text-[#52525b] hover:text-[#18181b]"
                     }`}
                     key={board.id}
                     title={board.name}
+                  >
+                    <button
+                      aria-pressed={isActive}
+                      className="flex h-full max-w-40 items-center justify-center gap-1.5 px-2.5 text-inherit focus:outline-none focus-visible:outline-none"
+                      onClick={() => selectBoard(board.id)}
+                      type="button"
                     >
-                      <button
-                        aria-pressed={isActive}
-                        className="flex h-full min-w-0 items-center gap-1.5 rounded px-2.5 text-inherit"
-                        onClick={() => selectBoard(board.id)}
-                        type="button"
+                      <span
+                        aria-hidden="true"
+                        className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none"
                       >
-                        <span aria-hidden="true" className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none">
-                          {boardEmoji(board.id)}
-                        </span>
-                        <span className="max-w-32 truncate leading-none">{board.name}</span>
-                      </button>
+                        {boardEmoji(board.id)}
+                      </span>
+                      <span className="min-w-0 truncate leading-none">{board.name}</span>
+                    </button>
                     {canDelete ? (
                       <button
                         aria-label={`Delete ${board.name} whiteboard`}
