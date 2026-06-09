@@ -1439,12 +1439,6 @@ export default function Home() {
                       onClick={() => selectBoard(board.id)}
                       type="button"
                     >
-                      <span
-                        aria-hidden="true"
-                        className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none"
-                      >
-                        {boardEmoji(board.id)}
-                      </span>
                       <span className="min-w-0 truncate leading-none">{board.name}</span>
                     </button>
                     {canDelete ? (
