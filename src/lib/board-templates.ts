@@ -12,17 +12,17 @@ import type {
 } from "@/lib/dashboard-schemas";
 
 export const BLANK_BOARD_ID = "blank";
-export const BOARD_TEMPLATE_VERSION = 3;
+export const BOARD_TEMPLATE_VERSION = 4;
 
 const TEMPLATE_WIDGET_WIDTH = 440;
 const TEMPLATE_WIDGET_HEIGHT = 320;
-const TEMPLATE_NOTE_WIDTH = 356;
-const TEMPLATE_NOTE_HEIGHT = 134;
+const TEMPLATE_NOTE_WIDTH = 284;
+const TEMPLATE_NOTE_HEIGHT = 108;
 const TEMPLATE_CANVAS_CENTER_X = 100000;
 const TEMPLATE_CANVAS_CENTER_Y = 100000;
 const TEMPLATE_GAP = 36;
-const TEMPLATE_NOTE_GAP = 26;
-const TEMPLATE_NOTE_TOP_GAP = 44;
+const TEMPLATE_NOTE_GAP = 18;
+const TEMPLATE_NOTE_TOP_GAP = 28;
 const PREVIEW_DISCLOSURE = "AI-generated preview data.";
 
 type TemplateGridCoordinate = 0 | 1 | 2;

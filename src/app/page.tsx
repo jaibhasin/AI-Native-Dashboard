@@ -45,8 +45,8 @@ const MAX_ZOOM = 200;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
-const DEFAULT_NOTE_WIDTH = 356;
-const DEFAULT_NOTE_HEIGHT = 134;
+const DEFAULT_NOTE_WIDTH = 284;
+const DEFAULT_NOTE_HEIGHT = 108;
 const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
@@ -713,21 +713,21 @@ function NoteFrame({
       }}
     >
       <article
-        className="relative flex h-full overflow-hidden rounded-md border text-[#18181b]"
+        className="relative flex h-full overflow-hidden rounded-[5px] border text-[#18181b]"
         style={{
-          background: colorStyle.background,
-          borderColor: colorStyle.border,
-          boxShadow: `0 16px 34px ${colorStyle.shadow}, inset 0 1px 0 rgba(255,255,255,0.84)`,
+          background: `linear-gradient(180deg, #ffffff 0%, ${colorStyle.background} 160%)`,
+          borderColor: "#dce1e8",
+          boxShadow: `0 10px 24px ${colorStyle.shadow}, 0 1px 0 rgba(255,255,255,0.94) inset`,
           height: note.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           width: note.width,
         }}
       >
-        <div className="w-1.5 shrink-0" style={{ background: colorStyle.accent }} />
+        <div className="w-1 shrink-0" style={{ background: colorStyle.accent }} />
         <div className="flex min-w-0 flex-1 flex-col">
           <header
-            className={`flex h-9 shrink-0 items-center gap-2 border-b px-2.5 ${
+            className={`flex h-8 shrink-0 items-center gap-1.5 border-b px-2 ${
               isEditing ? "" : "cursor-grab active:cursor-grabbing"
             }`}
             onPointerDown={(event) => {
@@ -744,14 +744,14 @@ function NoteFrame({
                 type: "note-drag",
               });
             }}
-            style={{ borderColor: colorStyle.border }}
+            style={{ borderColor: "#e5e7eb" }}
           >
-            <GripVertical className="h-3.5 w-3.5 shrink-0 text-[#71717a]" />
+            <GripVertical className="h-3 w-3 shrink-0 text-[#a1a1aa]" />
             <div className="min-w-0 flex-1">
               {isEditing ? (
                 <input
                   aria-label="Note title"
-                  className="h-7 w-full rounded border border-white/60 bg-white/70 px-2 text-sm font-semibold outline-none focus:border-[#18181b]"
+                  className="h-6 w-full rounded border border-[#e2e5ea] bg-white/85 px-1.5 text-xs font-semibold outline-none focus:border-[#18181b]"
                   data-note-control
                   id={`${note.id}-title`}
                   maxLength={48}
@@ -760,64 +760,64 @@ function NoteFrame({
                   value={draft.title}
                 />
               ) : (
-                <div className="truncate text-sm font-semibold">{note.title}</div>
+                <div className="truncate text-xs font-semibold">{note.title}</div>
               )}
             </div>
             {isEditing ? (
               <>
                 <button
                   aria-label="Save note"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded border border-white/70 bg-white/70 text-[#27272a] transition hover:bg-white"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#27272a] transition hover:bg-white"
                   data-note-control
                   onClick={commitEdit}
                   title="Save"
                   type="button"
                 >
-                  <Check className="h-3.5 w-3.5" />
+                  <Check className="h-3 w-3" />
                 </button>
                 <button
                   aria-label="Cancel note edit"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded border border-white/70 bg-white/70 text-[#52525b] transition hover:bg-white"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#52525b] transition hover:bg-white"
                   data-note-control
                   onClick={cancelEdit}
                   title="Cancel"
                   type="button"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <X className="h-3 w-3" />
                 </button>
               </>
             ) : (
               <>
                 <button
                   aria-label="Edit note"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded border border-white/70 bg-white/60 text-[#52525b] transition hover:bg-white hover:text-[#18181b]"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
                   data-note-control
                   onClick={() => setIsEditing(true)}
                   title="Edit"
                   type="button"
                 >
-                  <Pencil className="h-3.5 w-3.5" />
+                  <Pencil className="h-3 w-3" />
                 </button>
                 <button
                   aria-label="Delete note"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded border border-white/70 bg-white/60 text-[#52525b] transition hover:bg-white hover:text-[#18181b]"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
                   data-note-control
                   onClick={() => onDelete(note.id)}
                   title="Delete"
                   type="button"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3 w-3" />
                 </button>
               </>
             )}
           </header>
 
-          <div className="min-h-0 flex-1 p-3">
+          <div className="min-h-0 flex-1 p-2.5">
             {isEditing ? (
-              <div className="flex h-full flex-col gap-2">
+              <div className="flex h-full flex-col gap-1.5">
                 <textarea
                   aria-label="Note body"
-                  className="min-h-0 flex-1 resize-none rounded border border-white/60 bg-white/70 px-2.5 py-2 text-xs leading-5 text-[#27272a] outline-none focus:border-[#18181b]"
+                  className="min-h-0 flex-1 resize-none rounded border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-[11px] leading-4 text-[#27272a] outline-none focus:border-[#18181b]"
                   data-note-control
                   id={`${note.id}-body`}
                   maxLength={280}
@@ -825,7 +825,7 @@ function NoteFrame({
                   onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))}
                   value={draft.body}
                 />
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   {noteColorOptions.map((color) => {
                     const optionStyle = noteColorStyles[color];
                     const isSelected = color === draft.color;
@@ -834,7 +834,7 @@ function NoteFrame({
                       <button
                         aria-label={`${color} note color`}
                         aria-pressed={isSelected}
-                        className="h-5 w-5 rounded-full border transition"
+                        className="h-4 w-4 rounded-full border transition"
                         data-note-control
                         key={color}
                         onClick={() => setDraft((current) => ({ ...current, color }))}
@@ -851,7 +851,7 @@ function NoteFrame({
                 </div>
               </div>
             ) : (
-              <p className="line-clamp-4 text-xs font-medium leading-5 text-[#3f3f46]">{note.body}</p>
+              <p className="line-clamp-3 text-[11px] font-medium leading-4 text-[#3f3f46]">{note.body}</p>
             )}
           </div>
         </div>
@@ -902,7 +902,7 @@ function WidgetFrame({
       <article
         className="relative flex h-full overflow-hidden rounded-md border bg-white shadow-[0_18px_42px_rgba(15,23,42,0.14)]"
         style={{
-          borderColor: accent?.border ?? "#d7dce4",
+          borderColor: "#d7dce4",
           boxShadow: accent
             ? "0 20px 46px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.92) inset"
             : "0 18px 42px rgba(15,23,42,0.14)",
@@ -913,9 +913,6 @@ function WidgetFrame({
           width: widget.width,
         }}
       >
-        {accent ? (
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-1" style={{ background: accent.accent }} />
-        ) : null}
         <div className="flex min-h-0 w-full flex-col">
           <header
             className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-[#e5e7eb] bg-white px-2.5 active:cursor-grabbing"
@@ -935,10 +932,10 @@ function WidgetFrame({
             }}
             style={{
               background: accent ? `linear-gradient(90deg, ${accent.surface}, #ffffff 62%)` : undefined,
-              borderColor: accent?.border ?? "#e5e7eb",
+              borderColor: "#e5e7eb",
             }}
           >
-            <GripVertical className="h-4 w-4 shrink-0 text-[#9aa3af]" style={{ color: accent?.accent }} />
+            <GripVertical className="h-4 w-4 shrink-0 text-[#9aa3af]" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-[#18181b]">{title}</div>
               <div className="truncate text-[11px] text-[#71717a]">{widget.prompt}</div>
@@ -947,7 +944,6 @@ function WidgetFrame({
               className="rounded border border-[#e5e7eb] bg-[#f8fafc] px-2 py-1 text-[11px] font-medium text-[#52525b]"
               style={{
                 background: accent?.surface,
-                borderColor: accent?.border,
                 color: accent?.accent,
               }}
             >
@@ -1455,12 +1451,27 @@ export default function Home() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "/" || isEditableTarget(event.target)) {
+      if (isEditableTarget(event.target)) {
         return;
       }
 
-      event.preventDefault();
-      openCommandAtCursor();
+      if (event.key === "/") {
+        event.preventDefault();
+        openCommandAtCursor();
+        return;
+      }
+
+      if (
+        activeBoardIsTemplate &&
+        !event.repeat &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "n"
+      ) {
+        event.preventDefault();
+        addNoteToActiveBoard();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -1468,7 +1479,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [openCommandAtCursor]);
+  }, [activeBoardIsTemplate, addNoteToActiveBoard, openCommandAtCursor]);
 
   useEffect(() => {
     if (!commandPosition) {
@@ -2157,8 +2168,18 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
-          Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
+        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
+          <span>
+            Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
+          </span>
+          {activeBoardIsTemplate ? (
+            <>
+              <span className="h-3 w-px bg-[#d4d4d8]" />
+              <span>
+                <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">N</span> to add a note
+              </span>
+            </>
+          ) : null}
         </div>
 
         <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
