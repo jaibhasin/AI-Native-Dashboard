@@ -1444,15 +1444,14 @@ export default function Home() {
                     {canDelete ? (
                       <button
                         aria-label={`Delete ${board.name} whiteboard`}
-                        className="absolute -bottom-1 -right-1 z-10 grid h-4 w-4 place-items-center rounded-full border border-[#d7dce4] bg-white text-[#71717a] opacity-0 shadow-sm transition hover:bg-[#f6f7f9] hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
+                        className="absolute right-0 top-1/2 z-10 grid h-3.5 w-3.5 translate-x-1/2 -translate-y-1/2 place-items-center text-[#71717a] opacity-0 transition hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
                         onClick={(event) => {
                           event.stopPropagation();
                           deleteBoard(board.id);
                         }}
-                        title="Delete whiteboard"
                         type="button"
                       >
-                        <X className="h-2.5 w-2.5" />
+                        <X className="h-3 w-3" />
                       </button>
                     ) : null}
                   </div>
