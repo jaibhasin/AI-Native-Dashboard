@@ -1,7 +1,7 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { Check, GripVertical, Maximize2, Pencil, Plus, RotateCcw, StickyNote, Trash2, X } from "lucide-react";
+import { Check, GripVertical, Maximize2, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import {
   memo,
   useCallback,
@@ -1393,7 +1393,7 @@ export default function Home() {
     });
   }, [scale]);
 
-  const addNoteToActiveBoard = useCallback(() => {
+  const addNoteToActiveBoard = useCallback((targetPosition?: { x: number; y: number }) => {
     if (!activeBoard?.templateId) {
       return;
     }
@@ -1402,15 +1402,17 @@ export default function Home() {
     const bounds = boardBounds(activeBoard);
     const currentNotes = activeBoard.notes ?? [];
     const fallbackCenter = getVisibleCanvasCenter();
-    const basePosition = bounds
-      ? {
-          x: bounds.maxX + 28,
-          y: bounds.minY + (currentNotes.length % 4) * (DEFAULT_NOTE_HEIGHT + 18),
-        }
-      : {
-          x: fallbackCenter.x - DEFAULT_NOTE_WIDTH / 2,
-          y: fallbackCenter.y - DEFAULT_NOTE_HEIGHT / 2,
-        };
+    const basePosition =
+      targetPosition ??
+      (bounds
+        ? {
+            x: bounds.maxX + 28,
+            y: bounds.minY + (currentNotes.length % 4) * (DEFAULT_NOTE_HEIGHT + 18),
+          }
+        : {
+            x: fallbackCenter.x - DEFAULT_NOTE_WIDTH / 2,
+            y: fallbackCenter.y - DEFAULT_NOTE_HEIGHT / 2,
+          });
     const position = clampCanvasRectPosition(
       basePosition.x,
       basePosition.y,
@@ -1430,8 +1432,26 @@ export default function Home() {
     };
 
     updateBoardNotes(activeBoard.id, (current) => [...current, note]);
-    requestAnimationFrame(() => focusBoard({ ...activeBoard, notes: [...currentNotes, note], updatedAt: now }));
+    if (!targetPosition) {
+      requestAnimationFrame(() => focusBoard({ ...activeBoard, notes: [...currentNotes, note], updatedAt: now }));
+    }
   }, [activeBoard, focusBoard, getVisibleCanvasCenter, updateBoardNotes]);
+
+  const addNoteAtCursor = useCallback(() => {
+    const cursor = cursorRef.current;
+    const visibleCenter = getVisibleCanvasCenter();
+    const position = cursor.inside
+      ? {
+          x: cursor.x,
+          y: cursor.y,
+        }
+      : {
+          x: visibleCenter.x - DEFAULT_NOTE_WIDTH / 2,
+          y: visibleCenter.y - DEFAULT_NOTE_HEIGHT / 2,
+        };
+
+    addNoteToActiveBoard(position);
+  }, [addNoteToActiveBoard, getVisibleCanvasCenter]);
 
   const openCommandAtCursor = useCallback(() => {
     const cursor = cursorRef.current;
@@ -1470,7 +1490,7 @@ export default function Home() {
         event.key.toLowerCase() === "n"
       ) {
         event.preventDefault();
-        addNoteToActiveBoard();
+        addNoteAtCursor();
       }
     };
 
@@ -1479,7 +1499,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeBoardIsTemplate, addNoteToActiveBoard, openCommandAtCursor]);
+  }, [activeBoardIsTemplate, addNoteAtCursor, openCommandAtCursor]);
 
   useEffect(() => {
     if (!commandPosition) {
@@ -2080,22 +2100,6 @@ export default function Home() {
               })}
             </div>
           </div>
-          {activeBoardIsTemplate ? (
-            <button
-              aria-label="Add note"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded border text-[#52525b] transition hover:bg-white hover:text-[#18181b]"
-              onClick={addNoteToActiveBoard}
-              style={{
-                background: activeBoardAccent?.surface,
-                borderColor: activeBoardAccent?.border ?? "transparent",
-                color: activeBoardAccent?.accent,
-              }}
-              title="Add note"
-              type="button"
-            >
-              <StickyNote className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
           {isCreatingBoardName ? (
             <form
               className="flex h-8 shrink-0 items-center gap-1.5"
