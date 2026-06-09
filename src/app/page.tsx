@@ -704,6 +704,7 @@ export default function Home() {
   const [boardTabsScrollState, setBoardTabsScrollState] = useState({
     canScrollLeft: false,
     canScrollRight: false,
+    hasOverflow: false,
   });
 
   const scale = zoom / 100;
@@ -720,10 +721,11 @@ export default function Home() {
 
     if (!scrollport) {
       setBoardTabsScrollState((current) =>
-        current.canScrollLeft || current.canScrollRight
+        current.canScrollLeft || current.canScrollRight || current.hasOverflow
           ? {
               canScrollLeft: false,
               canScrollRight: false,
+              hasOverflow: false,
             }
           : current,
       );
@@ -731,13 +733,17 @@ export default function Home() {
     }
 
     const maxScrollLeft = Math.max(0, scrollport.scrollWidth - scrollport.clientWidth);
+    const hasOverflow = maxScrollLeft > BOARD_TAB_SCROLL_EPSILON;
     const nextState = {
-      canScrollLeft: scrollport.scrollLeft > BOARD_TAB_SCROLL_EPSILON,
-      canScrollRight: scrollport.scrollLeft < maxScrollLeft - BOARD_TAB_SCROLL_EPSILON,
+      canScrollLeft: hasOverflow && scrollport.scrollLeft > BOARD_TAB_SCROLL_EPSILON,
+      canScrollRight: hasOverflow && scrollport.scrollLeft < maxScrollLeft - BOARD_TAB_SCROLL_EPSILON,
+      hasOverflow,
     };
 
     setBoardTabsScrollState((current) =>
-      current.canScrollLeft === nextState.canScrollLeft && current.canScrollRight === nextState.canScrollRight
+      current.canScrollLeft === nextState.canScrollLeft &&
+      current.canScrollRight === nextState.canScrollRight &&
+      current.hasOverflow === nextState.hasOverflow
         ? current
         : nextState,
     );
@@ -1639,25 +1645,33 @@ export default function Home() {
           </span>
           <span className="h-4 w-px shrink-0 bg-[#d4d4d8]" />
           <div className="relative min-w-0 flex-1">
-            {boardTabsScrollState.canScrollLeft ? (
+            {boardTabsScrollState.hasOverflow ? (
               <>
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-9 bg-gradient-to-r from-white via-white/95 to-transparent" />
+                <div
+                  className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-white via-white/95 to-transparent transition-opacity duration-150 ${
+                    boardTabsScrollState.canScrollLeft ? "opacity-100" : "opacity-0"
+                  }`}
+                />
                 <button
                   aria-label="Scroll whiteboards left"
-                  className="absolute left-0 top-1/2 z-20 grid h-7 w-7 -translate-y-1/2 place-items-center rounded border border-[#e5e7eb] bg-white/95 text-[#52525b] shadow-sm transition hover:bg-[#f6f7f9] hover:text-[#18181b]"
+                  className={`absolute inset-y-0 left-0 z-20 grid w-5 place-items-center rounded-sm text-[#71717a] transition duration-150 hover:bg-white/70 hover:text-[#18181b] ${
+                    boardTabsScrollState.canScrollLeft
+                      ? "opacity-100"
+                      : "pointer-events-none opacity-0"
+                  }`}
+                  disabled={!boardTabsScrollState.canScrollLeft}
                   onClick={() => scrollBoardTabs("left")}
+                  tabIndex={boardTabsScrollState.canScrollLeft ? 0 : -1}
                   title="Scroll whiteboards left"
                   type="button"
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <ChevronLeft className="h-3 w-3" />
                 </button>
               </>
             ) : null}
             <div
               ref={boardTabsScrollRef}
-              className={`flex min-w-0 flex-1 scroll-px-8 items-center gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-                boardTabsScrollState.canScrollLeft ? "pl-8" : ""
-              } ${boardTabsScrollState.canScrollRight ? "pr-8" : ""}`}
+              className="flex min-w-0 flex-1 scroll-px-8 items-center gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               onScroll={updateBoardTabsScrollState}
             >
               <div className="flex shrink-0 items-center gap-1">
@@ -1732,17 +1746,27 @@ export default function Home() {
                 })}
               </div>
             </div>
-            {boardTabsScrollState.canScrollRight ? (
+            {boardTabsScrollState.hasOverflow ? (
               <>
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-9 bg-gradient-to-l from-white via-white/95 to-transparent" />
+                <div
+                  className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-7 bg-gradient-to-l from-white via-white/95 to-transparent transition-opacity duration-150 ${
+                    boardTabsScrollState.canScrollRight ? "opacity-100" : "opacity-0"
+                  }`}
+                />
                 <button
                   aria-label="Scroll whiteboards right"
-                  className="absolute right-0 top-1/2 z-20 grid h-7 w-7 -translate-y-1/2 place-items-center rounded border border-[#e5e7eb] bg-white/95 text-[#52525b] shadow-sm transition hover:bg-[#f6f7f9] hover:text-[#18181b]"
+                  className={`absolute inset-y-0 right-0 z-20 grid w-5 place-items-center rounded-sm text-[#71717a] transition duration-150 hover:bg-white/70 hover:text-[#18181b] ${
+                    boardTabsScrollState.canScrollRight
+                      ? "opacity-100"
+                      : "pointer-events-none opacity-0"
+                  }`}
+                  disabled={!boardTabsScrollState.canScrollRight}
                   onClick={() => scrollBoardTabs("right")}
+                  tabIndex={boardTabsScrollState.canScrollRight ? 0 : -1}
                   title="Scroll whiteboards right"
                   type="button"
                 >
-                  <ChevronRight className="h-3.5 w-3.5" />
+                  <ChevronRight className="h-3 w-3" />
                 </button>
               </>
             ) : null}
