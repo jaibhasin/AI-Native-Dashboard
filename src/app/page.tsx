@@ -15,7 +15,12 @@ import {
   type WheelEvent,
 } from "react";
 import { z } from "zod/v4";
-import { BLANK_BOARD_ID, BOARD_TEMPLATES, createBoardFromTemplate } from "@/lib/board-templates";
+import {
+  BLANK_BOARD_ID,
+  BOARD_TEMPLATES,
+  BOARD_TEMPLATE_VERSION,
+  createBoardFromTemplate,
+} from "@/lib/board-templates";
 import {
   canvasBoardSchema,
   canvasWidgetSchema,
@@ -50,6 +55,15 @@ const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
 
 type ElementSize = {
   height: number;
+  width: number;
+};
+
+type BoardBounds = {
+  height: number;
+  maxX: number;
+  maxY: number;
+  minX: number;
+  minY: number;
   width: number;
 };
 
@@ -222,7 +236,13 @@ function ensureBoardSet(boards: CanvasBoard[]) {
   }
 
   BOARD_TEMPLATES.forEach((template) => {
-    if (!boardById.has(template.id)) {
+    const currentBoard = boardById.get(template.id);
+
+    if (
+      !currentBoard ||
+      currentBoard.templateId !== template.id ||
+      currentBoard.templateVersion !== BOARD_TEMPLATE_VERSION
+    ) {
       boardById.set(template.id, createBoardFromTemplate(template, now));
     }
   });
@@ -287,6 +307,47 @@ function measuredSize(element: HTMLElement, minimum: ElementSize) {
 
 function sameSize(left: ElementSize, right: ElementSize) {
   return left.height === right.height && left.width === right.width;
+}
+
+function boardBounds(board: CanvasBoard | undefined): BoardBounds | null {
+  if (!board || board.widgets.length === 0) {
+    return null;
+  }
+
+  const bounds = board.widgets.reduce(
+    (current, widget) => ({
+      maxX: Math.max(current.maxX, widget.x + widget.width),
+      maxY: Math.max(current.maxY, widget.y + widget.height),
+      minX: Math.min(current.minX, widget.x),
+      minY: Math.min(current.minY, widget.y),
+    }),
+    {
+      maxX: Number.NEGATIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+      minX: Number.POSITIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+    },
+  );
+
+  return {
+    ...bounds,
+    height: bounds.maxY - bounds.minY,
+    width: bounds.maxX - bounds.minX,
+  };
+}
+
+function fitZoomForBoard(board: CanvasBoard | undefined, viewport: HTMLElement) {
+  const bounds = boardBounds(board);
+
+  if (!board?.templateId || !bounds || bounds.width <= 0 || bounds.height <= 0) {
+    return null;
+  }
+
+  const availableWidth = Math.max(MIN_WIDGET_WIDTH, viewport.clientWidth - 96);
+  const availableHeight = Math.max(MIN_WIDGET_HEIGHT, viewport.clientHeight - TOP_CANVAS_SAFE_INSET - 48);
+  const fitZoom = Math.floor(Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height) * 100);
+
+  return clampZoom(fitZoom);
 }
 
 function boardEmoji(boardId: string) {
@@ -642,6 +703,7 @@ export default function Home() {
   const scale = zoom / 100;
   const commandPosition = command ? `${command.x}:${command.y}` : null;
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
+  const activeBoardIsTemplate = Boolean(activeBoard?.templateId);
   const widgets = activeBoard?.widgets ?? [];
   const personalBoards = boards.filter((board) => !board.templateId);
   const prebuiltBoards = boards.filter((board) => board.templateId);
@@ -707,7 +769,7 @@ export default function Home() {
   );
 
   const scrollToBoard = useCallback(
-    (board: CanvasBoard | undefined) => {
+    (board: CanvasBoard | undefined, scaleOverride = scale, topInset = TOP_CANVAS_SAFE_INSET) => {
       const viewport = viewportRef.current;
 
       if (!viewport) {
@@ -715,32 +777,45 @@ export default function Home() {
       }
 
       if (!board || board.widgets.length === 0) {
-        viewport.scrollLeft = CANVAS_CENTER_X * scale - viewport.clientWidth / 2;
-        viewport.scrollTop = CANVAS_CENTER_Y * scale - viewport.clientHeight / 2 - TOP_CANVAS_SAFE_INSET;
+        viewport.scrollLeft = CANVAS_CENTER_X * scaleOverride - viewport.clientWidth / 2;
+        viewport.scrollTop = CANVAS_CENTER_Y * scaleOverride - viewport.clientHeight / 2 - topInset;
         return;
       }
 
-      const bounds = board.widgets.reduce(
-        (current, widget) => ({
-          maxX: Math.max(current.maxX, widget.x + widget.width),
-          maxY: Math.max(current.maxY, widget.y + widget.height),
-          minX: Math.min(current.minX, widget.x),
-          minY: Math.min(current.minY, widget.y),
-        }),
-        {
-          maxX: Number.NEGATIVE_INFINITY,
-          maxY: Number.NEGATIVE_INFINITY,
-          minX: Number.POSITIVE_INFINITY,
-          minY: Number.POSITIVE_INFINITY,
-        },
-      );
+      const bounds = boardBounds(board);
+
+      if (!bounds) {
+        return;
+      }
+
       const centerX = (bounds.minX + bounds.maxX) / 2;
       const centerY = (bounds.minY + bounds.maxY) / 2;
 
-      viewport.scrollLeft = centerX * scale - viewport.clientWidth / 2;
-      viewport.scrollTop = centerY * scale - viewport.clientHeight / 2 - TOP_CANVAS_SAFE_INSET;
+      viewport.scrollLeft = centerX * scaleOverride - viewport.clientWidth / 2;
+      viewport.scrollTop = centerY * scaleOverride - viewport.clientHeight / 2 - topInset;
     },
     [scale],
+  );
+
+  const focusBoard = useCallback(
+    (board: CanvasBoard | undefined) => {
+      const viewport = viewportRef.current;
+
+      if (!viewport) {
+        return;
+      }
+
+      const nextZoom = fitZoomForBoard(board, viewport);
+
+      if (nextZoom) {
+        setZoom(nextZoom);
+        scrollToBoard(board, nextZoom / 100, TOP_CANVAS_SAFE_INSET / 2);
+        return;
+      }
+
+      scrollToBoard(board);
+    },
+    [scrollToBoard],
   );
 
   const deleteBoard = useCallback(
@@ -762,10 +837,10 @@ export default function Home() {
       if (activeBoardId === boardId) {
         setActiveBoardId(fallbackBoard?.id ?? BLANK_BOARD_ID);
         setCommand(null);
-        requestAnimationFrame(() => scrollToBoard(fallbackBoard));
+        requestAnimationFrame(() => focusBoard(fallbackBoard));
       }
     },
-    [activeBoardId, boards, scrollToBoard],
+    [activeBoardId, boards, focusBoard],
   );
 
   const selectBoard = useCallback(
@@ -776,10 +851,10 @@ export default function Home() {
       setCommand(null);
 
       requestAnimationFrame(() => {
-        scrollToBoard(boards.find((board) => board.id === boardId));
+        focusBoard(boards.find((board) => board.id === boardId));
       });
     },
-    [boards, scrollToBoard],
+    [boards, focusBoard],
   );
 
   const openBoardNameCreate = useCallback(() => {
@@ -815,8 +890,8 @@ export default function Home() {
     setBoardNameDraft("");
     setCommand(null);
 
-    requestAnimationFrame(() => scrollToBoard(board));
-  }, [boardNameDraft, scrollToBoard]);
+    requestAnimationFrame(() => focusBoard(board));
+  }, [boardNameDraft, focusBoard]);
 
   const addWidgetToBoard = useCallback(
     (boardId: string, widget: CanvasWidget) => {
@@ -827,6 +902,10 @@ export default function Home() {
 
   const fitWidgetToContent = useCallback(
     (id: string, openuiSource: string, stageSize: ElementSize) => {
+      if (activeBoardIsTemplate) {
+        return;
+      }
+
       const nextContentFitKey = contentFitKey(openuiSource, stageSize);
 
       updateWidget(activeBoardId, id, (widget) => {
@@ -846,7 +925,7 @@ export default function Home() {
         };
       });
     },
-    [activeBoardId, updateWidget],
+    [activeBoardId, activeBoardIsTemplate, updateWidget],
   );
 
   useEffect(() => {
@@ -878,12 +957,12 @@ export default function Home() {
     }
 
     const frame = requestAnimationFrame(() => {
-      scrollToBoard(activeBoard);
+      focusBoard(activeBoard);
       hasScrolledHydratedBoardRef.current = true;
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [activeBoard, hasHydratedBoards, scrollToBoard]);
+  }, [activeBoard, focusBoard, hasHydratedBoards]);
 
   useEffect(() => {
     if (!hasHydratedBoards) {
