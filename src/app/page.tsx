@@ -605,6 +605,7 @@ function WidgetFrame({
 export default function Home() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
+  const boardNameInputRef = useRef<HTMLInputElement>(null);
   const zoomRef = useRef(100);
   const cursorRef = useRef({
     inside: false,
@@ -627,6 +628,8 @@ export default function Home() {
   const [command, setCommand] = useState<CommandState | null>(null);
   const [boards, setBoards] = useState<CanvasBoard[]>(() => ensureBoardSet([createBlankBoard()]));
   const [activeBoardId, setActiveBoardId] = useState(BLANK_BOARD_ID);
+  const [isCreatingBoardName, setIsCreatingBoardName] = useState(false);
+  const [boardNameDraft, setBoardNameDraft] = useState("");
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
 
   const scale = zoom / 100;
@@ -731,6 +734,8 @@ export default function Home() {
   const selectBoard = useCallback(
     (boardId: string) => {
       setActiveBoardId(boardId);
+      setIsCreatingBoardName(false);
+      setBoardNameDraft("");
       setCommand(null);
 
       requestAnimationFrame(() => {
@@ -740,10 +745,21 @@ export default function Home() {
     [boards, scrollToBoard],
   );
 
-  const createNamedBlankBoard = useCallback(() => {
-    const name = window.prompt("Name this blank whiteboard", "Untitled whiteboard")?.trim();
+  const openBoardNameCreate = useCallback(() => {
+    setIsCreatingBoardName(true);
+    setBoardNameDraft("");
+    setCommand(null);
+  }, []);
 
-    if (!name) {
+  const cancelBoardNameCreate = useCallback(() => {
+    setIsCreatingBoardName(false);
+    setBoardNameDraft("");
+  }, []);
+
+  const createNamedBlankBoard = useCallback(() => {
+    const nextName = boardNameDraft.trim().slice(0, 48);
+
+    if (!nextName) {
       return;
     }
 
@@ -751,17 +767,19 @@ export default function Home() {
     const board: CanvasBoard = {
       createdAt: now,
       id: createBoardId(),
-      name: name.slice(0, 48),
+      name: nextName,
       updatedAt: now,
       widgets: [],
     };
 
     setBoards((current) => [...current, board]);
     setActiveBoardId(board.id);
+    setIsCreatingBoardName(false);
+    setBoardNameDraft("");
     setCommand(null);
 
     requestAnimationFrame(() => scrollToBoard(board));
-  }, [scrollToBoard]);
+  }, [boardNameDraft, scrollToBoard]);
 
   const addWidgetToBoard = useCallback(
     (boardId: string, widget: CanvasWidget) => {
@@ -921,6 +939,21 @@ export default function Home() {
       cancelAnimationFrame(frame);
     };
   }, [commandPosition]);
+
+  useEffect(() => {
+    if (!isCreatingBoardName) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      boardNameInputRef.current?.focus();
+      boardNameInputRef.current?.select();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [isCreatingBoardName]);
 
   const setCanvasZoom = useCallback(
     (nextValue: number, anchor?: { x: number; y: number }) => {
@@ -1459,15 +1492,55 @@ export default function Home() {
               })}
             </div>
           </div>
-          <button
-            className="flex h-8 shrink-0 items-center gap-1.5 rounded border border-transparent px-2.5 text-sm font-semibold leading-none text-[#52525b] transition hover:border-[#e5e7eb] hover:bg-white"
-            onClick={createNamedBlankBoard}
-            title="Create blank whiteboard"
-            type="button"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="leading-none">New</span>
-          </button>
+          {isCreatingBoardName ? (
+            <form
+              className="flex h-8 shrink-0 items-center gap-1.5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                createNamedBlankBoard();
+              }}
+            >
+              <input
+                aria-label="New whiteboard name"
+                className="h-8 w-36 rounded border border-[#d4d4d8] bg-white px-2 text-sm font-medium text-[#18181b] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#2563eb]"
+                maxLength={48}
+                onChange={(event) => setBoardNameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    cancelBoardNameCreate();
+                  }
+                }}
+                placeholder="Name"
+                ref={boardNameInputRef}
+                value={boardNameDraft}
+              />
+              <button
+                className="h-8 rounded border border-[#18181b] bg-[#18181b] px-2.5 text-sm font-semibold leading-none text-white transition hover:bg-[#27272a] disabled:cursor-not-allowed disabled:border-[#d4d4d8] disabled:bg-[#e4e4e7] disabled:text-[#a1a1aa]"
+                disabled={!boardNameDraft.trim()}
+                type="submit"
+              >
+                Create
+              </button>
+              <button
+                className="h-8 rounded border border-transparent px-2.5 text-sm font-semibold leading-none text-[#71717a] transition hover:bg-white hover:text-[#18181b]"
+                onClick={cancelBoardNameCreate}
+                type="button"
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
+            <button
+              aria-label="Create blank whiteboard"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded border border-transparent text-[#52525b] transition hover:border-[#e5e7eb] hover:bg-white hover:text-[#18181b]"
+              onClick={openBoardNameCreate}
+              title="Create blank whiteboard"
+              type="button"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
