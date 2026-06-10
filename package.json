@@ -2,6 +2,7 @@
   "name": "new-dashboard",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "generate:openui-prompt": "openui generate src/openui/dashboard-prompt-library.ts --out src/generated/openui-dashboard-prompt.txt --no-interactive",
     "dev": "pnpm generate:openui-prompt && next dev",
