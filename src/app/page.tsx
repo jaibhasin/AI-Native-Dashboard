@@ -2,14 +2,12 @@
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
   GripVertical,
   Maximize2,
   Minus,
   Moon,
-  Pencil,
   Plus,
   RotateCcw,
   Sun,
@@ -25,6 +23,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent,
   type WheelEvent,
 } from "react";
@@ -60,8 +59,14 @@ const ZOOM_STEP_FACTOR = 1.12;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
-const DEFAULT_NOTE_WIDTH = 284;
-const DEFAULT_NOTE_HEIGHT = 108;
+const DEFAULT_NOTE_WIDTH = 220;
+const DEFAULT_NOTE_HEIGHT = 128;
+const MAX_NOTE_WIDTH = 440;
+const MAX_NOTE_HEIGHT = 320;
+const NOTE_HORIZONTAL_CHROME = 48;
+const NOTE_VERTICAL_CHROME = 88;
+const NOTE_BODY_CHAR_WIDTH = 7;
+const NOTE_BODY_LINE_HEIGHT = 20;
 const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
@@ -104,6 +109,8 @@ type CommandState = {
   value: string;
 };
 
+type NoteFocusTarget = "body" | "title";
+
 type WidgetInteraction =
   | {
       type: "drag";
@@ -128,6 +135,14 @@ type WidgetInteraction =
       startClientY: number;
       startX: number;
       startY: number;
+    }
+  | {
+      type: "note-resize";
+      id: string;
+      startClientX: number;
+      startClientY: number;
+      startWidth: number;
+      startHeight: number;
     };
 
 type PendingZoomScroll = {
@@ -169,6 +184,33 @@ function createBoardId() {
 
 function createNoteId() {
   return globalThis.crypto?.randomUUID?.() ?? `note-${Date.now()}-${Math.random()}`;
+}
+
+function noteTextSize(title: string, body: string) {
+  const bodyLines = body.split("\n");
+  const longestText = [title, ...bodyLines].reduce(
+    (current, line) => Math.max(current, line.trim().length),
+    0,
+  );
+  const width = Math.min(
+    MAX_NOTE_WIDTH,
+    Math.max(DEFAULT_NOTE_WIDTH, NOTE_HORIZONTAL_CHROME + longestText * NOTE_BODY_CHAR_WIDTH),
+  );
+  const bodyColumnWidth = Math.max(1, width - NOTE_HORIZONTAL_CHROME);
+  const bodyCharsPerLine = Math.max(18, Math.floor(bodyColumnWidth / NOTE_BODY_CHAR_WIDTH));
+  const wrappedBodyLines = bodyLines.reduce(
+    (total, line) => total + Math.max(1, Math.ceil((line.trim().length || 1) / bodyCharsPerLine)),
+    0,
+  );
+  const height = Math.min(
+    MAX_NOTE_HEIGHT,
+    Math.max(DEFAULT_NOTE_HEIGHT, NOTE_VERTICAL_CHROME + wrappedBodyLines * NOTE_BODY_LINE_HEIGHT),
+  );
+
+  return {
+    height,
+    width,
+  };
 }
 
 function boardAccent(boardId: string | undefined): BoardVisualAccent | null {
@@ -251,6 +293,12 @@ const noteColorStyles: Record<
 };
 
 const noteColorOptions: CanvasNoteColor[] = ["blue", "green", "amber", "rose"];
+const noteColorLabels: Record<CanvasNoteColor, string> = {
+  amber: "amber",
+  blue: "blue",
+  green: "green",
+  rose: "neutral",
+};
 
 function hashString(value: string) {
   let hash = 0;
@@ -456,12 +504,12 @@ function sameSize(left: ElementSize, right: ElementSize) {
   return left.height === right.height && left.width === right.width;
 }
 
-function prebuiltBoardNotes(board: CanvasBoard | undefined) {
-  return board?.templateId ? board.notes ?? [] : [];
+function boardNotes(board: CanvasBoard | undefined) {
+  return board?.notes ?? [];
 }
 
 function boardBounds(board: CanvasBoard | undefined): BoardBounds | null {
-  const items = board ? [...board.widgets, ...prebuiltBoardNotes(board)] : [];
+  const items = board ? [...board.widgets, ...boardNotes(board)] : [];
 
   if (items.length === 0) {
     return null;
@@ -696,48 +744,141 @@ const WidgetBody = memo(function WidgetBody({
 });
 
 function NoteFrame({
+  focusTarget,
+  isEditing,
+  isManuallySized,
+  isNewlyCreated,
   note,
+  onBringToFront,
   onDelete,
-  onSave,
+  onEdit,
+  onFocusHandled,
+  onStopEditing,
+  onUpdate,
   onStartInteraction,
   scale,
 }: {
+  focusTarget: NoteFocusTarget | null;
+  isEditing: boolean;
+  isManuallySized: boolean;
+  isNewlyCreated: boolean;
   note: CanvasNote;
+  onBringToFront: (id: string) => void;
   onDelete: (id: string) => void;
-  onSave: (id: string, nextNote: Pick<CanvasNote, "body" | "color" | "title">) => void;
+  onEdit: (id: string, target: NoteFocusTarget) => void;
+  onFocusHandled: () => void;
+  onStopEditing: () => void;
+  onUpdate: (
+    id: string,
+    nextNote: Partial<Pick<CanvasNote, "body" | "color" | "height" | "title" | "width">>,
+  ) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
   scale: number;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState({
-    body: note.body,
-    color: note.color,
-    title: note.title,
-  });
-  const colorStyle = noteColorStyles[draft.color];
+  const bodyInputRef = useRef<HTMLTextAreaElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const colorStyle = noteColorStyles[note.color];
+  const displayTitle = note.title.trim() || "Untitled note";
+  const displayBody = note.body.trim() || "Start typing...";
+  const isEmpty = !note.title.trim() && !note.body.trim();
 
-  const cancelEdit = useCallback(() => {
-    setDraft({
+  useEffect(() => {
+    if (isManuallySized) {
+      return;
+    }
+
+    const fittedSize = noteTextSize(note.title, note.body);
+
+    if (fittedSize.width === note.width && fittedSize.height === note.height) {
+      return;
+    }
+
+    onUpdate(note.id, {
       body: note.body,
-      color: note.color,
       title: note.title,
     });
-    setIsEditing(false);
-  }, [note.body, note.color, note.title]);
+  }, [isManuallySized, note.body, note.height, note.id, note.title, note.width, onUpdate]);
 
-  const commitEdit = useCallback(() => {
-    onSave(note.id, {
-      body: draft.body.trim().slice(0, 280),
-      color: draft.color,
-      title: draft.title.trim().slice(0, 48) || "Note",
+  useEffect(() => {
+    if (!isEditing || !focusTarget) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      const field = focusTarget === "title" ? titleInputRef.current : bodyInputRef.current;
+
+      field?.focus();
+
+      if (focusTarget === "body" && field instanceof HTMLTextAreaElement) {
+        field.setSelectionRange(field.value.length, field.value.length);
+      }
+
+      if (focusTarget === "title" && field instanceof HTMLInputElement) {
+        field.select();
+      }
+
+      onFocusHandled();
     });
-    setIsEditing(false);
-  }, [draft.body, draft.color, draft.title, note.id, onSave]);
+
+    return () => cancelAnimationFrame(frame);
+  }, [focusTarget, isEditing, onFocusHandled]);
+
+  const startDrag = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      onStartInteraction(event, {
+        id: note.id,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: note.x,
+        startY: note.y,
+        type: "note-drag",
+      });
+    },
+    [note.id, note.x, note.y, onStartInteraction],
+  );
+
+  const startResize = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      onStartInteraction(event, {
+        id: note.id,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startHeight: note.height,
+        startWidth: note.width,
+        type: "note-resize",
+      });
+    },
+    [note.height, note.id, note.width, onStartInteraction],
+  );
+
+  const handleEditingKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (isNewlyCreated && isEmpty) {
+        onDelete(note.id);
+        return;
+      }
+
+      onStopEditing();
+    },
+    [isEmpty, isNewlyCreated, note.id, onDelete, onStopEditing],
+  );
 
   return (
     <div
       className="absolute z-20"
       data-note
+      onPointerDownCapture={(event) => {
+        if (event.button === 0) {
+          onBringToFront(note.id);
+        }
+      }}
       style={{
         height: note.height * scale,
         left: note.x * scale,
@@ -746,7 +887,7 @@ function NoteFrame({
       }}
     >
       <article
-        className="relative flex h-full overflow-hidden rounded-[5px] border text-[var(--text-primary)]"
+        className="group relative flex h-full overflow-visible rounded-[5px] border text-[var(--text-primary)]"
         style={{
           background: `linear-gradient(180deg, var(--panel) 0%, ${colorStyle.background} 160%)`,
           borderColor: "var(--border-medium)",
@@ -759,135 +900,142 @@ function NoteFrame({
       >
         <div className="w-1 shrink-0" style={{ background: colorStyle.accent }} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header
-            className={`flex h-8 shrink-0 items-center gap-1.5 border-b px-2 ${
-              isEditing ? "" : "cursor-grab active:cursor-grabbing"
-            }`}
-            onPointerDown={(event) => {
-              if (isEditing || hasClosestElement(event.target, "[data-note-control]")) {
-                return;
-              }
-
-              onStartInteraction(event, {
-                id: note.id,
-                startClientX: event.clientX,
-                startClientY: event.clientY,
-                startX: note.x,
-                startY: note.y,
-                type: "note-drag",
-              });
-            }}
-            style={{ borderColor: "var(--border)" }}
-          >
-            <GripVertical className="h-3 w-3 shrink-0 text-[var(--text-faint)]" />
+          <header className="flex h-9 shrink-0 items-center gap-1.5 border-b px-2" style={{ borderColor: "var(--border)" }}>
+            <button
+              aria-label="Move note"
+              className="grid h-6 w-5 shrink-0 cursor-grab place-items-center rounded text-[var(--text-faint)] transition hover:bg-[var(--panel-translucent)] hover:text-[var(--text-secondary)] active:cursor-grabbing"
+              data-note-control
+              onPointerDown={startDrag}
+              title="Move"
+              type="button"
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </button>
             <div className="min-w-0 flex-1">
               {isEditing ? (
                 <input
                   aria-label="Note title"
-                  className="h-6 w-full rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-1.5 text-xs font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--focus-border)]"
+                  className="h-6 w-full rounded border border-transparent bg-transparent px-1.5 text-xs font-semibold text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-medium)] focus:bg-[var(--panel-translucent)]"
                   data-note-control
                   id={`${note.id}-title`}
                   maxLength={48}
                   name="note-title"
-                  onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-                  value={draft.title}
+                  onChange={(event) => onUpdate(note.id, { title: event.target.value })}
+                  onKeyDown={handleEditingKeyDown}
+                  placeholder="Title"
+                  ref={titleInputRef}
+                  value={note.title}
                 />
               ) : (
-                <div className="truncate text-xs font-semibold">{note.title}</div>
+                <button
+                  className={`block w-full truncate rounded px-1.5 py-1 text-left text-xs font-semibold transition hover:bg-white/60 ${
+                    note.title.trim() ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+                  }`}
+                  data-note-control
+                  onClick={() => onEdit(note.id, "title")}
+                  title={displayTitle}
+                  type="button"
+                >
+                  {displayTitle}
+                </button>
               )}
             </div>
-            {isEditing ? (
-              <>
-                <button
-                  aria-label="Save note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] text-[var(--text-primary)] transition hover:bg-[var(--control-hover)]"
-                  data-note-control
-                  onClick={commitEdit}
-                  title="Save"
-                  type="button"
-                >
-                  <Check className="h-3 w-3" />
-                </button>
-                <button
-                  aria-label="Cancel note edit"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
-                  data-note-control
-                  onClick={cancelEdit}
-                  title="Cancel"
-                  type="button"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  aria-label="Edit note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-[var(--panel-translucent)] text-[var(--text-muted)] transition hover:border-[var(--border-medium)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
-                  data-note-control
-                  onClick={() => setIsEditing(true)}
-                  title="Edit"
-                  type="button"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-                <button
-                  aria-label="Delete note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-[var(--panel-translucent)] text-[var(--text-muted)] transition hover:border-[var(--border-medium)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
-                  data-note-control
-                  onClick={() => onDelete(note.id)}
-                  title="Delete"
-                  type="button"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </>
-            )}
+            <button
+              aria-label="Delete note"
+              className={`grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-[var(--panel-translucent)] text-[var(--text-muted)] transition hover:border-[var(--border)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] ${
+                isEditing ? "opacity-100" : "opacity-80 group-hover:opacity-100"
+              }`}
+              data-note-control
+              onClick={() => onDelete(note.id)}
+              title="Delete"
+              type="button"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
           </header>
 
-          <div className="min-h-0 flex-1 p-2.5">
+          <div className="min-h-0 flex-1 p-3">
             {isEditing ? (
-              <div className="flex h-full flex-col gap-1.5">
+              <div className="flex h-full flex-col gap-2">
                 <textarea
                   aria-label="Note body"
-                  className="min-h-0 flex-1 resize-none rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-2 py-1.5 text-[11px] leading-4 text-[var(--text-primary)] outline-none focus:border-[var(--focus-border)]"
+                  className="min-h-0 flex-1 resize-none rounded border border-transparent bg-[var(--panel-translucent)] px-2 py-1.5 text-[12px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-medium)] focus:bg-[var(--panel-translucent-strong)]"
                   data-note-control
                   id={`${note.id}-body`}
                   maxLength={280}
                   name="note-body"
-                  onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))}
-                  value={draft.body}
+                  onChange={(event) => onUpdate(note.id, { body: event.target.value })}
+                  onKeyDown={handleEditingKeyDown}
+                  placeholder="Write a note..."
+                  ref={bodyInputRef}
+                  value={note.body}
                 />
-                <div className="flex items-center gap-1">
-                  {noteColorOptions.map((color) => {
-                    const optionStyle = noteColorStyles[color];
-                    const isSelected = color === draft.color;
-
-                    return (
-                      <button
-                        aria-label={`${color} note color`}
-                        aria-pressed={isSelected}
-                        className="h-4 w-4 rounded-full border transition"
-                        data-note-control
-                        key={color}
-                        onClick={() => setDraft((current) => ({ ...current, color }))}
-                        style={{
-                          background: optionStyle.background,
-                          borderColor: isSelected ? "var(--focus-border)" : optionStyle.border,
-                          boxShadow: isSelected ? `0 0 0 2px ${optionStyle.border}` : undefined,
-                        }}
-                        title={color}
-                        type="button"
-                      />
-                    );
-                  })}
-                </div>
               </div>
             ) : (
-              <p className="line-clamp-3 text-[11px] font-medium leading-4 text-[var(--text-secondary)]">{note.body}</p>
+              <button
+                className={`block h-full w-full rounded px-1 py-0.5 text-left text-[12px] font-medium leading-5 transition hover:bg-white/45 ${
+                  isEmpty ? "text-[var(--text-muted)]" : "text-[var(--text-secondary)]"
+                }`}
+                data-note-control
+                onClick={() => onEdit(note.id, "body")}
+                type="button"
+              >
+                <span className={isEmpty ? "italic" : "line-clamp-5"}>{displayBody}</span>
+              </button>
             )}
           </div>
         </div>
+        {isEditing ? (
+          <div
+            className="absolute right-[-32px] top-10 flex flex-col gap-1"
+            data-note-control
+          >
+            {noteColorOptions.map((color) => {
+              const optionStyle = noteColorStyles[color];
+              const isSelected = color === note.color;
+
+              return (
+                <button
+                  aria-label={`${color} note color`}
+                  aria-pressed={isSelected}
+                  className="relative h-4 w-4 overflow-hidden rounded-full border bg-[var(--panel)] transition"
+                  data-note-control
+                  key={color}
+                  onClick={() => onUpdate(note.id, { color })}
+                  style={{
+                    borderColor: isSelected ? "var(--focus-border)" : optionStyle.border,
+                    boxShadow: isSelected ? `0 0 0 2px ${optionStyle.border}` : undefined,
+                  }}
+                  title={noteColorLabels[color]}
+                  type="button"
+                >
+                  <span
+                    className="absolute inset-y-0 left-0 w-[28%]"
+                    style={{ backgroundColor: optionStyle.accent }}
+                  />
+                  <span
+                    className="absolute inset-y-0 left-[28%] right-0"
+                    style={{
+                      background: `linear-gradient(180deg, var(--panel) 0%, ${optionStyle.background} 160%)`,
+                    }}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        <button
+          aria-label="Resize note"
+          className={`absolute bottom-1.5 right-1.5 grid h-5 w-5 cursor-nwse-resize place-items-center rounded border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] text-[var(--text-muted)] shadow-sm transition ${
+            isEditing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          }`}
+          data-note-control
+          onPointerDown={startResize}
+          title="Resize"
+          type="button"
+        >
+          <Maximize2 className="h-3 w-3" />
+        </button>
       </article>
     </div>
   );
@@ -933,10 +1081,10 @@ function WidgetFrame({
       }}
     >
       <article
-        className="relative flex h-full overflow-hidden rounded-md border bg-[var(--panel)] shadow-[var(--shadow-widget)]"
+        className="relative flex h-full overflow-hidden rounded-md border bg-[var(--panel)]"
         style={{
           borderColor: "var(--border-medium)",
-          boxShadow: accent ? "var(--shadow-widget-accent)" : "var(--shadow-widget)",
+          boxShadow: "var(--shadow-widget)",
           height: widget.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
@@ -971,13 +1119,7 @@ function WidgetFrame({
               <div className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</div>
               <div className="truncate text-[11px] text-[var(--text-muted)]">{widget.prompt}</div>
             </div>
-            <span
-              className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)]"
-              style={{
-                background: accent?.surface,
-                color: accent?.accent,
-              }}
-            >
+            <span className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
               {statusLabel}
             </span>
             {widget.status === "error" ? (
@@ -1064,12 +1206,16 @@ export default function Home() {
   const widgetInteractionRef = useRef<WidgetInteraction | null>(null);
   const pendingZoomScrollRef = useRef<PendingZoomScroll | null>(null);
   const hasScrolledHydratedBoardRef = useRef(false);
+  const manuallySizedNoteIdsRef = useRef<Set<string>>(new Set());
 
   const [zoom, setZoom] = useState(100);
   const [isPanning, setIsPanning] = useState(false);
   const [command, setCommand] = useState<CommandState | null>(null);
   const [boards, setBoards] = useState<CanvasBoard[]>(() => ensureBoardSet([createBlankBoard()]));
   const [activeBoardId, setActiveBoardId] = useState(BLANK_BOARD_ID);
+  const [editingNoteFocus, setEditingNoteFocus] = useState<NoteFocusTarget | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
   const [isCreatingBoardName, setIsCreatingBoardName] = useState(false);
   const [boardNameDraft, setBoardNameDraft] = useState("");
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
@@ -1086,7 +1232,7 @@ export default function Home() {
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
   const activeBoardIsTemplate = Boolean(activeBoard?.templateId);
   const widgets = activeBoard?.widgets ?? [];
-  const notes = prebuiltBoardNotes(activeBoard);
+  const notes = boardNotes(activeBoard);
   const activeBoardAccent = useMemo(() => boardAccent(activeBoard?.templateId), [activeBoard?.templateId]);
   const personalBoards = boards.filter((board) => !board.templateId);
   const prebuiltBoards = boards.filter((board) => board.templateId);
@@ -1192,7 +1338,7 @@ export default function Home() {
   const updateBoardNotes = useCallback((boardId: string, updater: (notes: CanvasNote[]) => CanvasNote[]) => {
     setBoards((current) =>
       current.map((board) =>
-        board.id === boardId && board.templateId
+        board.id === boardId
           ? {
               ...board,
               notes: updater(board.notes ?? []),
@@ -1242,6 +1388,37 @@ export default function Home() {
     });
   }, []);
 
+  const bringNoteToFront = useCallback((boardId: string, id: string) => {
+    setBoards((current) => {
+      const boardIndex = current.findIndex((board) => board.id === boardId);
+
+      if (boardIndex === -1) {
+        return current;
+      }
+
+      const board = current[boardIndex];
+      const currentNotes = board.notes ?? [];
+      const noteIndex = currentNotes.findIndex((note) => note.id === id);
+
+      if (noteIndex === -1 || noteIndex === currentNotes.length - 1) {
+        return current;
+      }
+
+      const nextNotes = [...currentNotes];
+      const [note] = nextNotes.splice(noteIndex, 1);
+
+      return current.map((currentBoard, index) =>
+        index === boardIndex
+          ? {
+              ...currentBoard,
+              notes: [...nextNotes, note],
+              updatedAt: Date.now(),
+            }
+          : currentBoard,
+      );
+    });
+  }, []);
+
   const deleteWidget = useCallback(
     (id: string) => {
       updateBoardWidgets(activeBoardId, (current) => current.filter((widget) => widget.id !== id));
@@ -1252,20 +1429,64 @@ export default function Home() {
   const deleteNote = useCallback(
     (id: string) => {
       updateBoardNotes(activeBoardId, (current) => current.filter((note) => note.id !== id));
+      setEditingNoteId((current) => (current === id ? null : current));
+      setEditingNoteFocus(null);
+      setNewlyCreatedNoteId((current) => (current === id ? null : current));
     },
     [activeBoardId, updateBoardNotes],
   );
 
-  const saveNote = useCallback(
-    (id: string, nextNote: Pick<CanvasNote, "body" | "color" | "title">) => {
-      updateNote(activeBoardId, id, (note) => ({
-        ...note,
-        ...nextNote,
-        updatedAt: Date.now(),
-      }));
+  const updateNoteFields = useCallback(
+    (id: string, nextNote: Partial<Pick<CanvasNote, "body" | "color" | "height" | "title" | "width">>) => {
+      updateNote(activeBoardId, id, (note) => {
+        const isManualResize = "width" in nextNote || "height" in nextNote;
+
+        if (isManualResize) {
+          manuallySizedNoteIdsRef.current.add(id);
+        }
+
+        const resizedFields =
+          ("body" in nextNote || "title" in nextNote) && !manuallySizedNoteIdsRef.current.has(id)
+            ? noteTextSize(nextNote.title ?? note.title, nextNote.body ?? note.body)
+            : null;
+        const width = Math.min(
+          CANVAS_WIDTH - note.x,
+          Math.max(DEFAULT_NOTE_WIDTH, nextNote.width ?? resizedFields?.width ?? note.width),
+        );
+        const height = Math.min(
+          CANVAS_HEIGHT - note.y,
+          Math.max(DEFAULT_NOTE_HEIGHT, nextNote.height ?? resizedFields?.height ?? note.height),
+        );
+        const position = clampCanvasRectPosition(note.x, note.y, width, height);
+
+        return {
+          ...note,
+          ...nextNote,
+          height,
+          width,
+          ...(resizedFields ?? {}),
+          ...position,
+          updatedAt: Date.now(),
+        };
+      });
     },
     [activeBoardId, updateNote],
   );
+
+  const editNote = useCallback((id: string, target: NoteFocusTarget) => {
+    setEditingNoteId(id);
+    setEditingNoteFocus(target);
+  }, []);
+
+  const stopEditingNote = useCallback(() => {
+    setEditingNoteId(null);
+    setEditingNoteFocus(null);
+    setNewlyCreatedNoteId(null);
+  }, []);
+
+  const handleNoteFocusHandled = useCallback(() => {
+    setEditingNoteFocus(null);
+  }, []);
 
   const scrollToBoard = useCallback(
     (board: CanvasBoard | undefined, scaleOverride = scale, topInset = TOP_CANVAS_SAFE_INSET) => {
@@ -1334,10 +1555,11 @@ export default function Home() {
       if (activeBoardId === boardId) {
         setActiveBoardId(fallbackBoard?.id ?? BLANK_BOARD_ID);
         setCommand(null);
+        stopEditingNote();
         requestAnimationFrame(() => focusBoard(fallbackBoard));
       }
     },
-    [activeBoardId, boards, focusBoard],
+    [activeBoardId, boards, focusBoard, stopEditingNote],
   );
 
   const selectBoard = useCallback(
@@ -1346,19 +1568,21 @@ export default function Home() {
       setIsCreatingBoardName(false);
       setBoardNameDraft("");
       setCommand(null);
+      stopEditingNote();
 
       requestAnimationFrame(() => {
         focusBoard(boards.find((board) => board.id === boardId));
       });
     },
-    [boards, focusBoard],
+    [boards, focusBoard, stopEditingNote],
   );
 
   const openBoardNameCreate = useCallback(() => {
     setIsCreatingBoardName(true);
     setBoardNameDraft("");
     setCommand(null);
-  }, []);
+    stopEditingNote();
+  }, [stopEditingNote]);
 
   const cancelBoardNameCreate = useCallback(() => {
     setIsCreatingBoardName(false);
@@ -1387,9 +1611,10 @@ export default function Home() {
     setIsCreatingBoardName(false);
     setBoardNameDraft("");
     setCommand(null);
+    stopEditingNote();
 
     requestAnimationFrame(() => focusBoard(board));
-  }, [boardNameDraft, focusBoard]);
+  }, [boardNameDraft, focusBoard, stopEditingNote]);
 
   const addWidgetToBoard = useCallback(
     (boardId: string, widget: CanvasWidget) => {
@@ -1509,9 +1734,38 @@ export default function Home() {
       return;
     }
 
+    const activeNoteIds = new Set(boards.flatMap((board) => board.notes ?? []).map((note) => note.id));
+    const manualIds = manuallySizedNoteIdsRef.current;
+
+    manualIds.forEach((id) => {
+      if (!activeNoteIds.has(id)) {
+        manualIds.delete(id);
+      }
+    });
+
     window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(boards));
     window.localStorage.setItem(ACTIVE_BOARD_STORAGE_KEY, activeBoardId);
   }, [activeBoardId, boards, hasHydratedBoards]);
+
+  useEffect(() => {
+    if (!editingNoteId) {
+      return;
+    }
+
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
+      if (hasClosestElement(event.target, "[data-note]")) {
+        return;
+      }
+
+      stopEditingNote();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [editingNoteId, stopEditingNote]);
 
   const updateCursorPosition = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -1550,7 +1804,7 @@ export default function Home() {
   }, [scale]);
 
   const addNoteToActiveBoard = useCallback((targetPosition?: { x: number; y: number }) => {
-    if (!activeBoard?.templateId) {
+    if (!activeBoard) {
       return;
     }
 
@@ -1558,6 +1812,7 @@ export default function Home() {
     const bounds = boardBounds(activeBoard);
     const currentNotes = activeBoard.notes ?? [];
     const fallbackCenter = getVisibleCanvasCenter();
+    const noteSize = noteTextSize("", "");
     const basePosition =
       targetPosition ??
       (bounds
@@ -1569,25 +1824,26 @@ export default function Home() {
             x: fallbackCenter.x - DEFAULT_NOTE_WIDTH / 2,
             y: fallbackCenter.y - DEFAULT_NOTE_HEIGHT / 2,
           });
-    const position = clampCanvasRectPosition(
-      basePosition.x,
-      basePosition.y,
-      DEFAULT_NOTE_WIDTH,
-      DEFAULT_NOTE_HEIGHT,
-    );
+    const position = clampCanvasRectPosition(basePosition.x, basePosition.y, noteSize.width, noteSize.height);
+    const id = createNoteId();
     const note: CanvasNote = {
-      body: "Decision, owner, timing.",
+      body: "",
       color: noteColorOptions[currentNotes.length % noteColorOptions.length],
       createdAt: now,
-      height: DEFAULT_NOTE_HEIGHT,
-      id: createNoteId(),
-      title: "New note",
+      height: noteSize.height,
+      id,
+      title: "",
       updatedAt: now,
-      width: DEFAULT_NOTE_WIDTH,
+      width: noteSize.width,
       ...position,
     };
 
     updateBoardNotes(activeBoard.id, (current) => [...current, note]);
+    setCommand(null);
+    setEditingNoteId(id);
+    setEditingNoteFocus("body");
+    setNewlyCreatedNoteId(id);
+
     if (!targetPosition) {
       requestAnimationFrame(() => focusBoard({ ...activeBoard, notes: [...currentNotes, note], updatedAt: now }));
     }
@@ -1618,16 +1874,31 @@ export default function Home() {
         })
       : getVisibleCanvasCenter();
 
+    stopEditingNote();
     setCommand({
       x: position.x,
       y: position.y,
       value: "",
     });
-  }, [getVisibleCanvasCenter]);
+  }, [getVisibleCanvasCenter, stopEditingNote]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        if (editingNoteId) {
+          event.preventDefault();
+          stopEditingNote();
+          return;
+        }
+
+        if (command) {
+          event.preventDefault();
+          setCommand(null);
+        }
         return;
       }
 
@@ -1638,7 +1909,6 @@ export default function Home() {
       }
 
       if (
-        activeBoardIsTemplate &&
         !event.repeat &&
         !event.metaKey &&
         !event.ctrlKey &&
@@ -1655,7 +1925,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeBoardIsTemplate, addNoteAtCursor, openCommandAtCursor]);
+  }, [addNoteAtCursor, command, editingNoteId, openCommandAtCursor, stopEditingNote]);
 
   useEffect(() => {
     if (!commandPosition) {
@@ -1920,6 +2190,12 @@ export default function Home() {
 
       const now = Date.now();
       const id = createWidgetId();
+      const position = clampCanvasRectPosition(
+        nextCommand.x,
+        nextCommand.y,
+        DEFAULT_WIDGET_WIDTH,
+        DEFAULT_WIDGET_HEIGHT,
+      );
       const widget: CanvasWidget = {
         createdAt: now,
         exampleData: null,
@@ -1930,8 +2206,8 @@ export default function Home() {
         status: "streaming",
         updatedAt: now,
         width: DEFAULT_WIDGET_WIDTH,
-        x: Math.min(nextCommand.x, CANVAS_WIDTH - DEFAULT_WIDGET_WIDTH),
-        y: Math.min(nextCommand.y, CANVAS_HEIGHT - DEFAULT_WIDGET_HEIGHT),
+        x: position.x,
+        y: position.y,
       };
 
       addWidgetToBoard(boardId, widget);
@@ -1986,6 +2262,9 @@ export default function Home() {
       return;
     }
 
+    stopEditingNote();
+    setCommand(null);
+
     const viewport = viewportRef.current;
 
     if (!viewport) {
@@ -2002,7 +2281,7 @@ export default function Home() {
 
     viewport.setPointerCapture(event.pointerId);
     setIsPanning(true);
-  }, []);
+  }, [stopEditingNote]);
 
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -2026,19 +2305,26 @@ export default function Home() {
             ),
           }));
         } else if (interaction.type === "resize") {
-          updateWidget(activeBoardId, interaction.id, (widget) => ({
-            ...widget,
-            height: Math.min(
-              CANVAS_HEIGHT - widget.y,
-              Math.max(MIN_WIDGET_HEIGHT, interaction.startHeight + deltaY),
-            ),
-            updatedAt: Date.now(),
-            width: Math.min(
+          updateWidget(activeBoardId, interaction.id, (widget) => {
+            const width = Math.min(
               CANVAS_WIDTH - widget.x,
               Math.max(MIN_WIDGET_WIDTH, interaction.startWidth + deltaX),
-            ),
-          }));
-        } else {
+            );
+            const height = Math.min(
+              CANVAS_HEIGHT - widget.y,
+              Math.max(MIN_WIDGET_HEIGHT, interaction.startHeight + deltaY),
+            );
+            const position = clampCanvasRectPosition(widget.x, widget.y, width, height);
+
+            return {
+              ...widget,
+              height,
+              updatedAt: Date.now(),
+              width,
+              ...position,
+            };
+          });
+        } else if (interaction.type === "note-drag") {
           updateNote(activeBoardId, interaction.id, (note) => ({
             ...note,
             updatedAt: Date.now(),
@@ -2049,6 +2335,17 @@ export default function Home() {
               note.height,
             ),
           }));
+        } else {
+          updateNoteFields(interaction.id, {
+            height: Math.min(
+              CANVAS_HEIGHT,
+              Math.max(DEFAULT_NOTE_HEIGHT, interaction.startHeight + deltaY),
+            ),
+            width: Math.min(
+              MAX_NOTE_WIDTH,
+              Math.max(DEFAULT_NOTE_WIDTH, interaction.startWidth + deltaX),
+            ),
+          });
         }
 
         return;
@@ -2064,7 +2361,7 @@ export default function Home() {
       viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
       viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
     },
-    [activeBoardId, scale, updateCursorPosition, updateNote, updateWidget],
+    [activeBoardId, scale, updateCursorPosition, updateNote, updateNoteFields, updateWidget],
   );
 
   const endPointerInteraction = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -2113,18 +2410,24 @@ export default function Home() {
                 widget={widget}
               />
             ))}
-            {activeBoardIsTemplate
-              ? notes.map((note) => (
-                  <NoteFrame
-                    key={note.id}
-                    note={note}
-                    onDelete={deleteNote}
-                    onSave={saveNote}
-                    onStartInteraction={startWidgetInteraction}
-                    scale={scale}
-                  />
-                ))
-              : null}
+            {notes.map((note) => (
+              <NoteFrame
+                focusTarget={editingNoteId === note.id ? editingNoteFocus : null}
+                isEditing={editingNoteId === note.id}
+                isManuallySized={manuallySizedNoteIdsRef.current.has(note.id)}
+                isNewlyCreated={newlyCreatedNoteId === note.id}
+                key={note.id}
+                note={note}
+                onBringToFront={(id) => bringNoteToFront(activeBoardId, id)}
+                onDelete={deleteNote}
+                onEdit={editNote}
+                onFocusHandled={handleNoteFocusHandled}
+                onStopEditing={stopEditingNote}
+                onStartInteraction={startWidgetInteraction}
+                onUpdate={updateNoteFields}
+                scale={scale}
+              />
+            ))}
           </div>
 
           {command ? (
@@ -2176,8 +2479,6 @@ export default function Home() {
             </form>
           ) : null}
         </div>
-
-        <div className="pointer-events-none absolute inset-0 shadow-[var(--overlay-inset)]" />
 
         <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
@@ -2322,7 +2623,7 @@ export default function Home() {
             >
               <input
                 aria-label="New whiteboard name"
-                className="h-8 w-36 rounded border border-[var(--border-strong)] bg-[var(--panel)] px-2 text-sm font-medium text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--board-founder-accent)]"
+                className="h-8 w-36 rounded border border-[var(--border-strong)] bg-[var(--panel)] px-2 text-sm font-medium text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--focus-border)]"
                 maxLength={48}
                 onChange={(event) => setBoardNameDraft(event.target.value)}
                 onKeyDown={(event) => {
@@ -2395,21 +2696,17 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--panel-translucent)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
+        <div className="pointer-events-none absolute bottom-4 left-4 z-50 flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--panel-translucent)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
           <span>
             Press <span className="mx-1 rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 font-semibold text-[var(--text-secondary)]">/</span> to create a widget
           </span>
-          {activeBoardIsTemplate ? (
-            <>
-              <span className="h-3 w-px bg-[var(--border-strong)]" />
-              <span>
-                <span className="mx-1 rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 font-semibold text-[var(--text-secondary)]">N</span> to add a note
-              </span>
-            </>
-          ) : null}
+          <span className="h-3 w-px bg-[var(--border-strong)]" />
+          <span>
+            <span className="mx-1 rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 font-semibold text-[var(--text-secondary)]">N</span> to add a note
+          </span>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[var(--border)] bg-[var(--panel-translucent)] px-2 py-1 text-xs font-medium text-[var(--text-muted)] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
+        <div className="pointer-events-none absolute bottom-4 right-4 z-50 rounded-md border border-[var(--border)] bg-[var(--panel-translucent)] px-2 py-1 text-xs font-medium text-[var(--text-muted)] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
           {Math.round(zoom)}%
         </div>
 

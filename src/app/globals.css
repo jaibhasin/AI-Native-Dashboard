@@ -74,10 +74,10 @@
   --note-green-bg: #f0fdf4;
   --note-green-border: #bbf7d0;
   --note-green-shadow: rgba(22, 163, 74, 0.14);
-  --note-rose-accent: #e11d48;
-  --note-rose-bg: #fff1f2;
-  --note-rose-border: #fecdd3;
-  --note-rose-shadow: rgba(225, 29, 72, 0.14);
+  --note-rose-accent: #52525b;
+  --note-rose-bg: #fafafa;
+  --note-rose-border: #d4d4d4;
+  --note-rose-shadow: rgba(15, 23, 42, 0.12);
 
   --tone-neutral-bg: #ffffff;
   --tone-neutral-border: #e5e7eb;
@@ -85,15 +85,15 @@
   --tone-positive-bg: #f0fdf4;
   --tone-positive-border: #bbf7d0;
   --tone-positive-text: #166534;
-  --tone-negative-bg: #fef2f2;
-  --tone-negative-border: #fecaca;
-  --tone-negative-text: #991b1b;
+  --tone-negative-bg: #fafafa;
+  --tone-negative-border: #d4d4d4;
+  --tone-negative-text: #3f3f46;
   --tone-warning-bg: #fff7ed;
   --tone-warning-border: #fed7aa;
   --tone-warning-text: #9a3412;
   --chart-neutral: #3f3f46;
   --chart-positive: #16a34a;
-  --chart-negative: #dc2626;
+  --chart-negative: #52525b;
   --chart-warning: #ea580c;
 }
 
@@ -171,9 +171,9 @@ html[data-theme="dark"] {
   --note-green-bg: #10291b;
   --note-green-border: #15803d;
   --note-green-shadow: rgba(0, 0, 0, 0.24);
-  --note-rose-accent: #fb7185;
-  --note-rose-bg: #32141b;
-  --note-rose-border: #be123c;
+  --note-rose-accent: #a1a1aa;
+  --note-rose-bg: #171b25;
+  --note-rose-border: #475161;
   --note-rose-shadow: rgba(0, 0, 0, 0.24);
 
   --tone-neutral-bg: #171b25;
@@ -182,15 +182,15 @@ html[data-theme="dark"] {
   --tone-positive-bg: #10291b;
   --tone-positive-border: #15803d;
   --tone-positive-text: #86efac;
-  --tone-negative-bg: #32141b;
-  --tone-negative-border: #be123c;
-  --tone-negative-text: #fda4af;
+  --tone-negative-bg: #171b25;
+  --tone-negative-border: #475161;
+  --tone-negative-text: #cbd5e1;
   --tone-warning-bg: #2a2111;
   --tone-warning-border: #8a5b13;
   --tone-warning-text: #fcd34d;
   --chart-neutral: #cbd5e1;
   --chart-positive: #4ade80;
-  --chart-negative: #fb7185;
+  --chart-negative: #a1a1aa;
   --chart-warning: #f59e0b;
 }
 

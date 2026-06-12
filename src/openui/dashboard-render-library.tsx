@@ -438,7 +438,7 @@ const DashboardWidget = defineComponent({
   }),
   component: ({ props, renderNode }) => (
     <div className="flex min-h-[320px] flex-col bg-[var(--surface)]">
-      <div className="border-b border-[var(--border-soft)] px-4 py-3">
+      <div className="border-b border-[var(--border)] px-4 py-3">
         <div className="truncate text-base font-semibold text-[var(--text-primary)]">{props.title}</div>
         {props.subtitle ? <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{props.subtitle}</div> : null}
         <div className="mt-2 inline-flex rounded border border-[var(--border)] bg-[var(--panel)] px-2 py-1 text-[11px] font-medium text-[var(--text-muted)]">
