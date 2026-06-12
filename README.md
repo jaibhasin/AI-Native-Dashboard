@@ -143,6 +143,10 @@ Built and maintained by Jai Bhasin.
 
 Contact: [bhasinjai@gmail.com](mailto:bhasinjai@gmail.com)
 
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
+
 ## Scripts
 
 ```bash

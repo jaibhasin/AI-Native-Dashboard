@@ -1,7 +1,19 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { Check, GripVertical, Maximize2, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  Maximize2,
+  Minus,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   memo,
   useCallback,
@@ -40,8 +52,9 @@ const CANVAS_CENTER_X = CANVAS_WIDTH / 2;
 const CANVAS_CENTER_Y = CANVAS_HEIGHT / 2;
 const GRID_SIZE = 24;
 const MAJOR_GRID_SIZE = 120;
-const MIN_ZOOM = 50;
+const MIN_ZOOM = 20;
 const MAX_ZOOM = 200;
+const ZOOM_STEP_FACTOR = 1.12;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
@@ -56,6 +69,7 @@ const MIN_WIDGET_HEIGHT = 200;
 const LEGACY_WIDGET_STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
 const BOARD_STORAGE_KEY = "new-dashboard.canvas.boards.v1";
 const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
+const BOARD_TAB_SCROLL_EPSILON = 1;
 
 type ElementSize = {
   height: number;
@@ -1014,6 +1028,7 @@ function WidgetFrame({
 
 export default function Home() {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const boardTabsScrollRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
   const boardNameInputRef = useRef<HTMLInputElement>(null);
   const zoomRef = useRef(100);
@@ -1041,6 +1056,11 @@ export default function Home() {
   const [isCreatingBoardName, setIsCreatingBoardName] = useState(false);
   const [boardNameDraft, setBoardNameDraft] = useState("");
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
+  const [boardTabsScrollState, setBoardTabsScrollState] = useState({
+    canScrollLeft: false,
+    canScrollRight: false,
+    hasOverflow: false,
+  });
 
   const scale = zoom / 100;
   const commandPosition = command ? `${command.x}:${command.y}` : null;
@@ -1051,6 +1071,80 @@ export default function Home() {
   const activeBoardAccent = useMemo(() => boardAccent(activeBoard?.templateId), [activeBoard?.templateId]);
   const personalBoards = boards.filter((board) => !board.templateId);
   const prebuiltBoards = boards.filter((board) => board.templateId);
+  const totalBoardCount = prebuiltBoards.length + personalBoards.length;
+  const canZoomOut = zoom > MIN_ZOOM;
+  const canZoomIn = zoom < MAX_ZOOM;
+
+  const updateBoardTabsScrollState = useCallback(() => {
+    const scrollport = boardTabsScrollRef.current;
+
+    if (!scrollport) {
+      setBoardTabsScrollState((current) =>
+        current.canScrollLeft || current.canScrollRight || current.hasOverflow
+          ? {
+              canScrollLeft: false,
+              canScrollRight: false,
+              hasOverflow: false,
+            }
+          : current,
+      );
+      return;
+    }
+
+    const maxScrollLeft = Math.max(0, scrollport.scrollWidth - scrollport.clientWidth);
+    const hasOverflow = maxScrollLeft > BOARD_TAB_SCROLL_EPSILON;
+    const nextState = {
+      canScrollLeft: hasOverflow && scrollport.scrollLeft > BOARD_TAB_SCROLL_EPSILON,
+      canScrollRight: hasOverflow && scrollport.scrollLeft < maxScrollLeft - BOARD_TAB_SCROLL_EPSILON,
+      hasOverflow,
+    };
+
+    setBoardTabsScrollState((current) =>
+      current.canScrollLeft === nextState.canScrollLeft &&
+      current.canScrollRight === nextState.canScrollRight &&
+      current.hasOverflow === nextState.hasOverflow
+        ? current
+        : nextState,
+    );
+  }, []);
+
+  const scrollBoardTabIntoView = useCallback(
+    (boardId: string) => {
+      const scrollport = boardTabsScrollRef.current;
+
+      if (!scrollport) {
+        return;
+      }
+
+      const activeTab = Array.from(scrollport.querySelectorAll<HTMLElement>("[data-board-tab-id]")).find(
+        (element) => element.dataset.boardTabId === boardId,
+      );
+
+      activeTab?.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+      });
+      requestAnimationFrame(updateBoardTabsScrollState);
+    },
+    [updateBoardTabsScrollState],
+  );
+
+  const scrollBoardTabs = useCallback(
+    (direction: "left" | "right") => {
+      const scrollport = boardTabsScrollRef.current;
+
+      if (!scrollport) {
+        return;
+      }
+
+      scrollport.scrollBy({
+        behavior: "smooth",
+        left: (direction === "left" ? -1 : 1) * Math.max(120, Math.floor(scrollport.clientWidth * 0.7)),
+      });
+      requestAnimationFrame(updateBoardTabsScrollState);
+    },
+    [updateBoardTabsScrollState],
+  );
 
   const updateBoardWidgets = useCallback((boardId: string, updater: (widgets: CanvasWidget[]) => CanvasWidget[]) => {
     setBoards((current) =>
@@ -1311,6 +1405,33 @@ export default function Home() {
     },
     [activeBoardId, activeBoardIsTemplate, updateWidget],
   );
+
+  useLayoutEffect(() => {
+    const frame = requestAnimationFrame(updateBoardTabsScrollState);
+    const scrollport = boardTabsScrollRef.current;
+
+    if (!scrollport) {
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateBoardTabsScrollState);
+
+    resizeObserver?.observe(scrollport);
+    window.addEventListener("resize", updateBoardTabsScrollState);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateBoardTabsScrollState);
+    };
+  }, [isCreatingBoardName, totalBoardCount, updateBoardTabsScrollState]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => scrollBoardTabIntoView(activeBoardId));
+
+    return () => cancelAnimationFrame(frame);
+  }, [activeBoardId, scrollBoardTabIntoView, totalBoardCount]);
 
   useEffect(() => {
     const storedBoards = parseStoredBoards();
@@ -1605,13 +1726,13 @@ export default function Home() {
 
       if (event.key === "=" || event.key === "+" || event.key === "Add" || event.code === "NumpadAdd") {
         event.preventDefault();
-        adjustZoom(1.12);
+        adjustZoom(ZOOM_STEP_FACTOR);
         return;
       }
 
       if (event.key === "-" || event.key === "_" || event.code === "Subtract" || event.code === "NumpadSubtract") {
         event.preventDefault();
-        adjustZoom(1 / 1.12);
+        adjustZoom(1 / ZOOM_STEP_FACTOR);
       }
     };
 
@@ -2029,76 +2150,132 @@ export default function Home() {
             <span className="font-medium text-[#71717a]">Whiteboards</span>
           </span>
           <span className="h-4 w-px shrink-0 bg-[#d4d4d8]" />
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex shrink-0 items-center gap-1">
-              {prebuiltBoards.map((board) => {
-                const isActive = board.id === activeBoardId;
+          <div className="relative min-w-0 flex-1">
+            {boardTabsScrollState.hasOverflow ? (
+              <>
+                <div
+                  className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-white via-white/95 to-transparent transition-opacity duration-150 ${
+                    boardTabsScrollState.canScrollLeft ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+                <button
+                  aria-label="Scroll whiteboards left"
+                  className={`absolute inset-y-0 left-0 z-20 grid w-5 place-items-center rounded-sm text-[#71717a] transition duration-150 hover:bg-white/70 hover:text-[#18181b] ${
+                    boardTabsScrollState.canScrollLeft
+                      ? "opacity-100"
+                      : "pointer-events-none opacity-0"
+                  }`}
+                  disabled={!boardTabsScrollState.canScrollLeft}
+                  onClick={() => scrollBoardTabs("left")}
+                  tabIndex={boardTabsScrollState.canScrollLeft ? 0 : -1}
+                  title="Scroll whiteboards left"
+                  type="button"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </button>
+              </>
+            ) : null}
+            <div
+              ref={boardTabsScrollRef}
+              className="flex min-w-0 flex-1 scroll-px-8 items-center gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              onScroll={updateBoardTabsScrollState}
+            >
+              <div className="flex shrink-0 items-center gap-1">
+                {prebuiltBoards.map((board) => {
+                  const isActive = board.id === activeBoardId;
 
-                return (
-                  <button
-                    aria-pressed={isActive}
-                    className={`relative flex h-8 shrink-0 items-center justify-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition focus:outline-none focus-visible:outline-none ${
-                      isActive
-                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
-                        : "text-[#52525b] hover:text-[#18181b]"
-                    }`}
-                    key={board.id}
-                    onClick={() => selectBoard(board.id)}
-                    title={board.name}
-                    type="button"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none"
-                    >
-                      {boardEmoji(board.id)}
-                    </span>
-                    <span className="min-w-0 truncate leading-none">{board.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <span className="h-5 w-px shrink-0 bg-[#e2e5ea]" />
-            <div className="flex shrink-0 items-center gap-1">
-              {personalBoards.map((board) => {
-                const isActive = board.id === activeBoardId;
-                const canDelete = personalBoards.length > 1;
-
-                return (
-                  <div
-                    className={`group relative flex h-8 shrink-0 items-center text-sm font-semibold leading-none transition ${
-                      isActive
-                        ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
-                        : "text-[#52525b] hover:text-[#18181b]"
-                    }`}
-                    key={board.id}
-                    title={board.name}
-                  >
+                  return (
                     <button
                       aria-pressed={isActive}
-                      className="flex h-full max-w-40 items-center justify-center gap-1.5 px-2.5 text-inherit focus:outline-none focus-visible:outline-none"
+                      className={`relative flex h-8 shrink-0 items-center justify-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition focus:outline-none focus-visible:outline-none ${
+                        isActive
+                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
+                          : "text-[#52525b] hover:text-[#18181b]"
+                      }`}
+                      data-board-tab-id={board.id}
+                      key={board.id}
                       onClick={() => selectBoard(board.id)}
+                      title={board.name}
                       type="button"
                     >
+                      <span
+                        aria-hidden="true"
+                        className="grid h-4 w-4 shrink-0 place-items-center text-[15px] leading-none"
+                      >
+                        {boardEmoji(board.id)}
+                      </span>
                       <span className="min-w-0 truncate leading-none">{board.name}</span>
                     </button>
-                    {canDelete ? (
+                  );
+                })}
+              </div>
+              <span className="h-5 w-px shrink-0 bg-[#e2e5ea]" />
+              <div className="flex shrink-0 items-center gap-1">
+                {personalBoards.map((board) => {
+                  const isActive = board.id === activeBoardId;
+                  const canDelete = personalBoards.length > 1;
+
+                  return (
+                    <div
+                      className={`group relative flex h-8 shrink-0 items-center text-sm font-semibold leading-none transition ${
+                        isActive
+                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
+                          : "text-[#52525b] hover:text-[#18181b]"
+                      }`}
+                      data-board-tab-id={board.id}
+                      key={board.id}
+                      title={board.name}
+                    >
                       <button
-                        aria-label={`Delete ${board.name} whiteboard`}
-                        className="absolute right-0 top-1/2 z-10 grid h-3.5 w-3.5 translate-x-1/2 -translate-y-1/2 place-items-center text-[#71717a] opacity-0 transition hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteBoard(board.id);
-                        }}
+                        aria-pressed={isActive}
+                        className="flex h-full max-w-40 items-center justify-center gap-1.5 px-2.5 text-inherit focus:outline-none focus-visible:outline-none"
+                        onClick={() => selectBoard(board.id)}
                         type="button"
                       >
-                        <X className="h-3 w-3" />
+                        <span className="min-w-0 truncate leading-none">{board.name}</span>
                       </button>
-                    ) : null}
-                  </div>
-                );
-              })}
+                      {canDelete ? (
+                        <button
+                          aria-label={`Delete ${board.name} whiteboard`}
+                          className="absolute right-0 top-1/2 z-10 grid h-3.5 w-3.5 translate-x-1/2 -translate-y-1/2 place-items-center text-[#71717a] opacity-0 transition hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteBoard(board.id);
+                          }}
+                          type="button"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+            {boardTabsScrollState.hasOverflow ? (
+              <>
+                <div
+                  className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-7 bg-gradient-to-l from-white via-white/95 to-transparent transition-opacity duration-150 ${
+                    boardTabsScrollState.canScrollRight ? "opacity-100" : "opacity-0"
+                  }`}
+                />
+                <button
+                  aria-label="Scroll whiteboards right"
+                  className={`absolute inset-y-0 right-0 z-20 grid w-5 place-items-center rounded-sm text-[#71717a] transition duration-150 hover:bg-white/70 hover:text-[#18181b] ${
+                    boardTabsScrollState.canScrollRight
+                      ? "opacity-100"
+                      : "pointer-events-none opacity-0"
+                  }`}
+                  disabled={!boardTabsScrollState.canScrollRight}
+                  onClick={() => scrollBoardTabs("right")}
+                  tabIndex={boardTabsScrollState.canScrollRight ? 0 : -1}
+                  title="Scroll whiteboards right"
+                  type="button"
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </button>
+              </>
+            ) : null}
           </div>
           {isCreatingBoardName ? (
             <form
@@ -2154,21 +2331,23 @@ export default function Home() {
         <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
           <button
             aria-label="Zoom out"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
-            onClick={() => adjustZoom(1 / 1.12)}
+            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            disabled={!canZoomOut}
+            onClick={() => adjustZoom(1 / ZOOM_STEP_FACTOR)}
             title="Zoom out"
             type="button"
           >
-            -
+            <Minus className="h-3.5 w-3.5" />
           </button>
           <button
             aria-label="Zoom in"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
-            onClick={() => adjustZoom(1.12)}
+            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            disabled={!canZoomIn}
+            onClick={() => adjustZoom(ZOOM_STEP_FACTOR)}
             title="Zoom in"
             type="button"
           >
-            +
+            <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
 
