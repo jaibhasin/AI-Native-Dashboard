@@ -1,5 +1,6 @@
 import type {
   CanvasBoard,
+  CanvasNote,
   CanvasWidget,
   ChartPoint,
   ChartSeries,
@@ -11,13 +12,17 @@ import type {
 } from "@/lib/dashboard-schemas";
 
 export const BLANK_BOARD_ID = "blank";
-export const BOARD_TEMPLATE_VERSION = 2;
+export const BOARD_TEMPLATE_VERSION = 4;
 
 const TEMPLATE_WIDGET_WIDTH = 440;
 const TEMPLATE_WIDGET_HEIGHT = 320;
+const TEMPLATE_NOTE_WIDTH = 284;
+const TEMPLATE_NOTE_HEIGHT = 108;
 const TEMPLATE_CANVAS_CENTER_X = 100000;
 const TEMPLATE_CANVAS_CENTER_Y = 100000;
 const TEMPLATE_GAP = 36;
+const TEMPLATE_NOTE_GAP = 18;
+const TEMPLATE_NOTE_TOP_GAP = 28;
 const PREVIEW_DISCLOSURE = "AI-generated preview data.";
 
 type TemplateGridCoordinate = 0 | 1 | 2;
@@ -29,10 +34,14 @@ type TemplateWidgetDefinition = Pick<
   id: string;
   exampleData: ExampleWidgetData;
 };
+type TemplateNoteDefinition = Pick<CanvasNote, "body" | "color" | "height" | "title" | "width" | "x" | "y"> & {
+  id: string;
+};
 
 export type BoardTemplate = {
   id: string;
   name: string;
+  notes: TemplateNoteDefinition[];
   widgets: TemplateWidgetDefinition[];
 };
 
@@ -57,6 +66,16 @@ function gridPosition(column: TemplateGridCoordinate, row: TemplateGridCoordinat
   };
 }
 
+function notePosition(column: TemplateGridCoordinate) {
+  const totalWidth = TEMPLATE_NOTE_WIDTH * 3 + TEMPLATE_NOTE_GAP * 2;
+  const totalWidgetHeight = TEMPLATE_WIDGET_HEIGHT * 3 + TEMPLATE_GAP * 2;
+
+  return {
+    x: TEMPLATE_CANVAS_CENTER_X - totalWidth / 2 + column * (TEMPLATE_NOTE_WIDTH + TEMPLATE_NOTE_GAP),
+    y: TEMPLATE_CANVAS_CENTER_Y - totalWidgetHeight / 2 - TEMPLATE_NOTE_HEIGHT - TEMPLATE_NOTE_TOP_GAP,
+  };
+}
+
 function widget(
   id: string,
   prompt: string,
@@ -71,6 +90,24 @@ function widget(
     width: TEMPLATE_WIDGET_WIDTH,
     ...position,
     exampleData,
+  };
+}
+
+function note(
+  id: string,
+  title: string,
+  body: string,
+  color: CanvasNote["color"],
+  position: ReturnType<typeof notePosition>,
+): TemplateNoteDefinition {
+  return {
+    id,
+    title,
+    body,
+    color,
+    height: TEMPLATE_NOTE_HEIGHT,
+    width: TEMPLATE_NOTE_WIDTH,
+    ...position,
   };
 }
 
@@ -871,6 +908,29 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "founder",
     name: "Founder",
+    notes: [
+      note(
+        "brief",
+        "Board brief",
+        "Keep runway, ARR, and customer risk visible together before making hiring or fundraise calls.",
+        "blue",
+        notePosition(0),
+      ),
+      note(
+        "watch",
+        "Watch item",
+        "Gross margin is the quiet constraint: AI infra savings compound faster than another small price change.",
+        "amber",
+        notePosition(1),
+      ),
+      note(
+        "next-move",
+        "Next move",
+        "Review fundraising readiness after the priority blockers are assigned owners for the week.",
+        "green",
+        notePosition(2),
+      ),
+    ],
     widgets: [
       widget(
         "runway",
@@ -931,6 +991,29 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "engineering",
     name: "Engineering",
+    notes: [
+      note(
+        "brief",
+        "Board brief",
+        "Use this board to balance shipping speed against reliability, eval coverage, and AI runtime cost.",
+        "blue",
+        notePosition(0),
+      ),
+      note(
+        "watch",
+        "Watch item",
+        "PR review and flaky tests are linked; unblock reviewers before adding more release process.",
+        "rose",
+        notePosition(1),
+      ),
+      note(
+        "next-move",
+        "Next move",
+        "Pick one critical agent workflow and close the eval gap before the next deployment window.",
+        "green",
+        notePosition(2),
+      ),
+    ],
     widgets: [
       widget(
         "velocity",
@@ -991,6 +1074,29 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "sales",
     name: "Sales",
+    notes: [
+      note(
+        "brief",
+        "Board brief",
+        "Read pipeline, conversion, expansion, and deal blockers as one weekly revenue operating view.",
+        "blue",
+        notePosition(0),
+      ),
+      note(
+        "watch",
+        "Watch item",
+        "Security review aging is the enterprise choke point; it can erase forecast confidence late in-quarter.",
+        "amber",
+        notePosition(1),
+      ),
+      note(
+        "next-move",
+        "Next move",
+        "Route stuck commit deals to one owner with the blocker reason and next best action already written.",
+        "green",
+        notePosition(2),
+      ),
+    ],
     widgets: [
       widget(
         "pipeline",
@@ -1051,6 +1157,29 @@ export const BOARD_TEMPLATES: BoardTemplate[] = [
   {
     id: "ops",
     name: "Ops",
+    notes: [
+      note(
+        "brief",
+        "Board brief",
+        "Track support, onboarding, vendors, invoices, and compliance as one operating rhythm.",
+        "blue",
+        notePosition(0),
+      ),
+      note(
+        "watch",
+        "Watch item",
+        "Access delays are showing up across SLA misses, onboarding, and compliance throughput.",
+        "rose",
+        notePosition(1),
+      ),
+      note(
+        "next-move",
+        "Next move",
+        "Consolidate unused SaaS seats before the next renewal cycle and apply savings to onboarding gaps.",
+        "green",
+        notePosition(2),
+      ),
+    ],
     widgets: [
       widget(
         "support",
@@ -1117,6 +1246,12 @@ export function createBoardFromTemplate(template: BoardTemplate, now = Date.now(
     templateId: template.id,
     templateVersion: BOARD_TEMPLATE_VERSION,
     createdAt: now,
+    notes: template.notes.map((templateNote, index) => ({
+      ...templateNote,
+      id: `${template.id}-${templateNote.id}`,
+      createdAt: now + index,
+      updatedAt: now + index,
+    })),
     updatedAt: now,
     widgets: template.widgets.map((templateWidget, index) => ({
       ...templateWidget,

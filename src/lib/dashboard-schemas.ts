@@ -59,6 +59,21 @@ export const formFieldSchema = z
   })
   .describe("A form field preview.");
 
+export const canvasNoteColorSchema = z.enum(["blue", "green", "amber", "rose"]);
+
+export const canvasNoteSchema = z.object({
+  id: z.string(),
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+  title: z.string(),
+  body: z.string(),
+  color: canvasNoteColorSchema,
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+
 export const exampleWidgetDataSchema = z.object({
   title: z.string().describe("Dashboard widget title."),
   subtitle: z.string().describe("Short context line for the widget."),
@@ -91,6 +106,8 @@ export type ChartPoint = z.infer<typeof chartPointSchema>;
 export type TableData = z.infer<typeof tableSchema>;
 export type InsightData = z.infer<typeof insightSchema>;
 export type FormFieldData = z.infer<typeof formFieldSchema>;
+export type CanvasNoteColor = z.infer<typeof canvasNoteColorSchema>;
+export type CanvasNote = z.infer<typeof canvasNoteSchema>;
 export type ExampleWidgetData = z.infer<typeof exampleWidgetDataSchema>;
 
 export type CanvasWidgetStatus = "streaming" | "done" | "error";
@@ -117,6 +134,7 @@ export const canvasBoardSchema = z.object({
   id: z.string(),
   name: z.string(),
   widgets: z.array(canvasWidgetSchema),
+  notes: z.array(canvasNoteSchema).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
   templateId: z.string().optional(),

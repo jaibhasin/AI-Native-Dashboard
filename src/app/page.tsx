@@ -1,7 +1,19 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { ChevronLeft, ChevronRight, GripVertical, Maximize2, Minus, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  Maximize2,
+  Minus,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   memo,
   useCallback,
@@ -25,6 +37,8 @@ import {
   canvasBoardSchema,
   canvasWidgetSchema,
   type CanvasBoard,
+  type CanvasNote,
+  type CanvasNoteColor,
   type CanvasWidget,
 } from "@/lib/dashboard-schemas";
 import type { WidgetStreamEvent } from "@/lib/widget-stream";
@@ -44,6 +58,8 @@ const ZOOM_STEP_FACTOR = 1.12;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
+const DEFAULT_NOTE_WIDTH = 284;
+const DEFAULT_NOTE_HEIGHT = 108;
 const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
@@ -69,6 +85,14 @@ type BoardBounds = {
   width: number;
 };
 
+type BoardVisualAccent = {
+  accent: string;
+  border: string;
+  canvasMajor: string;
+  canvasMinor: string;
+  surface: string;
+};
+
 type CommandState = {
   x: number;
   y: number;
@@ -91,6 +115,14 @@ type WidgetInteraction =
       startClientY: number;
       startWidth: number;
       startHeight: number;
+    }
+  | {
+      type: "note-drag";
+      id: string;
+      startClientX: number;
+      startClientY: number;
+      startX: number;
+      startY: number;
     };
 
 type PendingZoomScroll = {
@@ -130,6 +162,91 @@ function createBoardId() {
   return globalThis.crypto?.randomUUID?.() ?? `board-${Date.now()}-${Math.random()}`;
 }
 
+function createNoteId() {
+  return globalThis.crypto?.randomUUID?.() ?? `note-${Date.now()}-${Math.random()}`;
+}
+
+function boardAccent(boardId: string | undefined): BoardVisualAccent | null {
+  if (boardId === "founder") {
+    return {
+      accent: "#2563eb",
+      border: "#bfdbfe",
+      canvasMajor: "#d8e2f2",
+      canvasMinor: "#ecf1f8",
+      surface: "#eff6ff",
+    };
+  }
+
+  if (boardId === "engineering") {
+    return {
+      accent: "#0f766e",
+      border: "#99f6e4",
+      canvasMajor: "#d8e7e4",
+      canvasMinor: "#edf4f2",
+      surface: "#f0fdfa",
+    };
+  }
+
+  if (boardId === "sales") {
+    return {
+      accent: "#7c3aed",
+      border: "#ddd6fe",
+      canvasMajor: "#e1dcec",
+      canvasMinor: "#f0eef6",
+      surface: "#f5f3ff",
+    };
+  }
+
+  if (boardId === "ops") {
+    return {
+      accent: "#ca8a04",
+      border: "#fde68a",
+      canvasMajor: "#e7dfcd",
+      canvasMinor: "#f4f1e9",
+      surface: "#fffbeb",
+    };
+  }
+
+  return null;
+}
+
+const noteColorStyles: Record<
+  CanvasNoteColor,
+  {
+    accent: string;
+    background: string;
+    border: string;
+    shadow: string;
+  }
+> = {
+  amber: {
+    accent: "#d97706",
+    background: "#fffbeb",
+    border: "#fde68a",
+    shadow: "rgba(217,119,6,0.16)",
+  },
+  blue: {
+    accent: "#2563eb",
+    background: "#eff6ff",
+    border: "#bfdbfe",
+    shadow: "rgba(37,99,235,0.14)",
+  },
+  green: {
+    accent: "#16a34a",
+    background: "#f0fdf4",
+    border: "#bbf7d0",
+    shadow: "rgba(22,163,74,0.14)",
+  },
+  rose: {
+    accent: "#e11d48",
+    background: "#fff1f2",
+    border: "#fecdd3",
+    shadow: "rgba(225,29,72,0.14)",
+  },
+};
+
+const noteColorOptions: CanvasNoteColor[] = ["blue", "green", "amber", "rose"];
+
 function hashString(value: string) {
   let hash = 0;
 
@@ -158,6 +275,13 @@ function fittedWidgetHeight(widget: CanvasWidget, stageSize: ElementSize) {
   const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight);
 
   return Math.min(CANVAS_HEIGHT - widget.y, Math.max(MIN_WIDGET_HEIGHT, targetWidgetHeight));
+}
+
+function clampCanvasRectPosition(x: number, y: number, width: number, height: number) {
+  return {
+    x: Math.min(CANVAS_WIDTH - width, Math.max(0, x)),
+    y: Math.min(CANVAS_HEIGHT - height, Math.max(0, y)),
+  };
 }
 
 function migrateLegacyWidgetPosition(widget: CanvasWidget) {
@@ -215,6 +339,7 @@ function createBlankBoard(widgets: CanvasWidget[] = [], now = Date.now()): Canva
     createdAt: now,
     id: BLANK_BOARD_ID,
     name: "Blank",
+    notes: [],
     updatedAt: now,
     widgets,
   };
@@ -227,6 +352,7 @@ function ensureBoardSet(boards: CanvasBoard[]) {
   boards.forEach((board) => {
     boardById.set(board.id, {
       ...board,
+      notes: board.notes ?? [],
       widgets: board.widgets.map(restoreStoredWidget),
     });
   });
@@ -311,17 +437,23 @@ function sameSize(left: ElementSize, right: ElementSize) {
   return left.height === right.height && left.width === right.width;
 }
 
+function prebuiltBoardNotes(board: CanvasBoard | undefined) {
+  return board?.templateId ? board.notes ?? [] : [];
+}
+
 function boardBounds(board: CanvasBoard | undefined): BoardBounds | null {
-  if (!board || board.widgets.length === 0) {
+  const items = board ? [...board.widgets, ...prebuiltBoardNotes(board)] : [];
+
+  if (items.length === 0) {
     return null;
   }
 
-  const bounds = board.widgets.reduce(
-    (current, widget) => ({
-      maxX: Math.max(current.maxX, widget.x + widget.width),
-      maxY: Math.max(current.maxY, widget.y + widget.height),
-      minX: Math.min(current.minX, widget.x),
-      minY: Math.min(current.minY, widget.y),
+  const bounds = items.reduce(
+    (current, item) => ({
+      maxX: Math.max(current.maxX, item.x + item.width),
+      maxY: Math.max(current.maxY, item.y + item.height),
+      minX: Math.min(current.minX, item.x),
+      minY: Math.min(current.minY, item.y),
     }),
     {
       maxX: Number.NEGATIVE_INFINITY,
@@ -408,9 +540,11 @@ function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
 }
 
 const WidgetBody = memo(function WidgetBody({
+  alignContentToTop = false,
   onContentMeasured,
   widget,
 }: {
+  alignContentToTop?: boolean;
   onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
   widget: CanvasWidget;
 }) {
@@ -498,7 +632,9 @@ const WidgetBody = memo(function WidgetBody({
   return (
     <div
       ref={bodyRef}
-      className="relative grid h-full place-items-center overflow-hidden bg-[#fbfcfe]"
+      className={`relative grid h-full overflow-hidden bg-[#fbfcfe] ${
+        alignContentToTop ? "items-start justify-items-center" : "place-items-center"
+      }`}
       data-openui-fit-body
     >
       <div
@@ -540,19 +676,221 @@ const WidgetBody = memo(function WidgetBody({
   );
 });
 
+function NoteFrame({
+  note,
+  onDelete,
+  onSave,
+  onStartInteraction,
+  scale,
+}: {
+  note: CanvasNote;
+  onDelete: (id: string) => void;
+  onSave: (id: string, nextNote: Pick<CanvasNote, "body" | "color" | "title">) => void;
+  onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
+  scale: number;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    body: note.body,
+    color: note.color,
+    title: note.title,
+  });
+  const colorStyle = noteColorStyles[draft.color];
+
+  const cancelEdit = useCallback(() => {
+    setDraft({
+      body: note.body,
+      color: note.color,
+      title: note.title,
+    });
+    setIsEditing(false);
+  }, [note.body, note.color, note.title]);
+
+  const commitEdit = useCallback(() => {
+    onSave(note.id, {
+      body: draft.body.trim().slice(0, 280),
+      color: draft.color,
+      title: draft.title.trim().slice(0, 48) || "Note",
+    });
+    setIsEditing(false);
+  }, [draft.body, draft.color, draft.title, note.id, onSave]);
+
+  return (
+    <div
+      className="absolute z-20"
+      data-note
+      style={{
+        height: note.height * scale,
+        left: note.x * scale,
+        top: note.y * scale,
+        width: note.width * scale,
+      }}
+    >
+      <article
+        className="relative flex h-full overflow-hidden rounded-[5px] border text-[#18181b]"
+        style={{
+          background: `linear-gradient(180deg, #ffffff 0%, ${colorStyle.background} 160%)`,
+          borderColor: "#dce1e8",
+          boxShadow: `0 10px 24px ${colorStyle.shadow}, 0 1px 0 rgba(255,255,255,0.94) inset`,
+          height: note.height,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          width: note.width,
+        }}
+      >
+        <div className="w-1 shrink-0" style={{ background: colorStyle.accent }} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header
+            className={`flex h-8 shrink-0 items-center gap-1.5 border-b px-2 ${
+              isEditing ? "" : "cursor-grab active:cursor-grabbing"
+            }`}
+            onPointerDown={(event) => {
+              if (isEditing || hasClosestElement(event.target, "[data-note-control]")) {
+                return;
+              }
+
+              onStartInteraction(event, {
+                id: note.id,
+                startClientX: event.clientX,
+                startClientY: event.clientY,
+                startX: note.x,
+                startY: note.y,
+                type: "note-drag",
+              });
+            }}
+            style={{ borderColor: "#e5e7eb" }}
+          >
+            <GripVertical className="h-3 w-3 shrink-0 text-[#a1a1aa]" />
+            <div className="min-w-0 flex-1">
+              {isEditing ? (
+                <input
+                  aria-label="Note title"
+                  className="h-6 w-full rounded border border-[#e2e5ea] bg-white/85 px-1.5 text-xs font-semibold outline-none focus:border-[#18181b]"
+                  data-note-control
+                  id={`${note.id}-title`}
+                  maxLength={48}
+                  name="note-title"
+                  onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
+                  value={draft.title}
+                />
+              ) : (
+                <div className="truncate text-xs font-semibold">{note.title}</div>
+              )}
+            </div>
+            {isEditing ? (
+              <>
+                <button
+                  aria-label="Save note"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#27272a] transition hover:bg-white"
+                  data-note-control
+                  onClick={commitEdit}
+                  title="Save"
+                  type="button"
+                >
+                  <Check className="h-3 w-3" />
+                </button>
+                <button
+                  aria-label="Cancel note edit"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#52525b] transition hover:bg-white"
+                  data-note-control
+                  onClick={cancelEdit}
+                  title="Cancel"
+                  type="button"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  aria-label="Edit note"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
+                  data-note-control
+                  onClick={() => setIsEditing(true)}
+                  title="Edit"
+                  type="button"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+                <button
+                  aria-label="Delete note"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
+                  data-note-control
+                  onClick={() => onDelete(note.id)}
+                  title="Delete"
+                  type="button"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </>
+            )}
+          </header>
+
+          <div className="min-h-0 flex-1 p-2.5">
+            {isEditing ? (
+              <div className="flex h-full flex-col gap-1.5">
+                <textarea
+                  aria-label="Note body"
+                  className="min-h-0 flex-1 resize-none rounded border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-[11px] leading-4 text-[#27272a] outline-none focus:border-[#18181b]"
+                  data-note-control
+                  id={`${note.id}-body`}
+                  maxLength={280}
+                  name="note-body"
+                  onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))}
+                  value={draft.body}
+                />
+                <div className="flex items-center gap-1">
+                  {noteColorOptions.map((color) => {
+                    const optionStyle = noteColorStyles[color];
+                    const isSelected = color === draft.color;
+
+                    return (
+                      <button
+                        aria-label={`${color} note color`}
+                        aria-pressed={isSelected}
+                        className="h-4 w-4 rounded-full border transition"
+                        data-note-control
+                        key={color}
+                        onClick={() => setDraft((current) => ({ ...current, color }))}
+                        style={{
+                          background: optionStyle.background,
+                          borderColor: isSelected ? "#18181b" : optionStyle.border,
+                          boxShadow: isSelected ? `0 0 0 2px ${optionStyle.border}` : undefined,
+                        }}
+                        title={color}
+                        type="button"
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="line-clamp-3 text-[11px] font-medium leading-4 text-[#3f3f46]">{note.body}</p>
+            )}
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+}
+
 function WidgetFrame({
+  accent,
   onBringToFront,
   onDelete,
   onContentMeasured,
   onRetry,
   onStartInteraction,
+  scale,
   widget,
 }: {
+  accent: BoardVisualAccent | null;
   onBringToFront: (id: string) => void;
   onDelete: (id: string) => void;
   onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
   onRetry: (widget: CanvasWidget) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
+  scale: number;
   widget: CanvasWidget;
 }) {
   const title = widget.exampleData?.title || widget.prompt;
@@ -569,16 +907,23 @@ function WidgetFrame({
         }
       }}
       style={{
-        height: widget.height,
-        left: widget.x,
-        top: widget.y,
-        width: widget.width,
+        height: widget.height * scale,
+        left: widget.x * scale,
+        top: widget.y * scale,
+        width: widget.width * scale,
       }}
     >
       <article
-        className="flex h-full overflow-hidden rounded-md border border-[#d7dce4] bg-white shadow-[0_18px_42px_rgba(15,23,42,0.14)]"
+        className="relative flex h-full overflow-hidden rounded-md border bg-white shadow-[0_18px_42px_rgba(15,23,42,0.14)]"
         style={{
+          borderColor: "#d7dce4",
+          boxShadow: accent
+            ? "0 20px 46px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.92) inset"
+            : "0 18px 42px rgba(15,23,42,0.14)",
           height: widget.height,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+          willChange: "transform",
           width: widget.width,
         }}
       >
@@ -599,13 +944,23 @@ function WidgetFrame({
                 type: "drag",
               });
             }}
+            style={{
+              background: accent ? `linear-gradient(90deg, ${accent.surface}, #ffffff 62%)` : undefined,
+              borderColor: "#e5e7eb",
+            }}
           >
             <GripVertical className="h-4 w-4 shrink-0 text-[#9aa3af]" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-[#18181b]">{title}</div>
               <div className="truncate text-[11px] text-[#71717a]">{widget.prompt}</div>
             </div>
-            <span className="rounded border border-[#e5e7eb] bg-[#f8fafc] px-2 py-1 text-[11px] font-medium text-[#52525b]">
+            <span
+              className="rounded border border-[#e5e7eb] bg-[#f8fafc] px-2 py-1 text-[11px] font-medium text-[#52525b]"
+              style={{
+                background: accent?.surface,
+                color: accent?.accent,
+              }}
+            >
               {statusLabel}
             </span>
             {widget.status === "error" ? (
@@ -639,7 +994,11 @@ function WidgetFrame({
           </header>
 
           <div className="min-h-0 flex-1 overflow-hidden">
-            <WidgetBody onContentMeasured={onContentMeasured} widget={widget} />
+            <WidgetBody
+              alignContentToTop={Boolean(accent)}
+              onContentMeasured={onContentMeasured}
+              widget={widget}
+            />
           </div>
 
           <button
@@ -708,6 +1067,8 @@ export default function Home() {
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
   const activeBoardIsTemplate = Boolean(activeBoard?.templateId);
   const widgets = activeBoard?.widgets ?? [];
+  const notes = prebuiltBoardNotes(activeBoard);
+  const activeBoardAccent = useMemo(() => boardAccent(activeBoard?.templateId), [activeBoard?.templateId]);
   const personalBoards = boards.filter((board) => !board.templateId);
   const prebuiltBoards = boards.filter((board) => board.templateId);
   const totalBoardCount = prebuiltBoards.length + personalBoards.length;
@@ -808,6 +1169,29 @@ export default function Home() {
     [updateBoardWidgets],
   );
 
+  const updateBoardNotes = useCallback((boardId: string, updater: (notes: CanvasNote[]) => CanvasNote[]) => {
+    setBoards((current) =>
+      current.map((board) =>
+        board.id === boardId && board.templateId
+          ? {
+              ...board,
+              notes: updater(board.notes ?? []),
+              updatedAt: Date.now(),
+            }
+          : board,
+      ),
+    );
+  }, []);
+
+  const updateNote = useCallback(
+    (boardId: string, id: string, updater: (note: CanvasNote) => CanvasNote) => {
+      updateBoardNotes(boardId, (current) =>
+        current.map((note) => (note.id === id ? updater(note) : note)),
+      );
+    },
+    [updateBoardNotes],
+  );
+
   const bringWidgetToFront = useCallback((boardId: string, id: string) => {
     setBoards((current) => {
       const boardIndex = current.findIndex((board) => board.id === boardId);
@@ -845,6 +1229,24 @@ export default function Home() {
     [activeBoardId, updateBoardWidgets],
   );
 
+  const deleteNote = useCallback(
+    (id: string) => {
+      updateBoardNotes(activeBoardId, (current) => current.filter((note) => note.id !== id));
+    },
+    [activeBoardId, updateBoardNotes],
+  );
+
+  const saveNote = useCallback(
+    (id: string, nextNote: Pick<CanvasNote, "body" | "color" | "title">) => {
+      updateNote(activeBoardId, id, (note) => ({
+        ...note,
+        ...nextNote,
+        updatedAt: Date.now(),
+      }));
+    },
+    [activeBoardId, updateNote],
+  );
+
   const scrollToBoard = useCallback(
     (board: CanvasBoard | undefined, scaleOverride = scale, topInset = TOP_CANVAS_SAFE_INSET) => {
       const viewport = viewportRef.current;
@@ -853,15 +1255,11 @@ export default function Home() {
         return;
       }
 
-      if (!board || board.widgets.length === 0) {
-        viewport.scrollLeft = CANVAS_CENTER_X * scaleOverride - viewport.clientWidth / 2;
-        viewport.scrollTop = CANVAS_CENTER_Y * scaleOverride - viewport.clientHeight / 2 - topInset;
-        return;
-      }
-
       const bounds = boardBounds(board);
 
       if (!bounds) {
+        viewport.scrollLeft = CANVAS_CENTER_X * scaleOverride - viewport.clientWidth / 2;
+        viewport.scrollTop = CANVAS_CENTER_Y * scaleOverride - viewport.clientHeight / 2 - topInset;
         return;
       }
 
@@ -883,8 +1281,10 @@ export default function Home() {
       }
 
       const nextZoom = fitZoomForBoard(board, viewport);
+      pendingZoomScrollRef.current = null;
 
       if (nextZoom) {
+        zoomRef.current = nextZoom;
         setZoom(nextZoom);
         scrollToBoard(board, nextZoom / 100, TOP_CANVAS_SAFE_INSET / 2);
         return;
@@ -957,6 +1357,7 @@ export default function Home() {
       createdAt: now,
       id: createBoardId(),
       name: nextName,
+      notes: [],
       updatedAt: now,
       widgets: [],
     };
@@ -1113,6 +1514,66 @@ export default function Home() {
     });
   }, [scale]);
 
+  const addNoteToActiveBoard = useCallback((targetPosition?: { x: number; y: number }) => {
+    if (!activeBoard?.templateId) {
+      return;
+    }
+
+    const now = Date.now();
+    const bounds = boardBounds(activeBoard);
+    const currentNotes = activeBoard.notes ?? [];
+    const fallbackCenter = getVisibleCanvasCenter();
+    const basePosition =
+      targetPosition ??
+      (bounds
+        ? {
+            x: bounds.maxX + 28,
+            y: bounds.minY + (currentNotes.length % 4) * (DEFAULT_NOTE_HEIGHT + 18),
+          }
+        : {
+            x: fallbackCenter.x - DEFAULT_NOTE_WIDTH / 2,
+            y: fallbackCenter.y - DEFAULT_NOTE_HEIGHT / 2,
+          });
+    const position = clampCanvasRectPosition(
+      basePosition.x,
+      basePosition.y,
+      DEFAULT_NOTE_WIDTH,
+      DEFAULT_NOTE_HEIGHT,
+    );
+    const note: CanvasNote = {
+      body: "Decision, owner, timing.",
+      color: noteColorOptions[currentNotes.length % noteColorOptions.length],
+      createdAt: now,
+      height: DEFAULT_NOTE_HEIGHT,
+      id: createNoteId(),
+      title: "New note",
+      updatedAt: now,
+      width: DEFAULT_NOTE_WIDTH,
+      ...position,
+    };
+
+    updateBoardNotes(activeBoard.id, (current) => [...current, note]);
+    if (!targetPosition) {
+      requestAnimationFrame(() => focusBoard({ ...activeBoard, notes: [...currentNotes, note], updatedAt: now }));
+    }
+  }, [activeBoard, focusBoard, getVisibleCanvasCenter, updateBoardNotes]);
+
+  const addNoteAtCursor = useCallback(() => {
+    const cursor = cursorRef.current;
+    const visibleCenter = getVisibleCanvasCenter();
+    const position = cursor.inside
+      ? {
+          x: cursor.x,
+          y: cursor.y,
+        }
+      : {
+          x: visibleCenter.x - DEFAULT_NOTE_WIDTH / 2,
+          y: visibleCenter.y - DEFAULT_NOTE_HEIGHT / 2,
+        };
+
+    addNoteToActiveBoard(position);
+  }, [addNoteToActiveBoard, getVisibleCanvasCenter]);
+
   const openCommandAtCursor = useCallback(() => {
     const cursor = cursorRef.current;
     const position = cursor.inside
@@ -1131,12 +1592,27 @@ export default function Home() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "/" || isEditableTarget(event.target)) {
+      if (isEditableTarget(event.target)) {
         return;
       }
 
-      event.preventDefault();
-      openCommandAtCursor();
+      if (event.key === "/") {
+        event.preventDefault();
+        openCommandAtCursor();
+        return;
+      }
+
+      if (
+        activeBoardIsTemplate &&
+        !event.repeat &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "n"
+      ) {
+        event.preventDefault();
+        addNoteAtCursor();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -1144,7 +1620,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [openCommandAtCursor]);
+  }, [activeBoardIsTemplate, addNoteAtCursor, openCommandAtCursor]);
 
   useEffect(() => {
     if (!commandPosition) {
@@ -1268,25 +1744,19 @@ export default function Home() {
   }, [adjustZoom]);
 
   const canvasStyle = useMemo<CSSProperties>(() => {
+    const minorLine = activeBoardAccent?.canvasMinor ?? "#edf0f4";
+    const majorLine = activeBoardAccent?.canvasMajor ?? "#d9dee7";
+
     return {
       width: CANVAS_WIDTH * scale,
       height: CANVAS_HEIGHT * scale,
+      backgroundColor: activeBoardAccent ? "#fbfdff" : "#ffffff",
       backgroundImage:
-        "linear-gradient(#edf0f4 1px, transparent 1px), linear-gradient(90deg, #edf0f4 1px, transparent 1px), linear-gradient(#d9dee7 1px, transparent 1px), linear-gradient(90deg, #d9dee7 1px, transparent 1px)",
+        `linear-gradient(${minorLine} 1px, transparent 1px), linear-gradient(90deg, ${minorLine} 1px, transparent 1px), linear-gradient(${majorLine} 1px, transparent 1px), linear-gradient(90deg, ${majorLine} 1px, transparent 1px)`,
       backgroundSize: `${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px`,
       backgroundPosition: "-1px -1px",
     };
-  }, [scale]);
-
-  const canvasWorldStyle = useMemo<CSSProperties>(() => {
-    return {
-      height: CANVAS_HEIGHT,
-      transform: `scale(${scale})`,
-      transformOrigin: "top left",
-      width: CANVAS_WIDTH,
-      willChange: "transform",
-    };
-  }, [scale]);
+  }, [activeBoardAccent, scale]);
 
   const handleStreamEvent = useCallback(
     (boardId: string, id: string, event: WidgetStreamEvent) => {
@@ -1477,7 +1947,7 @@ export default function Home() {
       return;
     }
 
-    if (hasClosestElement(event.target, "[data-command-input], [data-widget]")) {
+    if (hasClosestElement(event.target, "[data-command-input], [data-widget], [data-note]")) {
       return;
     }
 
@@ -1513,10 +1983,14 @@ export default function Home() {
           updateWidget(activeBoardId, interaction.id, (widget) => ({
             ...widget,
             updatedAt: Date.now(),
-            x: Math.min(CANVAS_WIDTH - widget.width, Math.max(0, interaction.startX + deltaX)),
-            y: Math.min(CANVAS_HEIGHT - widget.height, Math.max(0, interaction.startY + deltaY)),
+            ...clampCanvasRectPosition(
+              interaction.startX + deltaX,
+              interaction.startY + deltaY,
+              widget.width,
+              widget.height,
+            ),
           }));
-        } else {
+        } else if (interaction.type === "resize") {
           updateWidget(activeBoardId, interaction.id, (widget) => ({
             ...widget,
             height: Math.min(
@@ -1527,6 +2001,17 @@ export default function Home() {
             width: Math.min(
               CANVAS_WIDTH - widget.x,
               Math.max(MIN_WIDGET_WIDTH, interaction.startWidth + deltaX),
+            ),
+          }));
+        } else {
+          updateNote(activeBoardId, interaction.id, (note) => ({
+            ...note,
+            updatedAt: Date.now(),
+            ...clampCanvasRectPosition(
+              interaction.startX + deltaX,
+              interaction.startY + deltaY,
+              note.width,
+              note.height,
             ),
           }));
         }
@@ -1544,7 +2029,7 @@ export default function Home() {
       viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
       viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
     },
-    [activeBoardId, scale, updateCursorPosition, updateWidget],
+    [activeBoardId, scale, updateCursorPosition, updateNote, updateWidget],
   );
 
   const endPointerInteraction = useCallback((event: PointerEvent<HTMLDivElement>) => {
@@ -1579,20 +2064,32 @@ export default function Home() {
           onPointerUp={endPointerInteraction}
           onWheel={handleWheel}
         >
-          <div aria-label="Scrollable grid canvas" className="relative overflow-hidden" style={canvasStyle}>
-            <div className="absolute left-0 top-0" style={canvasWorldStyle}>
-              {widgets.map((widget) => (
-                <WidgetFrame
-                  key={widget.id}
-                  onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
-                  onDelete={deleteWidget}
-                  onContentMeasured={fitWidgetToContent}
-                  onRetry={retryWidget}
-                  onStartInteraction={startWidgetInteraction}
-                  widget={widget}
-                />
-              ))}
-            </div>
+          <div aria-label="Scrollable grid canvas" className="relative" style={canvasStyle}>
+            {widgets.map((widget) => (
+              <WidgetFrame
+                accent={activeBoardAccent}
+                key={widget.id}
+                onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
+                onDelete={deleteWidget}
+                onContentMeasured={fitWidgetToContent}
+                onRetry={retryWidget}
+                onStartInteraction={startWidgetInteraction}
+                scale={scale}
+                widget={widget}
+              />
+            ))}
+            {activeBoardIsTemplate
+              ? notes.map((note) => (
+                  <NoteFrame
+                    key={note.id}
+                    note={note}
+                    onDelete={deleteNote}
+                    onSave={saveNote}
+                    onStartInteraction={startWidgetInteraction}
+                    scale={scale}
+                  />
+                ))
+              : null}
           </div>
 
           {command ? (
@@ -1854,8 +2351,18 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
-          Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
+        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
+          <span>
+            Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
+          </span>
+          {activeBoardIsTemplate ? (
+            <>
+              <span className="h-3 w-px bg-[#d4d4d8]" />
+              <span>
+                <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">N</span> to add a note
+              </span>
+            </>
+          ) : null}
         </div>
 
         <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
