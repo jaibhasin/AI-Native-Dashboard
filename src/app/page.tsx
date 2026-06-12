@@ -8,9 +8,11 @@ import {
   GripVertical,
   Maximize2,
   Minus,
+  Moon,
   Pencil,
   Plus,
   RotateCcw,
+  Sun,
   Trash2,
   X,
 } from "lucide-react";
@@ -69,7 +71,10 @@ const MIN_WIDGET_HEIGHT = 200;
 const LEGACY_WIDGET_STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
 const BOARD_STORAGE_KEY = "new-dashboard.canvas.boards.v1";
 const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
+const THEME_STORAGE_KEY = "new-dashboard.theme.v1";
 const BOARD_TAB_SCROLL_EPSILON = 1;
+
+type ThemeMode = "light" | "dark";
 
 type ElementSize = {
   height: number;
@@ -169,41 +174,41 @@ function createNoteId() {
 function boardAccent(boardId: string | undefined): BoardVisualAccent | null {
   if (boardId === "founder") {
     return {
-      accent: "#2563eb",
-      border: "#bfdbfe",
-      canvasMajor: "#d8e2f2",
-      canvasMinor: "#ecf1f8",
-      surface: "#eff6ff",
+      accent: "var(--board-founder-accent)",
+      border: "var(--board-founder-border)",
+      canvasMajor: "var(--board-founder-canvas-major)",
+      canvasMinor: "var(--board-founder-canvas-minor)",
+      surface: "var(--board-founder-surface)",
     };
   }
 
   if (boardId === "engineering") {
     return {
-      accent: "#0f766e",
-      border: "#99f6e4",
-      canvasMajor: "#d8e7e4",
-      canvasMinor: "#edf4f2",
-      surface: "#f0fdfa",
+      accent: "var(--board-engineering-accent)",
+      border: "var(--board-engineering-border)",
+      canvasMajor: "var(--board-engineering-canvas-major)",
+      canvasMinor: "var(--board-engineering-canvas-minor)",
+      surface: "var(--board-engineering-surface)",
     };
   }
 
   if (boardId === "sales") {
     return {
-      accent: "#7c3aed",
-      border: "#ddd6fe",
-      canvasMajor: "#e1dcec",
-      canvasMinor: "#f0eef6",
-      surface: "#f5f3ff",
+      accent: "var(--board-sales-accent)",
+      border: "var(--board-sales-border)",
+      canvasMajor: "var(--board-sales-canvas-major)",
+      canvasMinor: "var(--board-sales-canvas-minor)",
+      surface: "var(--board-sales-surface)",
     };
   }
 
   if (boardId === "ops") {
     return {
-      accent: "#ca8a04",
-      border: "#fde68a",
-      canvasMajor: "#e7dfcd",
-      canvasMinor: "#f4f1e9",
-      surface: "#fffbeb",
+      accent: "var(--board-ops-accent)",
+      border: "var(--board-ops-border)",
+      canvasMajor: "var(--board-ops-canvas-major)",
+      canvasMinor: "var(--board-ops-canvas-minor)",
+      surface: "var(--board-ops-surface)",
     };
   }
 
@@ -220,28 +225,28 @@ const noteColorStyles: Record<
   }
 > = {
   amber: {
-    accent: "#d97706",
-    background: "#fffbeb",
-    border: "#fde68a",
-    shadow: "rgba(217,119,6,0.16)",
+    accent: "var(--note-amber-accent)",
+    background: "var(--note-amber-bg)",
+    border: "var(--note-amber-border)",
+    shadow: "var(--note-amber-shadow)",
   },
   blue: {
-    accent: "#2563eb",
-    background: "#eff6ff",
-    border: "#bfdbfe",
-    shadow: "rgba(37,99,235,0.14)",
+    accent: "var(--note-blue-accent)",
+    background: "var(--note-blue-bg)",
+    border: "var(--note-blue-border)",
+    shadow: "var(--note-blue-shadow)",
   },
   green: {
-    accent: "#16a34a",
-    background: "#f0fdf4",
-    border: "#bbf7d0",
-    shadow: "rgba(22,163,74,0.14)",
+    accent: "var(--note-green-accent)",
+    background: "var(--note-green-bg)",
+    border: "var(--note-green-border)",
+    shadow: "var(--note-green-shadow)",
   },
   rose: {
-    accent: "#e11d48",
-    background: "#fff1f2",
-    border: "#fecdd3",
-    shadow: "rgba(225,29,72,0.14)",
+    accent: "var(--note-rose-accent)",
+    background: "var(--note-rose-bg)",
+    border: "var(--note-rose-border)",
+    shadow: "var(--note-rose-shadow)",
   },
 };
 
@@ -414,6 +419,20 @@ function storedActiveBoardId(boards: CanvasBoard[]) {
     : boards[0]?.id ?? BLANK_BOARD_ID;
 }
 
+function preferredTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
+  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+
+  if (storedTheme === "dark" || storedTheme === "light") {
+    return storedTheme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function streamErrorMessage(error: unknown) {
   if (error instanceof Error) {
     return error.message;
@@ -506,33 +525,33 @@ function boardEmoji(boardId: string) {
 
 function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   return (
-    <div className="h-full bg-[#fbfcfe] p-4">
+    <div className="h-full bg-[var(--surface)] p-4">
       <div className="mb-4">
-        <div className="h-4 w-44 animate-pulse rounded bg-[#e5e7eb]" />
-        <div className="mt-2 h-3 w-64 animate-pulse rounded bg-[#eef0f3]" />
+        <div className="h-4 w-44 animate-pulse rounded bg-[var(--border)]" />
+        <div className="mt-2 h-3 w-64 animate-pulse rounded bg-[var(--surface-subtle)]" />
       </div>
       {widget.exampleData ? (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             {widget.exampleData.metrics.slice(0, 4).map((metric, index) => (
-              <div className="rounded-md border border-[#e5e7eb] bg-white p-3" key={`${metric.label}-${index}`}>
-                <div className="truncate text-[11px] font-medium uppercase text-[#71717a]">{metric.label}</div>
-                <div className="mt-1 truncate text-xl font-semibold text-[#18181b]">{metric.value}</div>
+              <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-3" key={`${metric.label}-${index}`}>
+                <div className="truncate text-[11px] font-medium uppercase text-[var(--text-muted)]">{metric.label}</div>
+                <div className="mt-1 truncate text-xl font-semibold text-[var(--text-primary)]">{metric.value}</div>
               </div>
             ))}
           </div>
-          <div className="h-24 animate-pulse rounded-md border border-[#e5e7eb] bg-white" />
+          <div className="h-24 animate-pulse rounded-md border border-[var(--border)] bg-[var(--panel)]" />
         </div>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <div className="h-20 animate-pulse rounded-md bg-[#eef0f3]" />
-            <div className="h-20 animate-pulse rounded-md bg-[#eef0f3]" />
+            <div className="h-20 animate-pulse rounded-md bg-[var(--surface-subtle)]" />
+            <div className="h-20 animate-pulse rounded-md bg-[var(--surface-subtle)]" />
           </div>
-          <div className="h-32 animate-pulse rounded-md bg-[#eef0f3]" />
+          <div className="h-32 animate-pulse rounded-md bg-[var(--surface-subtle)]" />
         </div>
       )}
-      <div className="mt-4 text-xs font-medium text-[#71717a]">
+      <div className="mt-4 text-xs font-medium text-[var(--text-muted)]">
         {widget.exampleData ? "Composing widget UI..." : "Generating preview data..."}
       </div>
     </div>
@@ -611,10 +630,10 @@ const WidgetBody = memo(function WidgetBody({
 
   if (widget.status === "error") {
     return (
-      <div className="grid h-full place-items-center bg-[#fbfcfe] p-5 text-center">
+      <div className="grid h-full place-items-center bg-[var(--surface)] p-5 text-center">
         <div className="max-w-[18rem]">
-          <div className="text-sm font-semibold text-[#18181b]">Generation failed</div>
-          <div className="mt-2 text-xs leading-5 text-[#71717a]">{widget.error}</div>
+          <div className="text-sm font-semibold text-[var(--text-primary)]">Generation failed</div>
+          <div className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{widget.error}</div>
         </div>
       </div>
     );
@@ -632,7 +651,7 @@ const WidgetBody = memo(function WidgetBody({
   return (
     <div
       ref={bodyRef}
-      className={`relative grid h-full overflow-hidden bg-[#fbfcfe] ${
+      className={`relative grid h-full overflow-hidden bg-[var(--surface)] ${
         alignContentToTop ? "items-start justify-items-center" : "place-items-center"
       }`}
       data-openui-fit-body
@@ -668,7 +687,7 @@ const WidgetBody = memo(function WidgetBody({
         </div>
       </div>
       {renderErrors.length ? (
-        <div className="absolute bottom-2 left-2 right-2 rounded border border-[#fed7aa] bg-[#fff7ed] px-2 py-1 text-[11px] font-medium text-[#9a3412] shadow-sm">
+        <div className="absolute bottom-2 left-2 right-2 rounded border border-[var(--warning-border)] bg-[var(--warning-bg)] px-2 py-1 text-[11px] font-medium text-[var(--warning-text)] shadow-sm">
           Some generated UI was ignored: {renderErrors[0]?.message}
         </div>
       ) : null}
@@ -727,11 +746,11 @@ function NoteFrame({
       }}
     >
       <article
-        className="relative flex h-full overflow-hidden rounded-[5px] border text-[#18181b]"
+        className="relative flex h-full overflow-hidden rounded-[5px] border text-[var(--text-primary)]"
         style={{
-          background: `linear-gradient(180deg, #ffffff 0%, ${colorStyle.background} 160%)`,
-          borderColor: "#dce1e8",
-          boxShadow: `0 10px 24px ${colorStyle.shadow}, 0 1px 0 rgba(255,255,255,0.94) inset`,
+          background: `linear-gradient(180deg, var(--panel) 0%, ${colorStyle.background} 160%)`,
+          borderColor: "var(--border-medium)",
+          boxShadow: `0 10px 24px ${colorStyle.shadow}, var(--shadow-note-inset)`,
           height: note.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
@@ -758,14 +777,14 @@ function NoteFrame({
                 type: "note-drag",
               });
             }}
-            style={{ borderColor: "#e5e7eb" }}
+            style={{ borderColor: "var(--border)" }}
           >
-            <GripVertical className="h-3 w-3 shrink-0 text-[#a1a1aa]" />
+            <GripVertical className="h-3 w-3 shrink-0 text-[var(--text-faint)]" />
             <div className="min-w-0 flex-1">
               {isEditing ? (
                 <input
                   aria-label="Note title"
-                  className="h-6 w-full rounded border border-[#e2e5ea] bg-white/85 px-1.5 text-xs font-semibold outline-none focus:border-[#18181b]"
+                  className="h-6 w-full rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-1.5 text-xs font-semibold text-[var(--text-primary)] outline-none focus:border-[var(--focus-border)]"
                   data-note-control
                   id={`${note.id}-title`}
                   maxLength={48}
@@ -781,7 +800,7 @@ function NoteFrame({
               <>
                 <button
                   aria-label="Save note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#27272a] transition hover:bg-white"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] text-[var(--text-primary)] transition hover:bg-[var(--control-hover)]"
                   data-note-control
                   onClick={commitEdit}
                   title="Save"
@@ -791,7 +810,7 @@ function NoteFrame({
                 </button>
                 <button
                   aria-label="Cancel note edit"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#52525b] transition hover:bg-white"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
                   data-note-control
                   onClick={cancelEdit}
                   title="Cancel"
@@ -804,7 +823,7 @@ function NoteFrame({
               <>
                 <button
                   aria-label="Edit note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-[var(--panel-translucent)] text-[var(--text-muted)] transition hover:border-[var(--border-medium)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
                   data-note-control
                   onClick={() => setIsEditing(true)}
                   title="Edit"
@@ -814,7 +833,7 @@ function NoteFrame({
                 </button>
                 <button
                   aria-label="Delete note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-[var(--panel-translucent)] text-[var(--text-muted)] transition hover:border-[var(--border-medium)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
                   data-note-control
                   onClick={() => onDelete(note.id)}
                   title="Delete"
@@ -831,7 +850,7 @@ function NoteFrame({
               <div className="flex h-full flex-col gap-1.5">
                 <textarea
                   aria-label="Note body"
-                  className="min-h-0 flex-1 resize-none rounded border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-[11px] leading-4 text-[#27272a] outline-none focus:border-[#18181b]"
+                  className="min-h-0 flex-1 resize-none rounded border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-2 py-1.5 text-[11px] leading-4 text-[var(--text-primary)] outline-none focus:border-[var(--focus-border)]"
                   data-note-control
                   id={`${note.id}-body`}
                   maxLength={280}
@@ -854,7 +873,7 @@ function NoteFrame({
                         onClick={() => setDraft((current) => ({ ...current, color }))}
                         style={{
                           background: optionStyle.background,
-                          borderColor: isSelected ? "#18181b" : optionStyle.border,
+                          borderColor: isSelected ? "var(--focus-border)" : optionStyle.border,
                           boxShadow: isSelected ? `0 0 0 2px ${optionStyle.border}` : undefined,
                         }}
                         title={color}
@@ -865,7 +884,7 @@ function NoteFrame({
                 </div>
               </div>
             ) : (
-              <p className="line-clamp-3 text-[11px] font-medium leading-4 text-[#3f3f46]">{note.body}</p>
+              <p className="line-clamp-3 text-[11px] font-medium leading-4 text-[var(--text-secondary)]">{note.body}</p>
             )}
           </div>
         </div>
@@ -914,12 +933,10 @@ function WidgetFrame({
       }}
     >
       <article
-        className="relative flex h-full overflow-hidden rounded-md border bg-white shadow-[0_18px_42px_rgba(15,23,42,0.14)]"
+        className="relative flex h-full overflow-hidden rounded-md border bg-[var(--panel)] shadow-[var(--shadow-widget)]"
         style={{
-          borderColor: "#d7dce4",
-          boxShadow: accent
-            ? "0 20px 46px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.92) inset"
-            : "0 18px 42px rgba(15,23,42,0.14)",
+          borderColor: "var(--border-medium)",
+          boxShadow: accent ? "var(--shadow-widget-accent)" : "var(--shadow-widget)",
           height: widget.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
@@ -929,7 +946,7 @@ function WidgetFrame({
       >
         <div className="flex min-h-0 w-full flex-col">
           <header
-            className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-[#e5e7eb] bg-white px-2.5 active:cursor-grabbing"
+            className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-[var(--border)] bg-[var(--panel)] px-2.5 active:cursor-grabbing"
             onPointerDown={(event) => {
               if (hasClosestElement(event.target, "[data-widget-control]")) {
                 return;
@@ -945,17 +962,17 @@ function WidgetFrame({
               });
             }}
             style={{
-              background: accent ? `linear-gradient(90deg, ${accent.surface}, #ffffff 62%)` : undefined,
-              borderColor: "#e5e7eb",
+              background: accent ? `linear-gradient(90deg, ${accent.surface}, var(--panel) 62%)` : undefined,
+              borderColor: "var(--border)",
             }}
           >
-            <GripVertical className="h-4 w-4 shrink-0 text-[#9aa3af]" />
+            <GripVertical className="h-4 w-4 shrink-0 text-[var(--text-faint)]" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-semibold text-[#18181b]">{title}</div>
-              <div className="truncate text-[11px] text-[#71717a]">{widget.prompt}</div>
+              <div className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</div>
+              <div className="truncate text-[11px] text-[var(--text-muted)]">{widget.prompt}</div>
             </div>
             <span
-              className="rounded border border-[#e5e7eb] bg-[#f8fafc] px-2 py-1 text-[11px] font-medium text-[#52525b]"
+              className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)]"
               style={{
                 background: accent?.surface,
                 color: accent?.accent,
@@ -966,7 +983,7 @@ function WidgetFrame({
             {widget.status === "error" ? (
               <button
                 aria-label="Retry widget"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
                 data-widget-control
                 onClick={(event) => {
                   event.stopPropagation();
@@ -980,7 +997,7 @@ function WidgetFrame({
             ) : null}
             <button
               aria-label="Delete widget"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
               data-widget-control
               onClick={(event) => {
                 event.stopPropagation();
@@ -1003,7 +1020,7 @@ function WidgetFrame({
 
           <button
             aria-label="Resize widget"
-            className="absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[#d4d8df] bg-white/90 text-[#71717a] shadow-sm"
+            className="absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] text-[var(--text-muted)] shadow-sm"
             data-widget-control
             onPointerDown={(event) =>
               onStartInteraction(event, {
@@ -1056,6 +1073,8 @@ export default function Home() {
   const [isCreatingBoardName, setIsCreatingBoardName] = useState(false);
   const [boardNameDraft, setBoardNameDraft] = useState("");
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>("light");
+  const [hasHydratedTheme, setHasHydratedTheme] = useState(false);
   const [boardTabsScrollState, setBoardTabsScrollState] = useState({
     canScrollLeft: false,
     canScrollRight: false,
@@ -1074,6 +1093,7 @@ export default function Home() {
   const totalBoardCount = prebuiltBoards.length + personalBoards.length;
   const canZoomOut = zoom > MIN_ZOOM;
   const canZoomIn = zoom < MAX_ZOOM;
+  const nextTheme = theme === "dark" ? "light" : "dark";
 
   const updateBoardTabsScrollState = useCallback(() => {
     const scrollport = boardTabsScrollRef.current;
@@ -1442,6 +1462,21 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    setTheme(preferredTheme());
+    setHasHydratedTheme(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hasHydratedTheme) {
+      return;
+    }
+
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [hasHydratedTheme, theme]);
+
+  useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const viewport = viewportRef.current;
 
@@ -1744,13 +1779,13 @@ export default function Home() {
   }, [adjustZoom]);
 
   const canvasStyle = useMemo<CSSProperties>(() => {
-    const minorLine = activeBoardAccent?.canvasMinor ?? "#edf0f4";
-    const majorLine = activeBoardAccent?.canvasMajor ?? "#d9dee7";
+    const minorLine = activeBoardAccent?.canvasMinor ?? "var(--canvas-grid-minor)";
+    const majorLine = activeBoardAccent?.canvasMajor ?? "var(--canvas-grid-major)";
 
     return {
       width: CANVAS_WIDTH * scale,
       height: CANVAS_HEIGHT * scale,
-      backgroundColor: activeBoardAccent ? "#fbfdff" : "#ffffff",
+      backgroundColor: activeBoardAccent ? "var(--canvas-tinted-bg)" : "var(--canvas-bg)",
       backgroundImage:
         `linear-gradient(${minorLine} 1px, transparent 1px), linear-gradient(90deg, ${minorLine} 1px, transparent 1px), linear-gradient(${majorLine} 1px, transparent 1px), linear-gradient(90deg, ${majorLine} 1px, transparent 1px)`,
       backgroundSize: `${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px`,
@@ -2046,11 +2081,11 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#f6f7f9] p-3 text-[#18181b] sm:p-5">
-      <section className="relative h-[calc(100vh-1.5rem)] overflow-hidden rounded-lg border border-[#dde1e7] bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:h-[calc(100vh-2.5rem)]">
+    <main className="min-h-screen bg-[var(--app-bg)] p-3 text-[var(--text-primary)] sm:p-5">
+      <section className="relative h-[calc(100vh-1.5rem)] overflow-hidden rounded-lg border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] sm:h-[calc(100vh-2.5rem)]">
         <div
           ref={viewportRef}
-          className={`absolute inset-0 overflow-auto bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+          className={`absolute inset-0 overflow-auto bg-[var(--canvas-bg)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
             isPanning ? "cursor-grabbing" : "cursor-grab"
           }`}
           onPointerCancel={endPointerInteraction}
@@ -2094,7 +2129,7 @@ export default function Home() {
 
           {command ? (
             <form
-              className="absolute z-30 flex h-10 w-[17rem] items-center gap-2 rounded-md border border-[#cfd6e1] bg-white/95 px-2.5 shadow-[0_12px_30px_rgba(15,23,42,0.16)] backdrop-blur sm:w-[25rem]"
+              className="absolute z-30 flex h-10 w-[17rem] items-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] px-2.5 shadow-[var(--shadow-popover)] backdrop-blur sm:w-[25rem]"
               data-command-input
               onSubmit={(event) => {
                 event.preventDefault();
@@ -2105,11 +2140,11 @@ export default function Home() {
                 top: command.y * scale + 8,
               }}
             >
-              <span className="select-none text-base font-semibold text-[#697386]">/</span>
+              <span className="select-none text-base font-semibold text-[var(--text-muted)]">/</span>
               <input
                 ref={commandInputRef}
                 aria-label="Canvas command"
-                className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-[#18181b] outline-none placeholder:text-[#9aa3af]"
+                className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-[var(--text-primary)] outline-none placeholder:text-[var(--text-faint)]"
                 onChange={(event) => {
                   setCommand((current) =>
                     current
@@ -2131,7 +2166,7 @@ export default function Home() {
               />
               <button
                 aria-label="Close command"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#71717a] transition hover:bg-[#f6f7f9]"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-muted)] transition hover:bg-[var(--control-hover)]"
                 onClick={() => setCommand(null)}
                 title="Close"
                 type="button"
@@ -2142,25 +2177,25 @@ export default function Home() {
           ) : null}
         </div>
 
-        <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
+        <div className="pointer-events-none absolute inset-0 shadow-[var(--overlay-inset)]" />
 
-        <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
+        <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
-            <span className="font-semibold text-[#18181b]">AI</span>
-            <span className="font-medium text-[#71717a]">Whiteboards</span>
+            <span className="font-semibold text-[var(--text-primary)]">AI</span>
+            <span className="font-medium text-[var(--text-muted)]">Whiteboards</span>
           </span>
-          <span className="h-4 w-px shrink-0 bg-[#d4d4d8]" />
+          <span className="h-4 w-px shrink-0 bg-[var(--border-strong)]" />
           <div className="relative min-w-0 flex-1">
             {boardTabsScrollState.hasOverflow ? (
               <>
                 <div
-                  className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-white via-white/95 to-transparent transition-opacity duration-150 ${
+                  className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-7 bg-gradient-to-r from-[var(--panel)] via-[var(--panel-translucent-strong)] to-transparent transition-opacity duration-150 ${
                     boardTabsScrollState.canScrollLeft ? "opacity-100" : "opacity-0"
                   }`}
                 />
                 <button
                   aria-label="Scroll whiteboards left"
-                  className={`absolute inset-y-0 left-0 z-20 grid w-5 place-items-center rounded-sm text-[#71717a] transition duration-150 hover:bg-white/70 hover:text-[#18181b] ${
+                  className={`absolute inset-y-0 left-0 z-20 grid w-5 place-items-center rounded-sm text-[var(--text-muted)] transition duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] ${
                     boardTabsScrollState.canScrollLeft
                       ? "opacity-100"
                       : "pointer-events-none opacity-0"
@@ -2189,8 +2224,8 @@ export default function Home() {
                       aria-pressed={isActive}
                       className={`relative flex h-8 shrink-0 items-center justify-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition focus:outline-none focus-visible:outline-none ${
                         isActive
-                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
-                          : "text-[#52525b] hover:text-[#18181b]"
+                          ? "text-[var(--text-primary)] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[var(--board-founder-accent)]"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                       }`}
                       data-board-tab-id={board.id}
                       key={board.id}
@@ -2209,7 +2244,7 @@ export default function Home() {
                   );
                 })}
               </div>
-              <span className="h-5 w-px shrink-0 bg-[#e2e5ea]" />
+              <span className="h-5 w-px shrink-0 bg-[var(--border-medium)]" />
               <div className="flex shrink-0 items-center gap-1">
                 {personalBoards.map((board) => {
                   const isActive = board.id === activeBoardId;
@@ -2219,8 +2254,8 @@ export default function Home() {
                     <div
                       className={`group relative flex h-8 shrink-0 items-center text-sm font-semibold leading-none transition ${
                         isActive
-                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
-                          : "text-[#52525b] hover:text-[#18181b]"
+                          ? "text-[var(--text-primary)] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[var(--board-founder-accent)]"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                       }`}
                       data-board-tab-id={board.id}
                       key={board.id}
@@ -2237,7 +2272,7 @@ export default function Home() {
                       {canDelete ? (
                         <button
                           aria-label={`Delete ${board.name} whiteboard`}
-                          className="absolute right-0 top-1/2 z-10 grid h-3.5 w-3.5 translate-x-1/2 -translate-y-1/2 place-items-center text-[#71717a] opacity-0 transition hover:text-[#18181b] group-hover:opacity-100 focus-visible:opacity-100"
+                          className="absolute right-0 top-1/2 z-10 grid h-3.5 w-3.5 translate-x-1/2 -translate-y-1/2 place-items-center text-[var(--text-muted)] opacity-0 transition hover:text-[var(--text-primary)] group-hover:opacity-100 focus-visible:opacity-100"
                           onClick={(event) => {
                             event.stopPropagation();
                             deleteBoard(board.id);
@@ -2255,13 +2290,13 @@ export default function Home() {
             {boardTabsScrollState.hasOverflow ? (
               <>
                 <div
-                  className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-7 bg-gradient-to-l from-white via-white/95 to-transparent transition-opacity duration-150 ${
+                  className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-7 bg-gradient-to-l from-[var(--panel)] via-[var(--panel-translucent-strong)] to-transparent transition-opacity duration-150 ${
                     boardTabsScrollState.canScrollRight ? "opacity-100" : "opacity-0"
                   }`}
                 />
                 <button
                   aria-label="Scroll whiteboards right"
-                  className={`absolute inset-y-0 right-0 z-20 grid w-5 place-items-center rounded-sm text-[#71717a] transition duration-150 hover:bg-white/70 hover:text-[#18181b] ${
+                  className={`absolute inset-y-0 right-0 z-20 grid w-5 place-items-center rounded-sm text-[var(--text-muted)] transition duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] ${
                     boardTabsScrollState.canScrollRight
                       ? "opacity-100"
                       : "pointer-events-none opacity-0"
@@ -2287,7 +2322,7 @@ export default function Home() {
             >
               <input
                 aria-label="New whiteboard name"
-                className="h-8 w-36 rounded border border-[#d4d4d8] bg-white px-2 text-sm font-medium text-[#18181b] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#2563eb]"
+                className="h-8 w-36 rounded border border-[var(--border-strong)] bg-[var(--panel)] px-2 text-sm font-medium text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--board-founder-accent)]"
                 maxLength={48}
                 onChange={(event) => setBoardNameDraft(event.target.value)}
                 onKeyDown={(event) => {
@@ -2301,14 +2336,14 @@ export default function Home() {
                 value={boardNameDraft}
               />
               <button
-                className="h-8 rounded border border-[#18181b] bg-[#18181b] px-2.5 text-sm font-semibold leading-none text-white transition hover:bg-[#27272a] disabled:cursor-not-allowed disabled:border-[#d4d4d8] disabled:bg-[#e4e4e7] disabled:text-[#a1a1aa]"
+                className="h-8 rounded border border-[var(--primary)] bg-[var(--primary)] px-2.5 text-sm font-semibold leading-none text-[var(--primary-foreground)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:border-[var(--border-strong)] disabled:bg-[var(--disabled-bg)] disabled:text-[var(--disabled-text)]"
                 disabled={!boardNameDraft.trim()}
                 type="submit"
               >
                 Create
               </button>
               <button
-                className="h-8 rounded border border-transparent px-2.5 text-sm font-semibold leading-none text-[#71717a] transition hover:bg-white hover:text-[#18181b]"
+                className="h-8 rounded border border-transparent px-2.5 text-sm font-semibold leading-none text-[var(--text-muted)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
                 onClick={cancelBoardNameCreate}
                 type="button"
               >
@@ -2318,7 +2353,7 @@ export default function Home() {
           ) : (
             <button
               aria-label="Create blank whiteboard"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded border border-transparent text-[#52525b] transition hover:border-[#e5e7eb] hover:bg-white hover:text-[#18181b]"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded border border-transparent text-[var(--text-secondary)] transition hover:border-[var(--border)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
               onClick={openBoardNameCreate}
               title="Create blank whiteboard"
               type="button"
@@ -2328,10 +2363,19 @@ export default function Home() {
           )}
         </div>
 
-        <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
+        <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
+          <button
+            aria-label={`Switch to ${nextTheme} mode`}
+            className="grid h-7 w-7 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
+            onClick={() => setTheme(nextTheme)}
+            title={`Switch to ${nextTheme} mode`}
+            type="button"
+          >
+            {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
           <button
             aria-label="Zoom out"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="grid h-7 w-7 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             disabled={!canZoomOut}
             onClick={() => adjustZoom(1 / ZOOM_STEP_FACTOR)}
             title="Zoom out"
@@ -2341,7 +2385,7 @@ export default function Home() {
           </button>
           <button
             aria-label="Zoom in"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="grid h-7 w-7 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             disabled={!canZoomIn}
             onClick={() => adjustZoom(ZOOM_STEP_FACTOR)}
             title="Zoom in"
@@ -2351,21 +2395,21 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
+        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--panel-translucent)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
           <span>
-            Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
+            Press <span className="mx-1 rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 font-semibold text-[var(--text-secondary)]">/</span> to create a widget
           </span>
           {activeBoardIsTemplate ? (
             <>
-              <span className="h-3 w-px bg-[#d4d4d8]" />
+              <span className="h-3 w-px bg-[var(--border-strong)]" />
               <span>
-                <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">N</span> to add a note
+                <span className="mx-1 rounded bg-[var(--surface-subtle)] px-1.5 py-0.5 font-semibold text-[var(--text-secondary)]">N</span> to add a note
               </span>
             </>
           ) : null}
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
+        <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[var(--border)] bg-[var(--panel-translucent)] px-2 py-1 text-xs font-medium text-[var(--text-muted)] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
           {Math.round(zoom)}%
         </div>
 
