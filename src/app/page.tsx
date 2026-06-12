@@ -719,6 +719,7 @@ function NoteFrame({
   isManuallySized,
   isNewlyCreated,
   note,
+  onBringToFront,
   onDelete,
   onEdit,
   onFocusHandled,
@@ -732,6 +733,7 @@ function NoteFrame({
   isManuallySized: boolean;
   isNewlyCreated: boolean;
   note: CanvasNote;
+  onBringToFront: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string, target: NoteFocusTarget) => void;
   onFocusHandled: () => void;
@@ -842,6 +844,11 @@ function NoteFrame({
     <div
       className="absolute z-20"
       data-note
+      onPointerDownCapture={(event) => {
+        if (event.button === 0) {
+          onBringToFront(note.id);
+        }
+      }}
       style={{
         height: note.height * scale,
         left: note.x * scale,
@@ -1345,6 +1352,37 @@ export default function Home() {
     });
   }, []);
 
+  const bringNoteToFront = useCallback((boardId: string, id: string) => {
+    setBoards((current) => {
+      const boardIndex = current.findIndex((board) => board.id === boardId);
+
+      if (boardIndex === -1) {
+        return current;
+      }
+
+      const board = current[boardIndex];
+      const currentNotes = board.notes ?? [];
+      const noteIndex = currentNotes.findIndex((note) => note.id === id);
+
+      if (noteIndex === -1 || noteIndex === currentNotes.length - 1) {
+        return current;
+      }
+
+      const nextNotes = [...currentNotes];
+      const [note] = nextNotes.splice(noteIndex, 1);
+
+      return current.map((currentBoard, index) =>
+        index === boardIndex
+          ? {
+              ...currentBoard,
+              notes: [...nextNotes, note],
+              updatedAt: Date.now(),
+            }
+          : currentBoard,
+      );
+    });
+  }, []);
+
   const deleteWidget = useCallback(
     (id: string) => {
       updateBoardWidgets(activeBoardId, (current) => current.filter((widget) => widget.id !== id));
@@ -1735,12 +1773,7 @@ export default function Home() {
             x: fallbackCenter.x - DEFAULT_NOTE_WIDTH / 2,
             y: fallbackCenter.y - DEFAULT_NOTE_HEIGHT / 2,
           });
-    const position = clampCanvasRectPosition(
-      basePosition.x,
-      basePosition.y,
-      noteSize.width,
-      noteSize.height,
-    );
+    const position = clampCanvasRectPosition(basePosition.x, basePosition.y, noteSize.width, noteSize.height);
     const id = createNoteId();
     const note: CanvasNote = {
       body: "",
@@ -2106,6 +2139,12 @@ export default function Home() {
 
       const now = Date.now();
       const id = createWidgetId();
+      const position = clampCanvasRectPosition(
+        nextCommand.x,
+        nextCommand.y,
+        DEFAULT_WIDGET_WIDTH,
+        DEFAULT_WIDGET_HEIGHT,
+      );
       const widget: CanvasWidget = {
         createdAt: now,
         exampleData: null,
@@ -2116,8 +2155,8 @@ export default function Home() {
         status: "streaming",
         updatedAt: now,
         width: DEFAULT_WIDGET_WIDTH,
-        x: Math.min(nextCommand.x, CANVAS_WIDTH - DEFAULT_WIDGET_WIDTH),
-        y: Math.min(nextCommand.y, CANVAS_HEIGHT - DEFAULT_WIDGET_HEIGHT),
+        x: position.x,
+        y: position.y,
       };
 
       addWidgetToBoard(boardId, widget);
@@ -2215,18 +2254,25 @@ export default function Home() {
             ),
           }));
         } else if (interaction.type === "resize") {
-          updateWidget(activeBoardId, interaction.id, (widget) => ({
-            ...widget,
-            height: Math.min(
-              CANVAS_HEIGHT - widget.y,
-              Math.max(MIN_WIDGET_HEIGHT, interaction.startHeight + deltaY),
-            ),
-            updatedAt: Date.now(),
-            width: Math.min(
+          updateWidget(activeBoardId, interaction.id, (widget) => {
+            const width = Math.min(
               CANVAS_WIDTH - widget.x,
               Math.max(MIN_WIDGET_WIDTH, interaction.startWidth + deltaX),
-            ),
-          }));
+            );
+            const height = Math.min(
+              CANVAS_HEIGHT - widget.y,
+              Math.max(MIN_WIDGET_HEIGHT, interaction.startHeight + deltaY),
+            );
+            const position = clampCanvasRectPosition(widget.x, widget.y, width, height);
+
+            return {
+              ...widget,
+              height,
+              updatedAt: Date.now(),
+              width,
+              ...position,
+            };
+          });
         } else if (interaction.type === "note-drag") {
           updateNote(activeBoardId, interaction.id, (note) => ({
             ...note,
@@ -2321,6 +2367,7 @@ export default function Home() {
                 isNewlyCreated={newlyCreatedNoteId === note.id}
                 key={note.id}
                 note={note}
+                onBringToFront={(id) => bringNoteToFront(activeBoardId, id)}
                 onDelete={deleteNote}
                 onEdit={editNote}
                 onFocusHandled={handleNoteFocusHandled}
@@ -2591,7 +2638,7 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
+        <div className="pointer-events-none absolute bottom-4 left-4 z-50 flex items-center gap-2 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
           <span>
             Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
           </span>
@@ -2601,7 +2648,7 @@ export default function Home() {
           </span>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
+        <div className="pointer-events-none absolute bottom-4 right-4 z-50 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
           {Math.round(zoom)}%
         </div>
 
