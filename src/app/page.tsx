@@ -93,8 +93,6 @@ type BoardBounds = {
 type BoardVisualAccent = {
   accent: string;
   border: string;
-  canvasMajor: string;
-  canvasMinor: string;
   surface: string;
 };
 
@@ -213,8 +211,6 @@ function boardAccent(boardId: string | undefined): BoardVisualAccent | null {
     return {
       accent: "#2563eb",
       border: "#bfdbfe",
-      canvasMajor: "#d8e2f2",
-      canvasMinor: "#ecf1f8",
       surface: "#eff6ff",
     };
   }
@@ -223,8 +219,6 @@ function boardAccent(boardId: string | undefined): BoardVisualAccent | null {
     return {
       accent: "#0f766e",
       border: "#99f6e4",
-      canvasMajor: "#d8e7e4",
-      canvasMinor: "#edf4f2",
       surface: "#f0fdfa",
     };
   }
@@ -233,8 +227,6 @@ function boardAccent(boardId: string | undefined): BoardVisualAccent | null {
     return {
       accent: "#7c3aed",
       border: "#ddd6fe",
-      canvasMajor: "#e1dcec",
-      canvasMinor: "#f0eef6",
       surface: "#f5f3ff",
     };
   }
@@ -243,8 +235,6 @@ function boardAccent(boardId: string | undefined): BoardVisualAccent | null {
     return {
       accent: "#ca8a04",
       border: "#fde68a",
-      canvasMajor: "#e7dfcd",
-      canvasMinor: "#f4f1e9",
       surface: "#fffbeb",
     };
   }
@@ -276,13 +266,19 @@ const noteColorStyles: Record<
     border: "#bbf7d0",
   },
   rose: {
-    accent: "#e11d48",
-    background: "#fff1f2",
-    border: "#fecdd3",
+    accent: "#52525b",
+    background: "#fafafa",
+    border: "#d4d4d4",
   },
 };
 
 const noteColorOptions: CanvasNoteColor[] = ["blue", "green", "amber", "rose"];
+const noteColorLabels: Record<CanvasNoteColor, string> = {
+  amber: "amber",
+  blue: "blue",
+  green: "green",
+  rose: "neutral",
+};
 
 function hashString(value: string) {
   let hash = 0;
@@ -543,30 +539,30 @@ function boardEmoji(boardId: string) {
 
 function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   return (
-    <div className="h-full bg-[#fbfcfe] p-4">
+    <div className="h-full bg-white p-4">
       <div className="mb-4">
-        <div className="h-4 w-44 animate-pulse rounded bg-[#e5e7eb]" />
-        <div className="mt-2 h-3 w-64 animate-pulse rounded bg-[#eef0f3]" />
+        <div className="h-4 w-44 animate-pulse rounded bg-[#e5e5e5]" />
+        <div className="mt-2 h-3 w-64 animate-pulse rounded bg-[#eeeeee]" />
       </div>
       {widget.exampleData ? (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             {widget.exampleData.metrics.slice(0, 4).map((metric, index) => (
-              <div className="rounded-md border border-[#e5e7eb] bg-white p-3" key={`${metric.label}-${index}`}>
+              <div className="rounded-md border border-[#d4d4d4] bg-white p-3" key={`${metric.label}-${index}`}>
                 <div className="truncate text-[11px] font-medium uppercase text-[#71717a]">{metric.label}</div>
                 <div className="mt-1 truncate text-xl font-semibold text-[#18181b]">{metric.value}</div>
               </div>
             ))}
           </div>
-          <div className="h-24 animate-pulse rounded-md border border-[#e5e7eb] bg-white" />
+          <div className="h-24 animate-pulse rounded-md border border-[#d4d4d4] bg-white" />
         </div>
       ) : (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <div className="h-20 animate-pulse rounded-md bg-[#eef0f3]" />
-            <div className="h-20 animate-pulse rounded-md bg-[#eef0f3]" />
+            <div className="h-20 animate-pulse rounded-md bg-[#eeeeee]" />
+            <div className="h-20 animate-pulse rounded-md bg-[#eeeeee]" />
           </div>
-          <div className="h-32 animate-pulse rounded-md bg-[#eef0f3]" />
+          <div className="h-32 animate-pulse rounded-md bg-[#eeeeee]" />
         </div>
       )}
       <div className="mt-4 text-xs font-medium text-[#71717a]">
@@ -648,7 +644,7 @@ const WidgetBody = memo(function WidgetBody({
 
   if (widget.status === "error") {
     return (
-      <div className="grid h-full place-items-center bg-[#fbfcfe] p-5 text-center">
+      <div className="grid h-full place-items-center bg-white p-5 text-center">
         <div className="max-w-[18rem]">
           <div className="text-sm font-semibold text-[#18181b]">Generation failed</div>
           <div className="mt-2 text-xs leading-5 text-[#71717a]">{widget.error}</div>
@@ -669,7 +665,7 @@ const WidgetBody = memo(function WidgetBody({
   return (
     <div
       ref={bodyRef}
-      className={`relative grid h-full overflow-hidden bg-[#fbfcfe] ${
+      className={`relative grid h-full overflow-hidden bg-white ${
         alignContentToTop ? "items-start justify-items-center" : "place-items-center"
       }`}
       data-openui-fit-body
@@ -705,7 +701,7 @@ const WidgetBody = memo(function WidgetBody({
         </div>
       </div>
       {renderErrors.length ? (
-        <div className="absolute bottom-2 left-2 right-2 rounded border border-[#fed7aa] bg-[#fff7ed] px-2 py-1 text-[11px] font-medium text-[#9a3412] shadow-sm">
+        <div className="absolute bottom-2 left-2 right-2 rounded border border-[#d4d4d4] bg-white px-2 py-1 text-[11px] font-medium text-[#525252] shadow-sm">
           Some generated UI was ignored: {renderErrors[0]?.message}
         </div>
       ) : null}
@@ -860,7 +856,7 @@ function NoteFrame({
         className="group relative flex h-full overflow-visible rounded-[5px] border text-[#18181b]"
         style={{
           background: `linear-gradient(180deg, #ffffff 0%, ${colorStyle.background} 160%)`,
-          borderColor: "#dce1e8",
+          borderColor: "rgba(0, 0, 0, 0.16)",
           height: note.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
@@ -869,7 +865,7 @@ function NoteFrame({
       >
         <div className="w-1 shrink-0" style={{ background: colorStyle.accent }} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-9 shrink-0 items-center gap-1.5 border-b px-2" style={{ borderColor: "#e5e7eb" }}>
+          <header className="flex h-9 shrink-0 items-center gap-1.5 border-b px-2" style={{ borderColor: "rgba(0, 0, 0, 0.1)" }}>
             <button
               aria-label="Move note"
               className="grid h-6 w-5 shrink-0 cursor-grab place-items-center rounded text-[#a1a1aa] transition hover:bg-white/75 hover:text-[#52525b] active:cursor-grabbing"
@@ -884,7 +880,7 @@ function NoteFrame({
               {isEditing ? (
                 <input
                   aria-label="Note title"
-                  className="h-6 w-full rounded border border-transparent bg-transparent px-1.5 text-xs font-semibold outline-none transition placeholder:text-[#a1a1aa] focus:border-[#d4d4d8] focus:bg-white/80"
+                  className="h-6 w-full rounded border border-transparent bg-transparent px-1.5 text-xs font-semibold outline-none transition placeholder:text-[#a1a1aa] focus:border-[#d4d4d4] focus:bg-white/80"
                   data-note-control
                   id={`${note.id}-title`}
                   maxLength={48}
@@ -911,7 +907,7 @@ function NoteFrame({
             </div>
             <button
               aria-label="Delete note"
-              className={`grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b] ${
+              className={`grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-black/10 hover:bg-white hover:text-[#18181b] ${
                 isEditing ? "opacity-100" : "opacity-80 group-hover:opacity-100"
               }`}
               data-note-control
@@ -928,7 +924,7 @@ function NoteFrame({
               <div className="flex h-full flex-col gap-2">
                 <textarea
                   aria-label="Note body"
-                  className="min-h-0 flex-1 resize-none rounded border border-transparent bg-white/55 px-2 py-1.5 text-[12px] leading-5 text-[#27272a] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#d4d4d8] focus:bg-white/85"
+                  className="min-h-0 flex-1 resize-none rounded border border-transparent bg-white/55 px-2 py-1.5 text-[12px] leading-5 text-[#27272a] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#d4d4d4] focus:bg-white/85"
                   data-note-control
                   id={`${note.id}-body`}
                   maxLength={280}
@@ -967,25 +963,35 @@ function NoteFrame({
                 <button
                   aria-label={`${color} note color`}
                   aria-pressed={isSelected}
-                  className="h-4 w-4 rounded-full border bg-white transition"
+                  className="relative h-4 w-4 overflow-hidden rounded-full border bg-white transition"
                   data-note-control
                   key={color}
                   onClick={() => onUpdate(note.id, { color })}
                   style={{
-                    background: optionStyle.background,
                     borderColor: isSelected ? "#18181b" : optionStyle.border,
                     boxShadow: isSelected ? `0 0 0 2px ${optionStyle.border}` : undefined,
                   }}
-                  title={color}
+                  title={noteColorLabels[color]}
                   type="button"
-                />
+                >
+                  <span
+                    className="absolute inset-y-0 left-0 w-[28%]"
+                    style={{ backgroundColor: optionStyle.accent }}
+                  />
+                  <span
+                    className="absolute inset-y-0 left-[28%] right-0"
+                    style={{
+                      background: `linear-gradient(180deg, #ffffff 0%, ${optionStyle.background} 160%)`,
+                    }}
+                  />
+                </button>
               );
             })}
           </div>
         ) : null}
         <button
           aria-label="Resize note"
-          className={`absolute bottom-1.5 right-1.5 grid h-5 w-5 cursor-nwse-resize place-items-center rounded border border-[#d4d8df] bg-white/90 text-[#71717a] shadow-sm transition ${
+          className={`absolute bottom-1.5 right-1.5 grid h-5 w-5 cursor-nwse-resize place-items-center rounded border border-black/20 bg-white/90 text-[#71717a] shadow-sm transition ${
             isEditing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           }`}
           data-note-control
@@ -1040,12 +1046,9 @@ function WidgetFrame({
       }}
     >
       <article
-        className="relative flex h-full overflow-hidden rounded-md border bg-white shadow-[0_18px_42px_rgba(15,23,42,0.14)]"
+        className="relative flex h-full overflow-hidden rounded-md border bg-white"
         style={{
-          borderColor: "#d7dce4",
-          boxShadow: accent
-            ? "0 20px 46px rgba(15,23,42,0.12), 0 1px 0 rgba(255,255,255,0.92) inset"
-            : "0 18px 42px rgba(15,23,42,0.14)",
+          borderColor: "rgba(0, 0, 0, 0.18)",
           height: widget.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
@@ -1055,7 +1058,7 @@ function WidgetFrame({
       >
         <div className="flex min-h-0 w-full flex-col">
           <header
-            className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-[#e5e7eb] bg-white px-2.5 active:cursor-grabbing"
+            className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-black/10 bg-white px-2.5 active:cursor-grabbing"
             onPointerDown={(event) => {
               if (hasClosestElement(event.target, "[data-widget-control]")) {
                 return;
@@ -1071,8 +1074,7 @@ function WidgetFrame({
               });
             }}
             style={{
-              background: accent ? `linear-gradient(90deg, ${accent.surface}, #ffffff 62%)` : undefined,
-              borderColor: "#e5e7eb",
+              borderColor: "rgba(0, 0, 0, 0.1)",
             }}
           >
             <GripVertical className="h-4 w-4 shrink-0 text-[#9aa3af]" />
@@ -1081,18 +1083,14 @@ function WidgetFrame({
               <div className="truncate text-[11px] text-[#71717a]">{widget.prompt}</div>
             </div>
             <span
-              className="rounded border border-[#e5e7eb] bg-[#f8fafc] px-2 py-1 text-[11px] font-medium text-[#52525b]"
-              style={{
-                background: accent?.surface,
-                color: accent?.accent,
-              }}
+              className="rounded border border-black/10 bg-white px-2 py-1 text-[11px] font-medium text-[#52525b]"
             >
               {statusLabel}
             </span>
             {widget.status === "error" ? (
               <button
                 aria-label="Retry widget"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-black/10 text-[#52525b] transition hover:bg-white"
                 data-widget-control
                 onClick={(event) => {
                   event.stopPropagation();
@@ -1106,7 +1104,7 @@ function WidgetFrame({
             ) : null}
             <button
               aria-label="Delete widget"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9]"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-black/10 text-[#52525b] transition hover:bg-white"
               data-widget-control
               onClick={(event) => {
                 event.stopPropagation();
@@ -1129,7 +1127,7 @@ function WidgetFrame({
 
           <button
             aria-label="Resize widget"
-            className="absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[#d4d8df] bg-white/90 text-[#71717a] shadow-sm"
+            className="absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-black/20 bg-white/90 text-[#71717a] shadow-sm"
             data-widget-control
             onPointerDown={(event) =>
               onStartInteraction(event, {
@@ -1998,19 +1996,19 @@ export default function Home() {
   }, [adjustZoom]);
 
   const canvasStyle = useMemo<CSSProperties>(() => {
-    const minorLine = activeBoardAccent?.canvasMinor ?? "#edf0f4";
-    const majorLine = activeBoardAccent?.canvasMajor ?? "#d9dee7";
+    const minorLine = "rgba(0, 0, 0, 0.1)";
+    const majorLine = "rgba(0, 0, 0, 0.24)";
 
     return {
       width: CANVAS_WIDTH * scale,
       height: CANVAS_HEIGHT * scale,
-      backgroundColor: activeBoardAccent ? "#fbfdff" : "#ffffff",
+      backgroundColor: "#ffffff",
       backgroundImage:
         `linear-gradient(${minorLine} 1px, transparent 1px), linear-gradient(90deg, ${minorLine} 1px, transparent 1px), linear-gradient(${majorLine} 1px, transparent 1px), linear-gradient(90deg, ${majorLine} 1px, transparent 1px)`,
       backgroundSize: `${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${GRID_SIZE * scale}px ${GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px, ${MAJOR_GRID_SIZE * scale}px ${MAJOR_GRID_SIZE * scale}px`,
       backgroundPosition: "-1px -1px",
     };
-  }, [activeBoardAccent, scale]);
+  }, [scale]);
 
   const handleStreamEvent = useCallback(
     (boardId: string, id: string, event: WidgetStreamEvent) => {
@@ -2327,8 +2325,8 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-[#f6f7f9] p-3 text-[#18181b] sm:p-5">
-      <section className="relative h-[calc(100vh-1.5rem)] overflow-hidden rounded-lg border border-[#dde1e7] bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)] sm:h-[calc(100vh-2.5rem)]">
+    <main className="min-h-screen bg-white p-3 text-[#18181b] sm:p-5">
+      <section className="relative h-[calc(100vh-1.5rem)] overflow-hidden rounded-lg border border-[#d4d4d4] bg-white sm:h-[calc(100vh-2.5rem)]">
         <div
           ref={viewportRef}
           className={`absolute inset-0 overflow-auto bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
@@ -2381,7 +2379,7 @@ export default function Home() {
 
           {command ? (
             <form
-              className="absolute z-30 flex h-10 w-[17rem] items-center gap-2 rounded-md border border-[#cfd6e1] bg-white/95 px-2.5 shadow-[0_12px_30px_rgba(15,23,42,0.16)] backdrop-blur sm:w-[25rem]"
+              className="absolute z-30 flex h-10 w-[17rem] items-center gap-2 rounded-md border border-black/15 bg-white/95 px-2.5 shadow-[0_12px_30px_rgba(15,23,42,0.16)] backdrop-blur sm:w-[25rem]"
               data-command-input
               onSubmit={(event) => {
                 event.preventDefault();
@@ -2418,7 +2416,7 @@ export default function Home() {
               />
               <button
                 aria-label="Close command"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[#e5e7eb] text-[#71717a] transition hover:bg-[#f6f7f9]"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded border border-black/10 text-[#71717a] transition hover:bg-white"
                 onClick={() => setCommand(null)}
                 title="Close"
                 type="button"
@@ -2429,14 +2427,12 @@ export default function Home() {
           ) : null}
         </div>
 
-        <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.8)]" />
-
-        <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
+        <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-black/10 bg-white/85 px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
             <span className="font-semibold text-[#18181b]">AI</span>
             <span className="font-medium text-[#71717a]">Whiteboards</span>
           </span>
-          <span className="h-4 w-px shrink-0 bg-[#d4d4d8]" />
+          <span className="h-4 w-px shrink-0 bg-[#d4d4d4]" />
           <div className="relative min-w-0 flex-1">
             {boardTabsScrollState.hasOverflow ? (
               <>
@@ -2476,7 +2472,7 @@ export default function Home() {
                       aria-pressed={isActive}
                       className={`relative flex h-8 shrink-0 items-center justify-center gap-1.5 px-2.5 text-sm font-semibold leading-none transition focus:outline-none focus-visible:outline-none ${
                         isActive
-                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
+                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#18181b]"
                           : "text-[#52525b] hover:text-[#18181b]"
                       }`}
                       data-board-tab-id={board.id}
@@ -2496,7 +2492,7 @@ export default function Home() {
                   );
                 })}
               </div>
-              <span className="h-5 w-px shrink-0 bg-[#e2e5ea]" />
+              <span className="h-5 w-px shrink-0 bg-black/10" />
               <div className="flex shrink-0 items-center gap-1">
                 {personalBoards.map((board) => {
                   const isActive = board.id === activeBoardId;
@@ -2506,7 +2502,7 @@ export default function Home() {
                     <div
                       className={`group relative flex h-8 shrink-0 items-center text-sm font-semibold leading-none transition ${
                         isActive
-                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#2563eb]"
+                          ? "text-[#18181b] after:absolute after:inset-x-0 after:-bottom-px after:h-[3px] after:bg-[#18181b]"
                           : "text-[#52525b] hover:text-[#18181b]"
                       }`}
                       data-board-tab-id={board.id}
@@ -2574,7 +2570,7 @@ export default function Home() {
             >
               <input
                 aria-label="New whiteboard name"
-                className="h-8 w-36 rounded border border-[#d4d4d8] bg-white px-2 text-sm font-medium text-[#18181b] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#2563eb]"
+                className="h-8 w-36 rounded border border-[#d4d4d4] bg-white px-2 text-sm font-medium text-[#18181b] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#18181b]"
                 maxLength={48}
                 onChange={(event) => setBoardNameDraft(event.target.value)}
                 onKeyDown={(event) => {
@@ -2588,7 +2584,7 @@ export default function Home() {
                 value={boardNameDraft}
               />
               <button
-                className="h-8 rounded border border-[#18181b] bg-[#18181b] px-2.5 text-sm font-semibold leading-none text-white transition hover:bg-[#27272a] disabled:cursor-not-allowed disabled:border-[#d4d4d8] disabled:bg-[#e4e4e7] disabled:text-[#a1a1aa]"
+                className="h-8 rounded border border-[#18181b] bg-[#18181b] px-2.5 text-sm font-semibold leading-none text-white transition hover:bg-[#27272a] disabled:cursor-not-allowed disabled:border-[#d4d4d4] disabled:bg-[#e5e5e5] disabled:text-[#a1a1aa]"
                 disabled={!boardNameDraft.trim()}
                 type="submit"
               >
@@ -2605,7 +2601,7 @@ export default function Home() {
           ) : (
             <button
               aria-label="Create blank whiteboard"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded border border-transparent text-[#52525b] transition hover:border-[#e5e7eb] hover:bg-white hover:text-[#18181b]"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded border border-transparent text-[#52525b] transition hover:border-black/10 hover:bg-white hover:text-[#18181b]"
               onClick={openBoardNameCreate}
               title="Create blank whiteboard"
               type="button"
@@ -2615,10 +2611,10 @@ export default function Home() {
           )}
         </div>
 
-        <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-[#e2e5ea] bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
+        <div className="absolute right-4 top-4 z-50 flex items-center gap-2 rounded-md border border-black/10 bg-white/85 px-2 py-1 text-sm font-medium shadow-sm backdrop-blur sm:right-6 sm:top-6">
           <button
             aria-label="Zoom out"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="grid h-7 w-7 place-items-center rounded border border-black/10 text-[#52525b] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             disabled={!canZoomOut}
             onClick={() => adjustZoom(1 / ZOOM_STEP_FACTOR)}
             title="Zoom out"
@@ -2628,7 +2624,7 @@ export default function Home() {
           </button>
           <button
             aria-label="Zoom in"
-            className="grid h-7 w-7 place-items-center rounded border border-[#e5e7eb] text-[#52525b] transition hover:bg-[#f6f7f9] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+            className="grid h-7 w-7 place-items-center rounded border border-black/10 text-[#52525b] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
             disabled={!canZoomIn}
             onClick={() => adjustZoom(ZOOM_STEP_FACTOR)}
             title="Zoom in"
@@ -2638,17 +2634,17 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 left-4 z-50 flex items-center gap-2 rounded-md border border-[#e5e7eb] bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
+        <div className="pointer-events-none absolute bottom-4 left-4 z-50 flex items-center gap-2 rounded-md border border-black/10 bg-white/70 px-2.5 py-1.5 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:left-6">
           <span>
-            Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
+            Press <span className="mx-1 rounded bg-[#eeeeee] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
           </span>
-          <span className="h-3 w-px bg-[#d4d4d8]" />
+          <span className="h-3 w-px bg-[#d4d4d4]" />
           <span>
-            <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">N</span> to add a note
+            <span className="mx-1 rounded bg-[#eeeeee] px-1.5 py-0.5 font-semibold text-[#52525b]">N</span> to add a note
           </span>
         </div>
 
-        <div className="pointer-events-none absolute bottom-4 right-4 z-50 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
+        <div className="pointer-events-none absolute bottom-4 right-4 z-50 rounded-md border border-black/10 bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
           {Math.round(zoom)}%
         </div>
 

@@ -27,16 +27,16 @@ import {
 } from "@/lib/dashboard-schemas";
 
 const toneClasses: Record<Tone, string> = {
-  neutral: "border-[#e5e7eb] bg-white text-[#27272a]",
-  positive: "border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]",
-  negative: "border-[#fecaca] bg-[#fef2f2] text-[#991b1b]",
-  warning: "border-[#fed7aa] bg-[#fff7ed] text-[#9a3412]",
+  neutral: "border-[#d4d4d4] bg-white text-[#27272a]",
+  positive: "border-[#d4d4d4] bg-[#f0fdf4] text-[#166534]",
+  negative: "border-[#d4d4d4] bg-[#fafafa] text-[#3f3f46]",
+  warning: "border-[#d4d4d4] bg-[#fff7ed] text-[#9a3412]",
 };
 
 const seriesColors: Record<Tone, string> = {
   neutral: "#3f3f46",
   positive: "#16a34a",
-  negative: "#dc2626",
+  negative: "#52525b",
   warning: "#ea580c",
 };
 
@@ -178,7 +178,7 @@ const LineChart = defineComponent({
     const moneyUnit = chartMoneyUnit(props.title, series);
 
     return (
-      <div className="min-h-0 rounded-md border border-[#e5e7eb] bg-white p-2.5">
+      <div className="min-h-0 rounded-md border border-[#d4d4d4] bg-white p-2.5">
         <div className="mb-2 truncate text-sm font-semibold text-[#18181b]">{props.title}</div>
         <div className="h-[150px]">
           <ResponsiveContainer
@@ -189,7 +189,7 @@ const LineChart = defineComponent({
             width="100%"
           >
             <RechartsLineChart data={rows} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
-              <CartesianGrid stroke="#eef0f3" strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid stroke="rgba(0, 0, 0, 0.1)" strokeDasharray="3 3" vertical={false} />
               <XAxis
                 dataKey="label"
                 interval="preserveStartEnd"
@@ -204,7 +204,7 @@ const LineChart = defineComponent({
               />
               <Tooltip
                 contentStyle={{
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #d4d4d4",
                   borderRadius: 6,
                   fontSize: 12,
                 }}
@@ -250,7 +250,7 @@ const BarChart = defineComponent({
     const moneyUnit = chartMoneyUnit(props.title, series);
 
     return (
-      <div className="rounded-md border border-[#e5e7eb] bg-white p-2.5">
+      <div className="rounded-md border border-[#d4d4d4] bg-white p-2.5">
         <div className="mb-2 truncate text-sm font-semibold text-[#18181b]">{props.title}</div>
         <div className="h-[150px]">
           <ResponsiveContainer
@@ -261,7 +261,7 @@ const BarChart = defineComponent({
             width="100%"
           >
             <RechartsBarChart data={rows} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
-              <CartesianGrid stroke="#eef0f3" strokeDasharray="3 3" vertical={false} />
+              <CartesianGrid stroke="rgba(0, 0, 0, 0.1)" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="label" tick={{ fill: "#71717a", fontSize: 10 }} tickLine={false} />
               <YAxis
                 tick={{ fill: "#71717a", fontSize: 10 }}
@@ -271,7 +271,7 @@ const BarChart = defineComponent({
               />
               <Tooltip
                 contentStyle={{
-                  border: "1px solid #e5e7eb",
+                  border: "1px solid #d4d4d4",
                   borderRadius: 6,
                   fontSize: 12,
                 }}
@@ -302,15 +302,15 @@ const DataTable = defineComponent({
     const rows = asArray(props.rows).slice(0, 8);
 
     return (
-      <div className="rounded-md border border-[#e5e7eb] bg-white">
+      <div className="rounded-md border border-[#d4d4d4] bg-white">
         {props.title ? (
-          <div className="border-b border-[#e5e7eb] px-3 py-2 text-sm font-semibold text-[#18181b]">
+          <div className="border-b border-[#d4d4d4] px-3 py-2 text-sm font-semibold text-[#18181b]">
             {props.title}
           </div>
         ) : null}
         <div>
           <table className="w-full border-collapse text-left text-xs">
-            <thead className="sticky top-0 bg-[#f8fafc] text-[#52525b]">
+            <thead className="sticky top-0 bg-[#fafafa] text-[#52525b]">
               <tr>
                 {columns.map((column, index) => (
                   <th className="whitespace-nowrap px-3 py-2 font-semibold" key={`${column}-${index}`}>
@@ -319,7 +319,7 @@ const DataTable = defineComponent({
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#eef0f3]">
+            <tbody className="divide-y divide-[#e5e5e5]">
               {rows.map((row, rowIndex) => (
                 <tr className="text-[#27272a]" key={rowIndex}>
                   {columns.map((column, columnIndex) => (
@@ -348,7 +348,7 @@ const InsightList = defineComponent({
     const items = asArray(props.items).slice(0, 4);
 
     return (
-      <div className="rounded-md border border-[#e5e7eb] bg-white p-3">
+      <div className="rounded-md border border-[#d4d4d4] bg-white p-3">
         <div className="mb-2 truncate text-sm font-semibold text-[#18181b]">{props.title}</div>
         <div className="space-y-2">
           {items.map((item, index) => {
@@ -382,14 +382,14 @@ const FormPreview = defineComponent({
     const fields = asArray(props.fields).slice(0, 4);
 
     return (
-      <div className="rounded-md border border-[#e5e7eb] bg-white p-3">
+      <div className="rounded-md border border-[#d4d4d4] bg-white p-3">
         <div className="mb-3 truncate text-sm font-semibold text-[#18181b]">{props.title}</div>
         <div className="grid grid-cols-2 gap-2">
           {fields.map((field, index) => (
             <label className="min-w-0 text-xs font-medium text-[#52525b]" key={`${safeText(field?.label)}-${index}`}>
               <span className="mb-1 block truncate">{safeText(field?.label)}</span>
               <input
-                className="h-8 w-full rounded border border-[#d4d8df] bg-[#f8fafc] px-2 text-xs text-[#27272a] outline-none"
+                className="h-8 w-full rounded border border-[#d4d4d4] bg-white px-2 text-xs text-[#27272a] outline-none"
                 disabled
                 placeholder={safeText(field?.placeholder)}
                 type={field?.type === "number" ? "number" : field?.type === "date" ? "date" : "text"}
@@ -429,11 +429,11 @@ const DashboardWidget = defineComponent({
     blocks: z.array(DashboardBlock),
   }),
   component: ({ props, renderNode }) => (
-    <div className="flex min-h-[320px] flex-col bg-[#fbfcfe]">
-      <div className="border-b border-[#eef0f3] px-4 py-3">
+    <div className="flex min-h-[320px] flex-col bg-white">
+      <div className="border-b border-[#d4d4d4] px-4 py-3">
         <div className="truncate text-base font-semibold text-[#18181b]">{props.title}</div>
         {props.subtitle ? <div className="mt-0.5 truncate text-xs text-[#71717a]">{props.subtitle}</div> : null}
-        <div className="mt-2 inline-flex rounded border border-[#e5e7eb] bg-white px-2 py-1 text-[11px] font-medium text-[#71717a]">
+        <div className="mt-2 inline-flex rounded border border-[#d4d4d4] bg-white px-2 py-1 text-[11px] font-medium text-[#71717a]">
           {props.dataDisclosure}
         </div>
       </div>
