@@ -2,13 +2,11 @@
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
   GripVertical,
   Maximize2,
   Minus,
-  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -23,6 +21,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent,
   type WheelEvent,
 } from "react";
@@ -58,8 +57,8 @@ const ZOOM_STEP_FACTOR = 1.12;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
-const DEFAULT_NOTE_WIDTH = 284;
-const DEFAULT_NOTE_HEIGHT = 108;
+const DEFAULT_NOTE_WIDTH = 320;
+const DEFAULT_NOTE_HEIGHT = 168;
 const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
@@ -98,6 +97,8 @@ type CommandState = {
   y: number;
   value: string;
 };
+
+type NoteFocusTarget = "body" | "title";
 
 type WidgetInteraction =
   | {
@@ -437,12 +438,12 @@ function sameSize(left: ElementSize, right: ElementSize) {
   return left.height === right.height && left.width === right.width;
 }
 
-function prebuiltBoardNotes(board: CanvasBoard | undefined) {
-  return board?.templateId ? board.notes ?? [] : [];
+function boardNotes(board: CanvasBoard | undefined) {
+  return board?.notes ?? [];
 }
 
 function boardBounds(board: CanvasBoard | undefined): BoardBounds | null {
-  const items = board ? [...board.widgets, ...prebuiltBoardNotes(board)] : [];
+  const items = board ? [...board.widgets, ...boardNotes(board)] : [];
 
   if (items.length === 0) {
     return null;
@@ -677,43 +678,93 @@ const WidgetBody = memo(function WidgetBody({
 });
 
 function NoteFrame({
+  focusTarget,
+  isEditing,
+  isNewlyCreated,
   note,
   onDelete,
-  onSave,
+  onEdit,
+  onFocusHandled,
+  onStopEditing,
+  onUpdate,
   onStartInteraction,
   scale,
 }: {
+  focusTarget: NoteFocusTarget | null;
+  isEditing: boolean;
+  isNewlyCreated: boolean;
   note: CanvasNote;
   onDelete: (id: string) => void;
-  onSave: (id: string, nextNote: Pick<CanvasNote, "body" | "color" | "title">) => void;
+  onEdit: (id: string, target: NoteFocusTarget) => void;
+  onFocusHandled: () => void;
+  onStopEditing: () => void;
+  onUpdate: (id: string, nextNote: Partial<Pick<CanvasNote, "body" | "color" | "title">>) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
   scale: number;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState({
-    body: note.body,
-    color: note.color,
-    title: note.title,
-  });
-  const colorStyle = noteColorStyles[draft.color];
+  const bodyInputRef = useRef<HTMLTextAreaElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const colorStyle = noteColorStyles[note.color];
+  const displayTitle = note.title.trim() || "Untitled note";
+  const displayBody = note.body.trim() || "Start typing...";
+  const isEmpty = !note.title.trim() && !note.body.trim();
 
-  const cancelEdit = useCallback(() => {
-    setDraft({
-      body: note.body,
-      color: note.color,
-      title: note.title,
-    });
-    setIsEditing(false);
-  }, [note.body, note.color, note.title]);
+  useEffect(() => {
+    if (!isEditing || !focusTarget) {
+      return;
+    }
 
-  const commitEdit = useCallback(() => {
-    onSave(note.id, {
-      body: draft.body.trim().slice(0, 280),
-      color: draft.color,
-      title: draft.title.trim().slice(0, 48) || "Note",
+    const frame = requestAnimationFrame(() => {
+      const field = focusTarget === "title" ? titleInputRef.current : bodyInputRef.current;
+
+      field?.focus();
+
+      if (focusTarget === "body" && field instanceof HTMLTextAreaElement) {
+        field.setSelectionRange(field.value.length, field.value.length);
+      }
+
+      if (focusTarget === "title" && field instanceof HTMLInputElement) {
+        field.select();
+      }
+
+      onFocusHandled();
     });
-    setIsEditing(false);
-  }, [draft.body, draft.color, draft.title, note.id, onSave]);
+
+    return () => cancelAnimationFrame(frame);
+  }, [focusTarget, isEditing, onFocusHandled]);
+
+  const startDrag = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      onStartInteraction(event, {
+        id: note.id,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: note.x,
+        startY: note.y,
+        type: "note-drag",
+      });
+    },
+    [note.id, note.x, note.y, onStartInteraction],
+  );
+
+  const handleEditingKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (isNewlyCreated && isEmpty) {
+        onDelete(note.id);
+        return;
+      }
+
+      onStopEditing();
+    },
+    [isEmpty, isNewlyCreated, note.id, onDelete, onStopEditing],
+  );
 
   return (
     <div
@@ -727,7 +778,7 @@ function NoteFrame({
       }}
     >
       <article
-        className="relative flex h-full overflow-hidden rounded-[5px] border text-[#18181b]"
+        className="group relative flex h-full overflow-hidden rounded-[5px] border text-[#18181b]"
         style={{
           background: `linear-gradient(180deg, #ffffff 0%, ${colorStyle.background} 160%)`,
           borderColor: "#dce1e8",
@@ -740,109 +791,78 @@ function NoteFrame({
       >
         <div className="w-1 shrink-0" style={{ background: colorStyle.accent }} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header
-            className={`flex h-8 shrink-0 items-center gap-1.5 border-b px-2 ${
-              isEditing ? "" : "cursor-grab active:cursor-grabbing"
-            }`}
-            onPointerDown={(event) => {
-              if (isEditing || hasClosestElement(event.target, "[data-note-control]")) {
-                return;
-              }
-
-              onStartInteraction(event, {
-                id: note.id,
-                startClientX: event.clientX,
-                startClientY: event.clientY,
-                startX: note.x,
-                startY: note.y,
-                type: "note-drag",
-              });
-            }}
-            style={{ borderColor: "#e5e7eb" }}
-          >
-            <GripVertical className="h-3 w-3 shrink-0 text-[#a1a1aa]" />
+          <header className="flex h-9 shrink-0 items-center gap-1.5 border-b px-2" style={{ borderColor: "#e5e7eb" }}>
+            <button
+              aria-label="Move note"
+              className="grid h-6 w-5 shrink-0 cursor-grab place-items-center rounded text-[#a1a1aa] transition hover:bg-white/75 hover:text-[#52525b] active:cursor-grabbing"
+              data-note-control
+              onPointerDown={startDrag}
+              title="Move"
+              type="button"
+            >
+              <GripVertical className="h-3.5 w-3.5" />
+            </button>
             <div className="min-w-0 flex-1">
               {isEditing ? (
                 <input
                   aria-label="Note title"
-                  className="h-6 w-full rounded border border-[#e2e5ea] bg-white/85 px-1.5 text-xs font-semibold outline-none focus:border-[#18181b]"
+                  className="h-6 w-full rounded border border-transparent bg-transparent px-1.5 text-xs font-semibold outline-none transition placeholder:text-[#a1a1aa] focus:border-[#d4d4d8] focus:bg-white/80"
                   data-note-control
                   id={`${note.id}-title`}
                   maxLength={48}
                   name="note-title"
-                  onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))}
-                  value={draft.title}
+                  onChange={(event) => onUpdate(note.id, { title: event.target.value })}
+                  onKeyDown={handleEditingKeyDown}
+                  placeholder="Title"
+                  ref={titleInputRef}
+                  value={note.title}
                 />
               ) : (
-                <div className="truncate text-xs font-semibold">{note.title}</div>
+                <button
+                  className={`block w-full truncate rounded px-1.5 py-1 text-left text-xs font-semibold transition hover:bg-white/60 ${
+                    note.title.trim() ? "text-[#18181b]" : "text-[#71717a]"
+                  }`}
+                  data-note-control
+                  onClick={() => onEdit(note.id, "title")}
+                  title={displayTitle}
+                  type="button"
+                >
+                  {displayTitle}
+                </button>
               )}
             </div>
-            {isEditing ? (
-              <>
-                <button
-                  aria-label="Save note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#27272a] transition hover:bg-white"
-                  data-note-control
-                  onClick={commitEdit}
-                  title="Save"
-                  type="button"
-                >
-                  <Check className="h-3 w-3" />
-                </button>
-                <button
-                  aria-label="Cancel note edit"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-[#e2e5ea] bg-white/80 text-[#52525b] transition hover:bg-white"
-                  data-note-control
-                  onClick={cancelEdit}
-                  title="Cancel"
-                  type="button"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  aria-label="Edit note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
-                  data-note-control
-                  onClick={() => setIsEditing(true)}
-                  title="Edit"
-                  type="button"
-                >
-                  <Pencil className="h-3 w-3" />
-                </button>
-                <button
-                  aria-label="Delete note"
-                  className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b]"
-                  data-note-control
-                  onClick={() => onDelete(note.id)}
-                  title="Delete"
-                  type="button"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </>
-            )}
+            <button
+              aria-label="Delete note"
+              className="grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-white/55 text-[#71717a] opacity-80 transition hover:border-[#e2e5ea] hover:bg-white hover:text-[#18181b] group-hover:opacity-100"
+              data-note-control
+              onClick={() => onDelete(note.id)}
+              title="Delete"
+              type="button"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
           </header>
 
-          <div className="min-h-0 flex-1 p-2.5">
+          <div className="min-h-0 flex-1 p-3">
             {isEditing ? (
-              <div className="flex h-full flex-col gap-1.5">
+              <div className="flex h-full flex-col gap-2">
                 <textarea
                   aria-label="Note body"
-                  className="min-h-0 flex-1 resize-none rounded border border-[#e2e5ea] bg-white/85 px-2 py-1.5 text-[11px] leading-4 text-[#27272a] outline-none focus:border-[#18181b]"
+                  className="min-h-0 flex-1 resize-none rounded border border-transparent bg-white/55 px-2 py-1.5 text-[12px] leading-5 text-[#27272a] outline-none transition placeholder:text-[#a1a1aa] focus:border-[#d4d4d8] focus:bg-white/85"
                   data-note-control
                   id={`${note.id}-body`}
                   maxLength={280}
                   name="note-body"
-                  onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))}
-                  value={draft.body}
+                  onChange={(event) => onUpdate(note.id, { body: event.target.value })}
+                  onKeyDown={handleEditingKeyDown}
+                  placeholder="Write a note..."
+                  ref={bodyInputRef}
+                  value={note.body}
                 />
                 <div className="flex items-center gap-1">
                   {noteColorOptions.map((color) => {
                     const optionStyle = noteColorStyles[color];
-                    const isSelected = color === draft.color;
+                    const isSelected = color === note.color;
 
                     return (
                       <button
@@ -851,7 +871,7 @@ function NoteFrame({
                         className="h-4 w-4 rounded-full border transition"
                         data-note-control
                         key={color}
-                        onClick={() => setDraft((current) => ({ ...current, color }))}
+                        onClick={() => onUpdate(note.id, { color })}
                         style={{
                           background: optionStyle.background,
                           borderColor: isSelected ? "#18181b" : optionStyle.border,
@@ -865,7 +885,16 @@ function NoteFrame({
                 </div>
               </div>
             ) : (
-              <p className="line-clamp-3 text-[11px] font-medium leading-4 text-[#3f3f46]">{note.body}</p>
+              <button
+                className={`block h-full w-full rounded px-1 py-0.5 text-left text-[12px] font-medium leading-5 transition hover:bg-white/45 ${
+                  isEmpty ? "text-[#71717a]" : "text-[#3f3f46]"
+                }`}
+                data-note-control
+                onClick={() => onEdit(note.id, "body")}
+                type="button"
+              >
+                <span className={isEmpty ? "italic" : "line-clamp-5"}>{displayBody}</span>
+              </button>
             )}
           </div>
         </div>
@@ -1053,6 +1082,9 @@ export default function Home() {
   const [command, setCommand] = useState<CommandState | null>(null);
   const [boards, setBoards] = useState<CanvasBoard[]>(() => ensureBoardSet([createBlankBoard()]));
   const [activeBoardId, setActiveBoardId] = useState(BLANK_BOARD_ID);
+  const [editingNoteFocus, setEditingNoteFocus] = useState<NoteFocusTarget | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
   const [isCreatingBoardName, setIsCreatingBoardName] = useState(false);
   const [boardNameDraft, setBoardNameDraft] = useState("");
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
@@ -1067,7 +1099,7 @@ export default function Home() {
   const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
   const activeBoardIsTemplate = Boolean(activeBoard?.templateId);
   const widgets = activeBoard?.widgets ?? [];
-  const notes = prebuiltBoardNotes(activeBoard);
+  const notes = boardNotes(activeBoard);
   const activeBoardAccent = useMemo(() => boardAccent(activeBoard?.templateId), [activeBoard?.templateId]);
   const personalBoards = boards.filter((board) => !board.templateId);
   const prebuiltBoards = boards.filter((board) => board.templateId);
@@ -1172,7 +1204,7 @@ export default function Home() {
   const updateBoardNotes = useCallback((boardId: string, updater: (notes: CanvasNote[]) => CanvasNote[]) => {
     setBoards((current) =>
       current.map((board) =>
-        board.id === boardId && board.templateId
+        board.id === boardId
           ? {
               ...board,
               notes: updater(board.notes ?? []),
@@ -1232,12 +1264,15 @@ export default function Home() {
   const deleteNote = useCallback(
     (id: string) => {
       updateBoardNotes(activeBoardId, (current) => current.filter((note) => note.id !== id));
+      setEditingNoteId((current) => (current === id ? null : current));
+      setEditingNoteFocus(null);
+      setNewlyCreatedNoteId((current) => (current === id ? null : current));
     },
     [activeBoardId, updateBoardNotes],
   );
 
-  const saveNote = useCallback(
-    (id: string, nextNote: Pick<CanvasNote, "body" | "color" | "title">) => {
+  const updateNoteFields = useCallback(
+    (id: string, nextNote: Partial<Pick<CanvasNote, "body" | "color" | "title">>) => {
       updateNote(activeBoardId, id, (note) => ({
         ...note,
         ...nextNote,
@@ -1246,6 +1281,21 @@ export default function Home() {
     },
     [activeBoardId, updateNote],
   );
+
+  const editNote = useCallback((id: string, target: NoteFocusTarget) => {
+    setEditingNoteId(id);
+    setEditingNoteFocus(target);
+  }, []);
+
+  const stopEditingNote = useCallback(() => {
+    setEditingNoteId(null);
+    setEditingNoteFocus(null);
+    setNewlyCreatedNoteId(null);
+  }, []);
+
+  const handleNoteFocusHandled = useCallback(() => {
+    setEditingNoteFocus(null);
+  }, []);
 
   const scrollToBoard = useCallback(
     (board: CanvasBoard | undefined, scaleOverride = scale, topInset = TOP_CANVAS_SAFE_INSET) => {
@@ -1314,10 +1364,11 @@ export default function Home() {
       if (activeBoardId === boardId) {
         setActiveBoardId(fallbackBoard?.id ?? BLANK_BOARD_ID);
         setCommand(null);
+        stopEditingNote();
         requestAnimationFrame(() => focusBoard(fallbackBoard));
       }
     },
-    [activeBoardId, boards, focusBoard],
+    [activeBoardId, boards, focusBoard, stopEditingNote],
   );
 
   const selectBoard = useCallback(
@@ -1326,19 +1377,21 @@ export default function Home() {
       setIsCreatingBoardName(false);
       setBoardNameDraft("");
       setCommand(null);
+      stopEditingNote();
 
       requestAnimationFrame(() => {
         focusBoard(boards.find((board) => board.id === boardId));
       });
     },
-    [boards, focusBoard],
+    [boards, focusBoard, stopEditingNote],
   );
 
   const openBoardNameCreate = useCallback(() => {
     setIsCreatingBoardName(true);
     setBoardNameDraft("");
     setCommand(null);
-  }, []);
+    stopEditingNote();
+  }, [stopEditingNote]);
 
   const cancelBoardNameCreate = useCallback(() => {
     setIsCreatingBoardName(false);
@@ -1367,9 +1420,10 @@ export default function Home() {
     setIsCreatingBoardName(false);
     setBoardNameDraft("");
     setCommand(null);
+    stopEditingNote();
 
     requestAnimationFrame(() => focusBoard(board));
-  }, [boardNameDraft, focusBoard]);
+  }, [boardNameDraft, focusBoard, stopEditingNote]);
 
   const addWidgetToBoard = useCallback(
     (boardId: string, widget: CanvasWidget) => {
@@ -1515,7 +1569,7 @@ export default function Home() {
   }, [scale]);
 
   const addNoteToActiveBoard = useCallback((targetPosition?: { x: number; y: number }) => {
-    if (!activeBoard?.templateId) {
+    if (!activeBoard) {
       return;
     }
 
@@ -1540,19 +1594,25 @@ export default function Home() {
       DEFAULT_NOTE_WIDTH,
       DEFAULT_NOTE_HEIGHT,
     );
+    const id = createNoteId();
     const note: CanvasNote = {
-      body: "Decision, owner, timing.",
+      body: "",
       color: noteColorOptions[currentNotes.length % noteColorOptions.length],
       createdAt: now,
       height: DEFAULT_NOTE_HEIGHT,
-      id: createNoteId(),
-      title: "New note",
+      id,
+      title: "",
       updatedAt: now,
       width: DEFAULT_NOTE_WIDTH,
       ...position,
     };
 
     updateBoardNotes(activeBoard.id, (current) => [...current, note]);
+    setCommand(null);
+    setEditingNoteId(id);
+    setEditingNoteFocus("body");
+    setNewlyCreatedNoteId(id);
+
     if (!targetPosition) {
       requestAnimationFrame(() => focusBoard({ ...activeBoard, notes: [...currentNotes, note], updatedAt: now }));
     }
@@ -1583,12 +1643,13 @@ export default function Home() {
         })
       : getVisibleCanvasCenter();
 
+    stopEditingNote();
     setCommand({
       x: position.x,
       y: position.y,
       value: "",
     });
-  }, [getVisibleCanvasCenter]);
+  }, [getVisibleCanvasCenter, stopEditingNote]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1603,7 +1664,6 @@ export default function Home() {
       }
 
       if (
-        activeBoardIsTemplate &&
         !event.repeat &&
         !event.metaKey &&
         !event.ctrlKey &&
@@ -1620,7 +1680,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeBoardIsTemplate, addNoteAtCursor, openCommandAtCursor]);
+  }, [addNoteAtCursor, openCommandAtCursor]);
 
   useEffect(() => {
     if (!commandPosition) {
@@ -2078,18 +2138,22 @@ export default function Home() {
                 widget={widget}
               />
             ))}
-            {activeBoardIsTemplate
-              ? notes.map((note) => (
-                  <NoteFrame
-                    key={note.id}
-                    note={note}
-                    onDelete={deleteNote}
-                    onSave={saveNote}
-                    onStartInteraction={startWidgetInteraction}
-                    scale={scale}
-                  />
-                ))
-              : null}
+            {notes.map((note) => (
+              <NoteFrame
+                focusTarget={editingNoteId === note.id ? editingNoteFocus : null}
+                isEditing={editingNoteId === note.id}
+                isNewlyCreated={newlyCreatedNoteId === note.id}
+                key={note.id}
+                note={note}
+                onDelete={deleteNote}
+                onEdit={editNote}
+                onFocusHandled={handleNoteFocusHandled}
+                onStopEditing={stopEditingNote}
+                onStartInteraction={startWidgetInteraction}
+                onUpdate={updateNoteFields}
+                scale={scale}
+              />
+            ))}
           </div>
 
           {command ? (
@@ -2355,14 +2419,10 @@ export default function Home() {
           <span>
             Press <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">/</span> to create a widget
           </span>
-          {activeBoardIsTemplate ? (
-            <>
-              <span className="h-3 w-px bg-[#d4d4d8]" />
-              <span>
-                <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">N</span> to add a note
-              </span>
-            </>
-          ) : null}
+          <span className="h-3 w-px bg-[#d4d4d8]" />
+          <span>
+            <span className="mx-1 rounded bg-[#eef0f3] px-1.5 py-0.5 font-semibold text-[#52525b]">N</span> to add a note
+          </span>
         </div>
 
         <div className="pointer-events-none absolute bottom-4 right-4 rounded-md border border-[#e5e7eb] bg-white/60 px-2 py-1 text-xs font-medium text-[#71717a] shadow-sm backdrop-blur sm:bottom-6 sm:right-6">
