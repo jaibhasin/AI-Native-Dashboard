@@ -892,6 +892,7 @@ function NoteFrame({
       }}
     >
       <div
+        className="group"
         style={{
           height: note.height,
           transform: `scale(${scale})`,
@@ -899,7 +900,11 @@ function NoteFrame({
           width: note.width,
         }}
       >
-        <div className="mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)]">
+        <div
+          className={`mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)] transition ${
+            isEditing ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+          }`}
+        >
           {displayAuthor}
         </div>
         <article
@@ -1100,6 +1105,7 @@ function WidgetFrame({
       }}
     >
       <div
+        className="group"
         style={{
           height: widget.height,
           transform: `scale(${scale})`,
@@ -1108,7 +1114,7 @@ function WidgetFrame({
           width: widget.width,
         }}
       >
-        <div className="mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)]">
+        <div className="mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
           {displayAuthor}
         </div>
       <article
@@ -1142,7 +1148,7 @@ function WidgetFrame({
               borderColor: "var(--border)",
             }}
           >
-            <GripVertical className="h-4 w-4 shrink-0 text-[var(--text-faint)]" />
+            <GripVertical className="pointer-events-none h-4 w-4 shrink-0 text-[var(--text-faint)] opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</div>
               <div className="truncate text-[11px] text-[var(--text-muted)]">{widget.prompt}</div>
@@ -1167,7 +1173,7 @@ function WidgetFrame({
             ) : null}
             <button
               aria-label="Delete widget"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] opacity-0 transition hover:bg-[var(--control-hover)] focus:opacity-100 group-hover:opacity-100"
+              className="pointer-events-none grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] opacity-0 transition hover:bg-[var(--control-hover)] focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
               data-widget-control
               onClick={(event) => {
                 event.stopPropagation();
