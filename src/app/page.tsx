@@ -37,6 +37,7 @@ import {
 import {
   canvasBoardSchema,
   canvasWidgetSchema,
+  DEFAULT_NOTE_AUTHOR_NAME,
   type CanvasBoard,
   type CanvasNote,
   type CanvasNoteColor,
@@ -59,16 +60,18 @@ const ZOOM_STEP_FACTOR = 1.12;
 const ZOOM_SENSITIVITY = 0.0015;
 const DEFAULT_WIDGET_WIDTH = 440;
 const DEFAULT_WIDGET_HEIGHT = 320;
-const DEFAULT_NOTE_WIDTH = 220;
-const DEFAULT_NOTE_HEIGHT = 128;
+const DEFAULT_NOTE_WIDTH = 180;
+const DEFAULT_NOTE_HEIGHT = 78;
 const MAX_NOTE_WIDTH = 440;
 const MAX_NOTE_HEIGHT = 320;
-const NOTE_HORIZONTAL_CHROME = 48;
-const NOTE_VERTICAL_CHROME = 88;
+const NOTE_HORIZONTAL_CHROME = 36;
+const NOTE_VERTICAL_CHROME = 58;
+const NOTE_AUTHOR_LABEL_HEIGHT = 18;
 const NOTE_BODY_CHAR_WIDTH = 7;
 const NOTE_BODY_LINE_HEIGHT = 20;
 const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
+const WIDGET_AUTHOR_LABEL_HEIGHT = 18;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
 const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
 const MIN_WIDGET_WIDTH = 280;
@@ -186,9 +189,9 @@ function createNoteId() {
   return globalThis.crypto?.randomUUID?.() ?? `note-${Date.now()}-${Math.random()}`;
 }
 
-function noteTextSize(title: string, body: string) {
+function noteTextSize(title: string, body: string, authorName = DEFAULT_NOTE_AUTHOR_NAME) {
   const bodyLines = body.split("\n");
-  const longestText = [title, ...bodyLines].reduce(
+  const longestText = [title, authorName, ...bodyLines].reduce(
     (current, line) => Math.max(current, line.trim().length),
     0,
   );
@@ -197,7 +200,7 @@ function noteTextSize(title: string, body: string) {
     Math.max(DEFAULT_NOTE_WIDTH, NOTE_HORIZONTAL_CHROME + longestText * NOTE_BODY_CHAR_WIDTH),
   );
   const bodyColumnWidth = Math.max(1, width - NOTE_HORIZONTAL_CHROME);
-  const bodyCharsPerLine = Math.max(18, Math.floor(bodyColumnWidth / NOTE_BODY_CHAR_WIDTH));
+  const bodyCharsPerLine = Math.max(14, Math.floor(bodyColumnWidth / NOTE_BODY_CHAR_WIDTH));
   const wrappedBodyLines = bodyLines.reduce(
     (total, line) => total + Math.max(1, Math.ceil((line.trim().length || 1) / bodyCharsPerLine)),
     0,
@@ -325,7 +328,7 @@ function fittedWidgetHeight(widget: CanvasWidget, stageSize: ElementSize) {
   }
 
   const targetBodyHeight = (widget.width * stageSize.height) / stageSize.width;
-  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight);
+  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight + WIDGET_AUTHOR_LABEL_HEIGHT);
 
   return Math.min(CANVAS_HEIGHT - widget.y, Math.max(MIN_WIDGET_HEIGHT, targetWidgetHeight));
 }
@@ -770,7 +773,7 @@ function NoteFrame({
   onStopEditing: () => void;
   onUpdate: (
     id: string,
-    nextNote: Partial<Pick<CanvasNote, "body" | "color" | "height" | "title" | "width">>,
+    nextNote: Partial<Pick<CanvasNote, "authorName" | "body" | "color" | "height" | "title" | "width">>,
   ) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
   scale: number;
@@ -780,14 +783,16 @@ function NoteFrame({
   const colorStyle = noteColorStyles[note.color];
   const displayTitle = note.title.trim() || "Untitled note";
   const displayBody = note.body.trim() || "Start typing...";
+  const displayAuthor = note.authorName.trim() || DEFAULT_NOTE_AUTHOR_NAME;
   const isEmpty = !note.title.trim() && !note.body.trim();
+  const noteSurfaceHeight = Math.max(0, note.height - NOTE_AUTHOR_LABEL_HEIGHT);
 
   useEffect(() => {
     if (isManuallySized) {
       return;
     }
 
-    const fittedSize = noteTextSize(note.title, note.body);
+    const fittedSize = noteTextSize(note.title, note.body, displayAuthor);
 
     if (fittedSize.width === note.width && fittedSize.height === note.height) {
       return;
@@ -797,7 +802,7 @@ function NoteFrame({
       body: note.body,
       title: note.title,
     });
-  }, [isManuallySized, note.body, note.height, note.id, note.title, note.width, onUpdate]);
+  }, [displayAuthor, isManuallySized, note.body, note.height, note.id, note.title, note.width, onUpdate]);
 
   useEffect(() => {
     if (!isEditing || !focusTarget) {
@@ -886,80 +891,96 @@ function NoteFrame({
         width: note.width * scale,
       }}
     >
-      <article
-        className="group relative flex h-full overflow-visible rounded-[5px] border text-[var(--text-primary)]"
+      <div
+        className="group"
         style={{
-          background: `linear-gradient(180deg, var(--panel) 0%, ${colorStyle.background} 160%)`,
-          borderColor: "var(--border-medium)",
-          boxShadow: `0 10px 24px ${colorStyle.shadow}, var(--shadow-note-inset)`,
           height: note.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           width: note.width,
         }}
       >
-        <div className="w-1 shrink-0" style={{ background: colorStyle.accent }} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-9 shrink-0 items-center gap-1.5 border-b px-2" style={{ borderColor: "var(--border)" }}>
-            <button
-              aria-label="Move note"
-              className="grid h-6 w-5 shrink-0 cursor-grab place-items-center rounded text-[var(--text-faint)] transition hover:bg-[var(--panel-translucent)] hover:text-[var(--text-secondary)] active:cursor-grabbing"
-              data-note-control
-              onPointerDown={startDrag}
-              title="Move"
-              type="button"
-            >
-              <GripVertical className="h-3.5 w-3.5" />
-            </button>
-            <div className="min-w-0 flex-1">
-              {isEditing ? (
-                <input
-                  aria-label="Note title"
-                  className="h-6 w-full rounded border border-transparent bg-transparent px-1.5 text-xs font-semibold text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-medium)] focus:bg-[var(--panel-translucent)]"
-                  data-note-control
-                  id={`${note.id}-title`}
-                  maxLength={48}
-                  name="note-title"
-                  onChange={(event) => onUpdate(note.id, { title: event.target.value })}
-                  onKeyDown={handleEditingKeyDown}
-                  placeholder="Title"
-                  ref={titleInputRef}
-                  value={note.title}
-                />
-              ) : (
-                <button
-                  className={`block w-full truncate rounded px-1.5 py-1 text-left text-xs font-semibold transition hover:bg-white/60 ${
-                    note.title.trim() ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
-                  }`}
-                  data-note-control
-                  onClick={() => onEdit(note.id, "title")}
-                  title={displayTitle}
-                  type="button"
-                >
-                  {displayTitle}
-                </button>
-              )}
-            </div>
-            <button
-              aria-label="Delete note"
-              className={`grid h-6 w-6 shrink-0 place-items-center rounded border border-transparent bg-[var(--panel-translucent)] text-[var(--text-muted)] transition hover:border-[var(--border)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] ${
-                isEditing ? "opacity-100" : "opacity-80 group-hover:opacity-100"
-              }`}
-              data-note-control
-              onClick={() => onDelete(note.id)}
-              title="Delete"
-              type="button"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </header>
+        <div
+          className={`mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)] transition ${
+            isEditing ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+          }`}
+        >
+          {displayAuthor}
+        </div>
+        <article
+          className="group relative flex overflow-visible rounded-[5px] border text-[var(--text-primary)]"
+          style={{
+            background: `linear-gradient(180deg, var(--panel) 0%, ${colorStyle.background} 160%)`,
+            borderColor: "var(--border-medium)",
+            boxShadow: `0 10px 24px ${colorStyle.shadow}, var(--shadow-note-inset)`,
+            height: noteSurfaceHeight,
+            width: note.width,
+          }}
+        >
+          <div className="w-1 shrink-0" style={{ background: colorStyle.accent }} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <header className="relative flex h-7 shrink-0 items-center border-b px-2" style={{ borderColor: "var(--border)" }}>
+              <button
+                aria-label="Move note"
+                className={`absolute left-1 top-1 grid h-5 w-5 cursor-grab place-items-center rounded bg-[var(--panel-translucent)] text-[var(--text-faint)] transition hover:bg-[var(--panel-translucent-strong)] hover:text-[var(--text-secondary)] focus:opacity-100 active:cursor-grabbing ${
+                  isEditing ? "opacity-100" : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+                }`}
+                data-note-control
+                onPointerDown={startDrag}
+                title="Move"
+                type="button"
+              >
+                <GripVertical className="h-3.5 w-3.5" />
+              </button>
+              <div className="min-w-0 flex-1">
+                {isEditing ? (
+                  <input
+                    aria-label="Note title"
+                    className="h-5 w-full rounded border border-transparent bg-transparent px-6 text-xs font-semibold text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-medium)] focus:bg-[var(--panel-translucent)]"
+                    data-note-control
+                    id={`${note.id}-title`}
+                    maxLength={48}
+                    name="note-title"
+                    onChange={(event) => onUpdate(note.id, { title: event.target.value })}
+                    onKeyDown={handleEditingKeyDown}
+                    placeholder="Title"
+                    ref={titleInputRef}
+                    value={note.title}
+                  />
+                ) : (
+                  <button
+                    className={`block w-full truncate rounded px-0.5 py-0.5 text-left text-xs font-semibold transition hover:bg-white/60 group-hover:px-6 ${
+                      note.title.trim() ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+                    }`}
+                    data-note-control
+                    onClick={() => onEdit(note.id, "title")}
+                    title={displayTitle}
+                    type="button"
+                  >
+                    {displayTitle}
+                  </button>
+                )}
+              </div>
+              <button
+                aria-label="Delete note"
+                className={`absolute right-1 top-1 grid h-5 w-5 place-items-center rounded border border-transparent bg-[var(--panel-translucent)] text-[var(--text-muted)] transition hover:border-[var(--border)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] focus:opacity-100 ${
+                  isEditing ? "opacity-100" : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+                }`}
+                data-note-control
+                onClick={() => onDelete(note.id)}
+                title="Delete"
+                type="button"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </header>
 
-          <div className="min-h-0 flex-1 p-3">
+          <div className="min-h-0 flex-1 p-1.5">
             {isEditing ? (
               <div className="flex h-full flex-col gap-2">
                 <textarea
                   aria-label="Note body"
-                  className="min-h-0 flex-1 resize-none rounded border border-transparent bg-[var(--panel-translucent)] px-2 py-1.5 text-[12px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-medium)] focus:bg-[var(--panel-translucent-strong)]"
+                  className="min-h-0 flex-1 resize-none rounded border border-transparent bg-[var(--panel-translucent)] px-1.5 py-1 text-[12px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--border-medium)] focus:bg-[var(--panel-translucent-strong)]"
                   data-note-control
                   id={`${note.id}-body`}
                   maxLength={280}
@@ -1027,7 +1048,7 @@ function NoteFrame({
         <button
           aria-label="Resize note"
           className={`absolute bottom-1.5 right-1.5 grid h-5 w-5 cursor-nwse-resize place-items-center rounded border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] text-[var(--text-muted)] shadow-sm transition ${
-            isEditing ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            isEditing ? "opacity-100" : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
           }`}
           data-note-control
           onPointerDown={startResize}
@@ -1036,7 +1057,8 @@ function NoteFrame({
         >
           <Maximize2 className="h-3 w-3" />
         </button>
-      </article>
+        </article>
+      </div>
     </div>
   );
 }
@@ -1061,8 +1083,9 @@ function WidgetFrame({
   widget: CanvasWidget;
 }) {
   const title = widget.exampleData?.title || widget.prompt;
-  const statusLabel =
-    widget.status === "streaming" ? "Generating" : widget.status === "error" ? "Error" : "Preview";
+  const displayAuthor = widget.authorName.trim() || DEFAULT_NOTE_AUTHOR_NAME;
+  const widgetSurfaceHeight = Math.max(MIN_WIDGET_HEIGHT - WIDGET_AUTHOR_LABEL_HEIGHT, widget.height - WIDGET_AUTHOR_LABEL_HEIGHT);
+  const statusLabel = widget.status === "streaming" ? "Generating" : widget.status === "error" ? "Error" : null;
 
   return (
     <div
@@ -1080,15 +1103,25 @@ function WidgetFrame({
         width: widget.width * scale,
       }}
     >
-      <article
-        className="relative flex h-full overflow-hidden rounded-md border bg-[var(--panel)]"
+      <div
+        className="group"
         style={{
-          borderColor: "var(--border-medium)",
-          boxShadow: "var(--shadow-widget)",
           height: widget.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           willChange: "transform",
+          width: widget.width,
+        }}
+      >
+        <div className="mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)] opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+          {displayAuthor}
+        </div>
+      <article
+        className="group relative flex overflow-hidden rounded-md border bg-[var(--panel)]"
+        style={{
+          borderColor: "var(--border-medium)",
+          boxShadow: "var(--shadow-widget)",
+          height: widgetSurfaceHeight,
           width: widget.width,
         }}
       >
@@ -1114,14 +1147,16 @@ function WidgetFrame({
               borderColor: "var(--border)",
             }}
           >
-            <GripVertical className="h-4 w-4 shrink-0 text-[var(--text-faint)]" />
+            <GripVertical className="pointer-events-none h-4 w-4 shrink-0 text-[var(--text-faint)] opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</div>
               <div className="truncate text-[11px] text-[var(--text-muted)]">{widget.prompt}</div>
             </div>
-            <span className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
-              {statusLabel}
-            </span>
+            {statusLabel ? (
+              <span className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
+                {statusLabel}
+              </span>
+            ) : null}
             {widget.status === "error" ? (
               <button
                 aria-label="Retry widget"
@@ -1139,7 +1174,7 @@ function WidgetFrame({
             ) : null}
             <button
               aria-label="Delete widget"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
+              className="pointer-events-none grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] opacity-0 transition hover:bg-[var(--control-hover)] focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
               data-widget-control
               onClick={(event) => {
                 event.stopPropagation();
@@ -1162,7 +1197,7 @@ function WidgetFrame({
 
           <button
             aria-label="Resize widget"
-            className="absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] text-[var(--text-muted)] shadow-sm"
+            className="pointer-events-none absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] text-[var(--text-muted)] opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100"
             data-widget-control
             onPointerDown={(event) =>
               onStartInteraction(event, {
@@ -1181,6 +1216,7 @@ function WidgetFrame({
           </button>
         </div>
       </article>
+      </div>
     </div>
   );
 }
@@ -1437,7 +1473,7 @@ export default function Home() {
   );
 
   const updateNoteFields = useCallback(
-    (id: string, nextNote: Partial<Pick<CanvasNote, "body" | "color" | "height" | "title" | "width">>) => {
+    (id: string, nextNote: Partial<Pick<CanvasNote, "authorName" | "body" | "color" | "height" | "title" | "width">>) => {
       updateNote(activeBoardId, id, (note) => {
         const isManualResize = "width" in nextNote || "height" in nextNote;
 
@@ -1446,8 +1482,13 @@ export default function Home() {
         }
 
         const resizedFields =
-          ("body" in nextNote || "title" in nextNote) && !manuallySizedNoteIdsRef.current.has(id)
-            ? noteTextSize(nextNote.title ?? note.title, nextNote.body ?? note.body)
+          ("authorName" in nextNote || "body" in nextNote || "title" in nextNote) &&
+          !manuallySizedNoteIdsRef.current.has(id)
+            ? noteTextSize(
+                nextNote.title ?? note.title,
+                nextNote.body ?? note.body,
+                nextNote.authorName ?? note.authorName,
+              )
             : null;
         const width = Math.min(
           CANVAS_WIDTH - note.x,
@@ -1812,7 +1853,7 @@ export default function Home() {
     const bounds = boardBounds(activeBoard);
     const currentNotes = activeBoard.notes ?? [];
     const fallbackCenter = getVisibleCanvasCenter();
-    const noteSize = noteTextSize("", "");
+    const noteSize = noteTextSize("", "", DEFAULT_NOTE_AUTHOR_NAME);
     const basePosition =
       targetPosition ??
       (bounds
@@ -1827,6 +1868,7 @@ export default function Home() {
     const position = clampCanvasRectPosition(basePosition.x, basePosition.y, noteSize.width, noteSize.height);
     const id = createNoteId();
     const note: CanvasNote = {
+      authorName: DEFAULT_NOTE_AUTHOR_NAME,
       body: "",
       color: noteColorOptions[currentNotes.length % noteColorOptions.length],
       createdAt: now,
@@ -2197,6 +2239,7 @@ export default function Home() {
         DEFAULT_WIDGET_HEIGHT,
       );
       const widget: CanvasWidget = {
+        authorName: DEFAULT_NOTE_AUTHOR_NAME,
         createdAt: now,
         exampleData: null,
         height: DEFAULT_WIDGET_HEIGHT,

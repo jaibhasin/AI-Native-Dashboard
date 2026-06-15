@@ -1,5 +1,8 @@
 import { z } from "zod/v4";
 
+export const DEFAULT_NOTE_AUTHOR_NAME = "Team member";
+export const TEMPLATE_AUTHOR_NAME = "Computer";
+
 export const toneSchema = z
   .enum(["neutral", "positive", "negative", "warning"])
   .describe("Visual tone for the value or series.");
@@ -69,6 +72,7 @@ export const canvasNoteSchema = z.object({
   height: z.number(),
   title: z.string(),
   body: z.string(),
+  authorName: z.string().default(DEFAULT_NOTE_AUTHOR_NAME),
   color: canvasNoteColorSchema,
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -118,6 +122,7 @@ export const canvasWidgetSchema = z.object({
   y: z.number(),
   width: z.number(),
   height: z.number(),
+  authorName: z.string().default(DEFAULT_NOTE_AUTHOR_NAME),
   prompt: z.string(),
   exampleData: exampleWidgetDataSchema.nullable(),
   openuiSource: z.string(),
