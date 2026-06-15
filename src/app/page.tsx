@@ -2477,6 +2477,7 @@ export default function Home() {
         const position = clampCanvasRectPosition(plannedNote.x, plannedNote.y, width, height);
 
         return {
+          authorName: DEFAULT_NOTE_AUTHOR_NAME,
           body: plannedNote.body,
           color: plannedNote.color,
           createdAt: now + index,
@@ -2494,6 +2495,7 @@ export default function Home() {
         const position = clampCanvasRectPosition(plannedWidget.x, plannedWidget.y, width, height);
 
         return {
+          authorName: DEFAULT_NOTE_AUTHOR_NAME,
           createdAt: now + index,
           exampleData: null,
           height,
