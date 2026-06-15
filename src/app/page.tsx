@@ -1219,6 +1219,17 @@ function CreateWithAIBoardModal({
   onUpdate: (field: AiBoardBriefField, value: string) => void;
   purposeInputRef: RefObject<HTMLTextAreaElement | null>;
 }) {
+  const handleFormKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLFormElement>) => {
+      if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey) || isGenerating) {
+        return;
+      }
+
+      event.preventDefault();
+      event.currentTarget.requestSubmit();
+    },
+    [isGenerating],
+  );
   const optionalFields: Array<{
     field: AiBoardBriefField;
     label: string;
@@ -1261,6 +1272,7 @@ function CreateWithAIBoardModal({
     <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
       <form
         className="flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-popover)]"
+        onKeyDown={handleFormKeyDown}
         onSubmit={onSubmit}
       >
         <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] px-4 py-3">
