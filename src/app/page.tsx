@@ -71,6 +71,7 @@ const NOTE_BODY_CHAR_WIDTH = 7;
 const NOTE_BODY_LINE_HEIGHT = 20;
 const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
+const WIDGET_AUTHOR_FOOTER_HEIGHT = 18;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
 const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
 const MIN_WIDGET_WIDTH = 280;
@@ -327,7 +328,7 @@ function fittedWidgetHeight(widget: CanvasWidget, stageSize: ElementSize) {
   }
 
   const targetBodyHeight = (widget.width * stageSize.height) / stageSize.width;
-  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight);
+  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight + WIDGET_AUTHOR_FOOTER_HEIGHT);
 
   return Math.min(CANVAS_HEIGHT - widget.y, Math.max(MIN_WIDGET_HEIGHT, targetWidgetHeight));
 }
@@ -1077,6 +1078,8 @@ function WidgetFrame({
   widget: CanvasWidget;
 }) {
   const title = widget.exampleData?.title || widget.prompt;
+  const displayAuthor = widget.authorName.trim() || DEFAULT_NOTE_AUTHOR_NAME;
+  const widgetSurfaceHeight = Math.max(MIN_WIDGET_HEIGHT - WIDGET_AUTHOR_FOOTER_HEIGHT, widget.height - WIDGET_AUTHOR_FOOTER_HEIGHT);
   const statusLabel =
     widget.status === "streaming" ? "Generating" : widget.status === "error" ? "Error" : "Preview";
 
@@ -1096,15 +1099,21 @@ function WidgetFrame({
         width: widget.width * scale,
       }}
     >
-      <article
-        className="relative flex h-full overflow-hidden rounded-md border bg-[var(--panel)]"
+      <div
         style={{
-          borderColor: "var(--border-medium)",
-          boxShadow: "var(--shadow-widget)",
           height: widget.height,
           transform: `scale(${scale})`,
           transformOrigin: "top left",
           willChange: "transform",
+          width: widget.width,
+        }}
+      >
+      <article
+        className="group relative flex overflow-hidden rounded-md border bg-[var(--panel)]"
+        style={{
+          borderColor: "var(--border-medium)",
+          boxShadow: "var(--shadow-widget)",
+          height: widgetSurfaceHeight,
           width: widget.width,
         }}
       >
@@ -1155,7 +1164,7 @@ function WidgetFrame({
             ) : null}
             <button
               aria-label="Delete widget"
-              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] opacity-0 transition hover:bg-[var(--control-hover)] focus:opacity-100 group-hover:opacity-100"
               data-widget-control
               onClick={(event) => {
                 event.stopPropagation();
@@ -1178,7 +1187,7 @@ function WidgetFrame({
 
           <button
             aria-label="Resize widget"
-            className="absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] text-[var(--text-muted)] shadow-sm"
+            className="pointer-events-none absolute bottom-1.5 right-1.5 grid h-6 w-6 cursor-nwse-resize place-items-center rounded border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] text-[var(--text-muted)] opacity-0 shadow-sm transition group-hover:pointer-events-auto group-hover:opacity-100"
             data-widget-control
             onPointerDown={(event) =>
               onStartInteraction(event, {
@@ -1197,6 +1206,10 @@ function WidgetFrame({
           </button>
         </div>
       </article>
+        <div className="mt-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)]">
+          {displayAuthor}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2219,6 +2232,7 @@ export default function Home() {
         DEFAULT_WIDGET_HEIGHT,
       );
       const widget: CanvasWidget = {
+        authorName: DEFAULT_NOTE_AUTHOR_NAME,
         createdAt: now,
         exampleData: null,
         height: DEFAULT_WIDGET_HEIGHT,

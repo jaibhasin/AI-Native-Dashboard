@@ -10,10 +10,10 @@ import type {
   MetricData,
   TableData,
 } from "@/lib/dashboard-schemas";
-import { DEFAULT_NOTE_AUTHOR_NAME } from "@/lib/dashboard-schemas";
+import { TEMPLATE_AUTHOR_NAME } from "@/lib/dashboard-schemas";
 
 export const BLANK_BOARD_ID = "blank";
-export const BOARD_TEMPLATE_VERSION = 4;
+export const BOARD_TEMPLATE_VERSION = 5;
 
 const TEMPLATE_WIDGET_WIDTH = 440;
 const TEMPLATE_WIDGET_HEIGHT = 320;
@@ -30,7 +30,7 @@ type TemplateGridCoordinate = 0 | 1 | 2;
 type TemplateVisualization = ExampleWidgetData["recommendedVisualization"];
 type TemplateWidgetDefinition = Pick<
   CanvasWidget,
-  "height" | "openuiSource" | "prompt" | "width" | "x" | "y"
+  "authorName" | "height" | "openuiSource" | "prompt" | "width" | "x" | "y"
 > & {
   id: string;
   exampleData: ExampleWidgetData;
@@ -86,6 +86,7 @@ function widget(
 ): TemplateWidgetDefinition {
   return {
     id,
+    authorName: TEMPLATE_AUTHOR_NAME,
     height: TEMPLATE_WIDGET_HEIGHT,
     openuiSource: openuiSourceForData(exampleData),
     prompt,
@@ -106,7 +107,7 @@ function note(
     id,
     title,
     body,
-    authorName: DEFAULT_NOTE_AUTHOR_NAME,
+    authorName: TEMPLATE_AUTHOR_NAME,
     color,
     height: TEMPLATE_NOTE_HEIGHT,
     width: TEMPLATE_NOTE_WIDTH,
