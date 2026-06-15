@@ -10,6 +10,7 @@ import {
   Moon,
   Plus,
   RotateCcw,
+  Sparkles,
   Sun,
   Trash2,
   X,
@@ -23,11 +24,14 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent,
+  type RefObject,
   type WheelEvent,
 } from "react";
 import { z } from "zod/v4";
+import { aiBoardPlanSchema, type AiBoardBrief, type AiBoardPlan } from "@/lib/ai-board-schemas";
 import {
   BLANK_BOARD_ID,
   BOARD_TEMPLATES,
@@ -78,8 +82,10 @@ const BOARD_STORAGE_KEY = "new-dashboard.canvas.boards.v1";
 const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
 const THEME_STORAGE_KEY = "new-dashboard.theme.v1";
 const BOARD_TAB_SCROLL_EPSILON = 1;
+const AI_BOARD_WIDGET_CONCURRENCY = 2;
 
 type ThemeMode = "light" | "dark";
+type AiBoardBriefField = keyof AiBoardBrief;
 
 type ElementSize = {
   height: number;
@@ -151,6 +157,17 @@ type PendingZoomScroll = {
   worldX: number;
   worldY: number;
 };
+
+function emptyAiBoardBrief(): AiBoardBrief {
+  return {
+    audience: "",
+    dataSources: "",
+    metrics: "",
+    notes: "",
+    purpose: "",
+    tasks: "",
+  };
+}
 
 function clampZoom(value: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
@@ -1185,11 +1202,157 @@ function WidgetFrame({
   );
 }
 
+function CreateWithAIBoardModal({
+  brief,
+  error,
+  isGenerating,
+  onClose,
+  onSubmit,
+  onUpdate,
+  purposeInputRef,
+}: {
+  brief: AiBoardBrief;
+  error: string | null;
+  isGenerating: boolean;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onUpdate: (field: AiBoardBriefField, value: string) => void;
+  purposeInputRef: RefObject<HTMLTextAreaElement | null>;
+}) {
+  const optionalFields: Array<{
+    field: AiBoardBriefField;
+    label: string;
+    placeholder: string;
+    rows: number;
+  }> = [
+    {
+      field: "audience",
+      label: "Team",
+      placeholder: "Leadership team, engineering leads, sales managers...",
+      rows: 2,
+    },
+    {
+      field: "tasks",
+      label: "Important tasks",
+      placeholder: "Launch readiness, budget review, renewal risks, hiring plan...",
+      rows: 2,
+    },
+    {
+      field: "metrics",
+      label: "Important metrics",
+      placeholder: "Runway, ARR, activation, support SLA, token spend...",
+      rows: 2,
+    },
+    {
+      field: "dataSources",
+      label: "Data sources",
+      placeholder: "Docs, GitHub, email, Linear, Stripe, spreadsheets...",
+      rows: 2,
+    },
+    {
+      field: "notes",
+      label: "Additional notes",
+      placeholder: "Any constraints, risks, owners, deadlines, or context...",
+      rows: 3,
+    },
+  ];
+
+  return (
+    <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
+      <form
+        className="flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-popover)]"
+        onSubmit={onSubmit}
+      >
+        <header className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] px-4 py-3">
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-primary)]">
+            <Sparkles className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-[var(--text-primary)]">Create with AI</h2>
+            <p className="mt-0.5 text-xs font-medium text-[var(--text-muted)]">
+              Sources are prompt context only; widgets use dummy preview data.
+            </p>
+          </div>
+          <button
+            aria-label="Close Create with AI"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isGenerating}
+            onClick={onClose}
+            title="Close"
+            type="button"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <label className="block">
+            <span className="text-xs font-semibold text-[var(--text-secondary)]">Purpose</span>
+            <textarea
+              ref={purposeInputRef}
+              aria-invalid={Boolean(error && !brief.purpose.trim())}
+              className="mt-1 min-h-24 w-full resize-none rounded-md border border-[var(--border-strong)] bg-[var(--surface)] px-3 py-2 text-sm font-medium leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--focus-border)]"
+              disabled={isGenerating}
+              maxLength={1600}
+              onChange={(event) => onUpdate("purpose", event.target.value)}
+              placeholder="Plan a board for a weekly operating review, launch room, account health review..."
+              value={brief.purpose}
+            />
+          </label>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {optionalFields.map((field) => (
+              <label className={field.field === "notes" ? "block sm:col-span-2" : "block"} key={field.field}>
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">{field.label}</span>
+                <textarea
+                  className="mt-1 w-full resize-none rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-medium leading-5 text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-faint)] focus:border-[var(--focus-border)]"
+                  disabled={isGenerating}
+                  maxLength={1600}
+                  onChange={(event) => onUpdate(field.field, event.target.value)}
+                  placeholder={field.placeholder}
+                  rows={field.rows}
+                  value={brief[field.field]}
+                />
+              </label>
+            ))}
+          </div>
+
+          {error ? (
+            <div className="mt-3 rounded-md border border-[var(--warning-border)] bg-[var(--warning-bg)] px-3 py-2 text-sm font-semibold text-[var(--warning-text)]">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--border)] px-4 py-3">
+          <button
+            className="h-9 rounded-md border border-transparent px-3 text-sm font-semibold text-[var(--text-muted)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={isGenerating}
+            onClick={onClose}
+            type="button"
+          >
+            Cancel
+          </button>
+          <button
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--primary-foreground)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:border-[var(--border-strong)] disabled:bg-[var(--disabled-bg)] disabled:text-[var(--disabled-text)]"
+            disabled={isGenerating}
+            type="submit"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {isGenerating ? "Creating..." : "Create whiteboard"}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
 export default function Home() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const boardTabsScrollRef = useRef<HTMLDivElement>(null);
   const commandInputRef = useRef<HTMLInputElement>(null);
   const boardNameInputRef = useRef<HTMLInputElement>(null);
+  const aiBoardPurposeInputRef = useRef<HTMLTextAreaElement>(null);
   const zoomRef = useRef(100);
   const cursorRef = useRef({
     inside: false,
@@ -1217,7 +1380,11 @@ export default function Home() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
   const [isCreatingBoardName, setIsCreatingBoardName] = useState(false);
+  const [isCreatingAiBoard, setIsCreatingAiBoard] = useState(false);
+  const [isGeneratingAiBoard, setIsGeneratingAiBoard] = useState(false);
   const [boardNameDraft, setBoardNameDraft] = useState("");
+  const [aiBoardBrief, setAiBoardBrief] = useState<AiBoardBrief>(() => emptyAiBoardBrief());
+  const [aiBoardError, setAiBoardError] = useState<string | null>(null);
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [hasHydratedTheme, setHasHydratedTheme] = useState(false);
@@ -1589,6 +1756,34 @@ export default function Home() {
     setBoardNameDraft("");
   }, []);
 
+  const openAiBoardCreate = useCallback(() => {
+    setIsCreatingAiBoard(true);
+    setIsCreatingBoardName(false);
+    setAiBoardError(null);
+    setCommand(null);
+    stopEditingNote();
+  }, [stopEditingNote]);
+
+  const closeAiBoardCreate = useCallback(() => {
+    if (isGeneratingAiBoard) {
+      return;
+    }
+
+    setIsCreatingAiBoard(false);
+    setAiBoardError(null);
+  }, [isGeneratingAiBoard]);
+
+  const updateAiBoardBrief = useCallback((field: AiBoardBriefField, value: string) => {
+    setAiBoardBrief((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+    if (field === "purpose") {
+      setAiBoardError(null);
+    }
+  }, []);
+
   const createNamedBlankBoard = useCallback(() => {
     const nextName = boardNameDraft.trim().slice(0, 48);
 
@@ -1956,6 +2151,20 @@ export default function Home() {
     };
   }, [isCreatingBoardName]);
 
+  useEffect(() => {
+    if (!isCreatingAiBoard) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      aiBoardPurposeInputRef.current?.focus();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [isCreatingAiBoard]);
+
   const setCanvasZoom = useCallback(
     (nextValue: number, anchor?: { x: number; y: number }) => {
       const nextZoom = clampZoom(nextValue);
@@ -2177,6 +2386,144 @@ export default function Home() {
       }
     },
     [handleStreamEvent, updateWidget],
+  );
+
+  const generateAiBoardWidgets = useCallback(
+    async (boardId: string, plannedWidgets: CanvasWidget[]) => {
+      let nextIndex = 0;
+      const workerCount = Math.min(AI_BOARD_WIDGET_CONCURRENCY, plannedWidgets.length);
+
+      await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+          while (nextIndex < plannedWidgets.length) {
+            const widget = plannedWidgets[nextIndex];
+            nextIndex += 1;
+            await generateWidget(boardId, widget.id, widget.prompt);
+          }
+        }),
+      );
+    },
+    [generateWidget],
+  );
+
+  const createAiBoardFromPlan = useCallback(
+    (plan: AiBoardPlan) => {
+      const now = Date.now();
+      const boardId = createBoardId();
+      const notes: CanvasNote[] = plan.notes.map((plannedNote, index) => {
+        const fittedSize = noteTextSize(plannedNote.title, plannedNote.body);
+        const width = Math.min(
+          MAX_NOTE_WIDTH,
+          Math.max(DEFAULT_NOTE_WIDTH, plannedNote.width || fittedSize.width, fittedSize.width),
+        );
+        const height = Math.min(
+          MAX_NOTE_HEIGHT,
+          Math.max(DEFAULT_NOTE_HEIGHT, plannedNote.height || fittedSize.height, fittedSize.height),
+        );
+        const position = clampCanvasRectPosition(plannedNote.x, plannedNote.y, width, height);
+
+        return {
+          body: plannedNote.body,
+          color: plannedNote.color,
+          createdAt: now + index,
+          height,
+          id: createNoteId(),
+          title: plannedNote.title,
+          updatedAt: now + index,
+          width,
+          ...position,
+        };
+      });
+      const widgets: CanvasWidget[] = plan.widgets.map((plannedWidget, index) => {
+        const width = Math.min(560, Math.max(MIN_WIDGET_WIDTH, Math.round(plannedWidget.width)));
+        const height = Math.min(420, Math.max(MIN_WIDGET_HEIGHT, Math.round(plannedWidget.height)));
+        const position = clampCanvasRectPosition(plannedWidget.x, plannedWidget.y, width, height);
+
+        return {
+          createdAt: now + index,
+          exampleData: null,
+          height,
+          id: createWidgetId(),
+          openuiSource: "",
+          prompt: plannedWidget.prompt,
+          status: "streaming",
+          updatedAt: now + index,
+          width,
+          ...position,
+        };
+      });
+      const board: CanvasBoard = {
+        createdAt: now,
+        id: boardId,
+        name: plan.boardName.trim().slice(0, 48) || "AI Whiteboard",
+        notes,
+        updatedAt: now,
+        widgets,
+      };
+
+      setBoards((current) => [...current, board]);
+      setActiveBoardId(board.id);
+      setIsCreatingAiBoard(false);
+      setAiBoardError(null);
+      setAiBoardBrief(emptyAiBoardBrief());
+      setCommand(null);
+      stopEditingNote();
+
+      requestAnimationFrame(() => focusBoard(board));
+      void generateAiBoardWidgets(board.id, widgets);
+    },
+    [focusBoard, generateAiBoardWidgets, stopEditingNote],
+  );
+
+  const createBoardWithAi = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+
+      const brief: AiBoardBrief = {
+        audience: aiBoardBrief.audience.trim(),
+        dataSources: aiBoardBrief.dataSources.trim(),
+        metrics: aiBoardBrief.metrics.trim(),
+        notes: aiBoardBrief.notes.trim(),
+        purpose: aiBoardBrief.purpose.trim(),
+        tasks: aiBoardBrief.tasks.trim(),
+      };
+
+      if (!brief.purpose) {
+        setAiBoardError("Describe what this whiteboard is for.");
+        aiBoardPurposeInputRef.current?.focus();
+        return;
+      }
+
+      setIsGeneratingAiBoard(true);
+      setAiBoardError(null);
+
+      try {
+        const response = await fetch("/api/generate-board", {
+          body: JSON.stringify(brief),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+        });
+        const body = (await response.json().catch(() => null)) as unknown;
+
+        if (!response.ok) {
+          const error =
+            body && typeof body === "object" && "error" in body && typeof body.error === "string"
+              ? body.error
+              : "Board generation failed.";
+
+          throw new Error(error);
+        }
+
+        createAiBoardFromPlan(aiBoardPlanSchema.parse(body));
+      } catch (error) {
+        setAiBoardError(error instanceof Error ? error.message : "Board generation failed.");
+      } finally {
+        setIsGeneratingAiBoard(false);
+      }
+    },
+    [aiBoardBrief, createAiBoardFromPlan],
   );
 
   const createWidgetFromCommand = useCallback(
@@ -2480,6 +2827,18 @@ export default function Home() {
           ) : null}
         </div>
 
+        {isCreatingAiBoard ? (
+          <CreateWithAIBoardModal
+            brief={aiBoardBrief}
+            error={aiBoardError}
+            isGenerating={isGeneratingAiBoard}
+            onClose={closeAiBoardCreate}
+            onSubmit={createBoardWithAi}
+            onUpdate={updateAiBoardBrief}
+            purposeInputRef={aiBoardPurposeInputRef}
+          />
+        ) : null}
+
         <div className="absolute left-8 right-36 top-4 z-50 flex items-center gap-2 rounded-md border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-2 py-1.5 text-sm font-medium shadow-sm backdrop-blur sm:left-14 sm:right-40 sm:top-6">
           <span className="flex shrink-0 items-baseline gap-1 text-sm">
             <span className="font-semibold text-[var(--text-primary)]">AI</span>
@@ -2652,15 +3011,26 @@ export default function Home() {
               </button>
             </form>
           ) : (
-            <button
-              aria-label="Create blank whiteboard"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded border border-transparent text-[var(--text-secondary)] transition hover:border-[var(--border)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
-              onClick={openBoardNameCreate}
-              title="Create blank whiteboard"
-              type="button"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                className="inline-flex h-8 items-center gap-1.5 rounded border border-[var(--border)] px-2.5 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
+                onClick={openAiBoardCreate}
+                title="Create with AI"
+                type="button"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">Create with AI</span>
+              </button>
+              <button
+                aria-label="Create blank whiteboard"
+                className="grid h-8 w-8 place-items-center rounded border border-transparent text-[var(--text-secondary)] transition hover:border-[var(--border)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
+                onClick={openBoardNameCreate}
+                title="Create blank whiteboard"
+                type="button"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
         </div>
 

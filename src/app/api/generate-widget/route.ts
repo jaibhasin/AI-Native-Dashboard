@@ -41,6 +41,18 @@ type ChatCompletionStream = AsyncIterable<{
   }>;
 }>;
 
+class WidgetGenerationError extends Error {
+  emittedUiDelta: boolean;
+  rateLimited: boolean;
+
+  constructor(error: unknown, emittedUiDelta: boolean) {
+    super(errorMessage(error));
+    this.name = "WidgetGenerationError";
+    this.emittedUiDelta = emittedUiDelta;
+    this.rateLimited = isRateLimitError(error);
+  }
+}
+
 function getOpenUIPrompt() {
   cachedOpenUIPrompt ??= readFileSync(OPENUI_PROMPT_PATH, "utf8");
 
@@ -88,7 +100,11 @@ function getApiKeys(provider: AIProvider) {
     return splitApiKeys(process.env.OPENAI_API_KEY);
   }
 
-  const keyPool = splitApiKeys(process.env.GROQ_API_KEYS);
+  const numberedKeys = Object.entries(process.env)
+    .filter(([name]) => /^GROQ_API_KEY_\d+$/.test(name))
+    .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
+    .flatMap(([, value]) => splitApiKeys(value));
+  const keyPool = [...splitApiKeys(process.env.GROQ_API_KEYS), ...numberedKeys];
 
   return keyPool.length > 0 ? keyPool : splitApiKeys(process.env.GROQ_API_KEY);
 }
@@ -111,6 +127,14 @@ function isRateLimitError(error: unknown) {
     message.includes("rate limit") ||
     message.includes("rate_limit")
   );
+}
+
+function wasRateLimited(error: unknown) {
+  return isRateLimitError(error) || asRecord(error).rateLimited === true;
+}
+
+function emittedUiDeltaBeforeError(error: unknown) {
+  return asRecord(error).emittedUiDelta === true;
 }
 
 function chooseGroqKey(apiKeys: string[]) {
@@ -1220,22 +1244,19 @@ async function generateWithClient(
   prompt: string,
   controller: ReadableStreamDefaultController,
 ) {
-  const exampleData = await createExampleData(client, provider, prompt);
   const streamState = { emittedUiDelta: false };
 
-  streamEvent(controller, {
-    type: "exampleData",
-    data: exampleData,
-  });
-
   try {
+    const exampleData = await createExampleData(client, provider, prompt);
+
+    streamEvent(controller, {
+      type: "exampleData",
+      data: exampleData,
+    });
+
     await streamOpenUI(client, provider, prompt, exampleData, controller, streamState);
   } catch (error) {
-    if (streamState.emittedUiDelta && isRateLimitError(error)) {
-      throw new Error(`${providerDisplayName(provider)} hit a rate limit while streaming. Retry the widget.`);
-    }
-
-    throw error;
+    throw new WidgetGenerationError(error, streamState.emittedUiDelta);
   }
 
   streamEvent(controller, {
@@ -1248,7 +1269,7 @@ async function generateWithGroqFailover(
   prompt: string,
   controller: ReadableStreamDefaultController,
 ) {
-  let lastRateLimitError: unknown = null;
+  let lastError: unknown = null;
 
   for (let attempt = 0; attempt < apiKeys.length; attempt += 1) {
     const selected = chooseGroqKey(apiKeys);
@@ -1263,21 +1284,28 @@ async function generateWithGroqFailover(
       await generateWithClient(client, "groq", prompt, controller);
       return;
     } catch (error) {
-      if (!isRateLimitError(error)) {
+      if (emittedUiDeltaBeforeError(error)) {
         throw error;
       }
 
-      lastRateLimitError = error;
-      coolDownGroqKey(selected.apiKey);
+      lastError = error;
+
+      if (wasRateLimited(error)) {
+        coolDownGroqKey(selected.apiKey);
+      }
 
       if (attempt < apiKeys.length - 1) {
-        console.warn(`${keyLabel(selected.index, apiKeys.length)} hit a rate limit; trying the next Groq key.`);
+        console.warn(`${keyLabel(selected.index, apiKeys.length)} failed before streaming UI; trying the next Groq key.`);
       }
     }
   }
 
-  if (lastRateLimitError) {
+  if (lastError && wasRateLimited(lastError)) {
     throw new Error("All configured Groq API keys are currently rate limited. Wait a minute, then retry.");
+  }
+
+  if (lastError) {
+    throw new Error(`All configured Groq API keys failed before streaming UI. Last error: ${errorMessage(lastError)}`);
   }
 
   throw new Error("All configured Groq API keys are cooling down. Wait a minute, then retry.");
