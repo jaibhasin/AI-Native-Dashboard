@@ -26,7 +26,6 @@ const AI_NOTE_GAP = 18;
 const AI_NOTE_TOP_GAP = 28;
 const AI_CANVAS_CENTER_X = 100000;
 const AI_CANVAS_CENTER_Y = 100000;
-const AI_LAYOUT_BOUND = 2400;
 const aiProviderSchema = z.enum(["openai", "groq"]);
 
 let groqKeyCursor = 0;
@@ -254,8 +253,7 @@ function gridPosition(index: number, count: number, width = AI_WIDGET_WIDTH, hei
   };
 }
 
-function notePosition(index: number, widgetCount: number) {
-  const noteCount = Math.min(3, Math.max(1, widgetCount));
+function notePosition(index: number, widgetCount: number, noteCount = Math.min(3, Math.max(1, widgetCount))) {
   const totalWidth = AI_NOTE_WIDTH * noteCount + AI_NOTE_GAP * (noteCount - 1);
   const columns = widgetCount <= 4 ? 2 : 3;
   const rows = Math.ceil(widgetCount / columns);
@@ -265,33 +263,6 @@ function notePosition(index: number, widgetCount: number) {
     x: AI_CANVAS_CENTER_X - totalWidth / 2 + index * (AI_NOTE_WIDTH + AI_NOTE_GAP),
     y: AI_CANVAS_CENTER_Y - totalWidgetHeight / 2 - AI_NOTE_HEIGHT - AI_NOTE_TOP_GAP,
   };
-}
-
-function rectsOverlap(left: AiBoardWidgetPlan, right: AiBoardWidgetPlan) {
-  const gap = 12;
-
-  return (
-    left.x < right.x + right.width + gap &&
-    left.x + left.width + gap > right.x &&
-    left.y < right.y + right.height + gap &&
-    left.y + left.height + gap > right.y
-  );
-}
-
-function isCenteredLayout(widgets: AiBoardWidgetPlan[]) {
-  return widgets.every(
-    (widget) =>
-      widget.x >= AI_CANVAS_CENTER_X - AI_LAYOUT_BOUND &&
-      widget.x <= AI_CANVAS_CENTER_X + AI_LAYOUT_BOUND &&
-      widget.y >= AI_CANVAS_CENTER_Y - AI_LAYOUT_BOUND &&
-      widget.y <= AI_CANVAS_CENTER_Y + AI_LAYOUT_BOUND,
-  );
-}
-
-function hasOverlaps(widgets: AiBoardWidgetPlan[]) {
-  return widgets.some((widget, index) =>
-    widgets.slice(index + 1).some((nextWidget) => rectsOverlap(widget, nextWidget)),
-  );
 }
 
 function normalizeWidgetPlan(value: unknown, index: number, count: number, brief: AiBoardBrief): AiBoardWidgetPlan {
@@ -311,13 +282,6 @@ function normalizeWidgetPlan(value: unknown, index: number, count: number, brief
     width,
     height,
   };
-}
-
-function applyFallbackGrid(widgets: AiBoardWidgetPlan[]) {
-  return widgets.map((widget, index) => ({
-    ...widget,
-    ...gridPosition(index, widgets.length, widget.width, widget.height),
-  }));
 }
 
 function normalizeNotePlan(value: unknown, index: number, widgetCount: number): AiBoardNotePlan {
@@ -341,6 +305,53 @@ function normalizeNotePlan(value: unknown, index: number, widgetCount: number): 
   };
 }
 
+function organizeLayout(widgets: AiBoardWidgetPlan[], notes: AiBoardNotePlan[]) {
+  const columns = widgets.length <= 4 ? 2 : 3;
+  const rows = Math.ceil(widgets.length / columns);
+  const columnWidth = Math.max(...widgets.map((widget) => widget.width), AI_WIDGET_WIDTH);
+  const rowHeights = Array.from({ length: rows }, (_, row) =>
+    Math.max(
+      ...widgets
+        .slice(row * columns, row * columns + columns)
+        .map((widget) => widget.height),
+      AI_WIDGET_HEIGHT,
+    ),
+  );
+  const totalWidth = columnWidth * columns + AI_WIDGET_GAP * (columns - 1);
+  const totalHeight = rowHeights.reduce((sum, height) => sum + height, 0) + AI_WIDGET_GAP * Math.max(0, rows - 1);
+  const left = AI_CANVAS_CENTER_X - totalWidth / 2;
+  const top = AI_CANVAS_CENTER_Y - totalHeight / 2;
+  const rowTopOffsets = rowHeights.map((_, row) =>
+    rowHeights.slice(0, row).reduce((sum, height) => sum + height, 0) + row * AI_WIDGET_GAP,
+  );
+  const positionedWidgets = widgets.map((widget, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+
+    return {
+      ...widget,
+      x: Math.round(left + column * (columnWidth + AI_WIDGET_GAP) + (columnWidth - widget.width) / 2),
+      y: Math.round(top + rowTopOffsets[row]),
+    };
+  });
+  const noteCount = notes.length;
+  const noteColumnWidth = Math.max(...notes.map((note) => note.width), AI_NOTE_WIDTH);
+  const noteHeight = Math.max(...notes.map((note) => note.height), AI_NOTE_HEIGHT);
+  const noteTotalWidth = noteColumnWidth * noteCount + AI_NOTE_GAP * Math.max(0, noteCount - 1);
+  const noteLeft = AI_CANVAS_CENTER_X - noteTotalWidth / 2;
+  const noteTop = top - noteHeight - AI_NOTE_TOP_GAP;
+  const positionedNotes = notes.map((note, index) => ({
+    ...note,
+    x: Math.round(noteLeft + index * (noteColumnWidth + AI_NOTE_GAP) + (noteColumnWidth - note.width) / 2),
+    y: Math.round(noteTop),
+  }));
+
+  return {
+    notes: positionedNotes,
+    widgets: positionedWidgets,
+  };
+}
+
 function normalizeBoardPlan(value: unknown, brief: AiBoardBrief): AiBoardPlan {
   const record = asRecord(value);
   const rawWidgets = asArray(record.widgets).slice(0, 8);
@@ -348,16 +359,16 @@ function normalizeBoardPlan(value: unknown, brief: AiBoardBrief): AiBoardPlan {
   const widgets = Array.from({ length: targetWidgetCount }, (_, index) =>
     normalizeWidgetPlan(rawWidgets[index], index, targetWidgetCount, brief),
   );
-  const positionedWidgets = !isCenteredLayout(widgets) || hasOverlaps(widgets) ? applyFallbackGrid(widgets) : widgets;
   const rawNotes = asArray(record.notes).slice(0, 3);
   const notes = rawNotes
-    .map((note, index) => normalizeNotePlan(note, index, positionedWidgets.length))
+    .map((note, index) => normalizeNotePlan(note, index, widgets.length))
     .filter((note) => note.title.trim() || note.body.trim());
+  const organizedLayout = organizeLayout(widgets, notes);
 
   return aiBoardPlanSchema.parse({
     boardName: asString(record.boardName || record.name || record.title, fallbackBoardName(brief)).slice(0, 48),
-    notes,
-    widgets: positionedWidgets,
+    notes: organizedLayout.notes,
+    widgets: organizedLayout.widgets,
   });
 }
 
