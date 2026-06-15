@@ -1,0 +1,62 @@
+import type { ExampleWidgetData } from "@/lib/dashboard-schemas";
+
+export function mockDataSystemPrompt() {
+  return [
+    "You generate realistic AI-native startup operating data for a dashboard widget.",
+    "The data is for UI prototyping only, not factual source data.",
+    "Return data that fits the user's dashboard request.",
+    "Assume the user is building a dashboard for a fast-growing AI startup unless they explicitly ask for another domain.",
+    "Use plausible startup metrics: ARR, MRR, burn, runway, CAC, LTV, activation, retention, churn, pipeline, conversion, usage, support, hiring, cash, product velocity, AI infra spend, token waste, retry cost, context length, eval pass rate, model mix, agent runs, and token efficiency.",
+    "Make vague requests feel like an AI company trying to tokenmaxx: show how the team is reducing wasted tokens, oversized prompts, failed runs, retries, and expensive model usage while growing useful AI output.",
+    "Prefer believable ranges and units for an early-to-growth-stage software startup; avoid round-number filler like 1000, 5000, or 10% unless the context makes it natural.",
+    "Avoid flat charts. Every timeSeries should show believable movement: ramps, seasonality, step changes, optimizations, or forecast changes. Do not repeat the same value across points unless the prompt explicitly asks for a constant baseline.",
+    "Make related values internally consistent: deltas should match the trend, runway should fit burn and cash, funnel counts should decrease at each stage, and percentages should stay in valid ranges.",
+    "Use realistic labels such as recent months, weeks, customer segments, acquisition channels, plans, roles, regions, product areas, agent workflows, model families, context tiers, or customer cohorts instead of generic labels like Item 1 or Series A.",
+    "When the request is vague, choose a credible B2B AI SaaS scenario and include enough specificity to make the widget feel real.",
+    "Do not use famous company names, real customer names, private facts, or claims that imply the data came from a real business.",
+    "Always set dataDisclosure to a concise sentence saying the values are AI-generated preview data.",
+    "Set recommendedVisualization to the best primary layout: metrics, line_chart, bar_chart, table, insights, form, or composite.",
+    "Use metrics for KPI, scorecard, current value, or snapshot requests.",
+    "Use line_chart or bar_chart for trend, forecast, comparison, graph, or chart requests.",
+    "Use table for table, list, breakdown, details, or by-segment requests.",
+    "Keep insights brief. Use them as primary content only when the user asks for analysis, recommendations, risks, anomalies, or opportunities.",
+    "Use form for requested forms, inputs, planners, or calculators.",
+    "Use composite only when the prompt clearly benefits from multiple complementary blocks.",
+    "For numeric trend requests, include both current metric values and a compact timeSeries whenever a recent trend is plausible.",
+    "Do not populate timeSeries just to force a chart when the user asks for a table, form, written analysis, or KPI snapshot.",
+    "For spend, runway, burn, MRR, cash, retention, conversion, usage, support, and pipeline trend requests, populate timeSeries unless the user explicitly asks for only a single number or KPI card.",
+    "For runway or runway-left requests, make timeSeries a forward-looking cash runway forecast: future month labels on the x-axis and cash remaining/money left on the y-axis.",
+    "For runway charts, do not chart monthly burn, spend, or money spent as the primary series; burn can appear only as a supporting metric card.",
+    "Use table data for explicit table, list, breakdown, by-segment, or detail requests.",
+    "Keep insights brief. Use them as primary content only when the user asks for analysis, recommendations, risks, anomalies, or opportunities.",
+    "Use empty arrays for sections that do not fit the request.",
+    "For charts, keep 4 to 8 points and 1 to 3 series.",
+    "For tables, keep 3 to 6 rows.",
+    "For forms, include formFields and keep unrelated data arrays empty unless a summary helps.",
+  ].join("\n");
+}
+
+export function openuiUserPrompt(prompt: string, exampleData: ExampleWidgetData) {
+  return [
+    "USER_PROMPT:",
+    prompt,
+    "",
+    "EXAMPLE_DATA:",
+    JSON.stringify(exampleData, null, 2),
+    "",
+    "Generate one compact OpenUI Lang widget from EXAMPLE_DATA.",
+    "Use only values present in EXAMPLE_DATA.",
+    "Choose the layout from USER_PROMPT and EXAMPLE_DATA.recommendedVisualization.",
+    "Use MetricGrid only for KPI, scorecard, current value, or snapshot requests, or as a supporting summary.",
+    "Use LineChart or BarChart for trend, forecast, comparison, graph, or chart requests.",
+    "Use DataTable as the primary block for table, list, breakdown, details, or by-segment requests.",
+    "Use InsightList as the primary block for analysis, why, recommendation, risk, anomaly, or opportunity requests.",
+    "Use FormPreview as the primary block for requested forms, inputs, planners, or calculators.",
+    "For composite requests, use two or three complementary blocks. Good stacks include MetricGrid plus DataTable, chart plus InsightList, MetricGrid plus chart, or DataTable plus InsightList.",
+    "For runway left requests, the chart must show future months and cash remaining/money left, not burn or spend history.",
+    "Do not put MetricGrid before every widget. Add it only when current metrics help answer the prompt.",
+    "Use one to three blocks. Avoid repeating the same MetricGrid plus chart stack across unrelated prompts.",
+    "Avoid text-heavy layouts. Keep titles, subtitles, labels, and disclosure short.",
+    "Return only OpenUI Lang.",
+  ].join("\n");
+}

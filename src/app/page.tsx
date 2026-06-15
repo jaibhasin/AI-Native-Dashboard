@@ -38,22 +38,25 @@ import {
   CANVAS_WIDTH,
   DEFAULT_NOTE_HEIGHT,
   DEFAULT_NOTE_WIDTH,
-  DEFAULT_WIDGET_HEIGHT,
-  DEFAULT_WIDGET_WIDTH,
   GRID_SIZE,
   MAJOR_GRID_SIZE,
-  MAX_NOTE_HEIGHT,
   MAX_NOTE_WIDTH,
   MAX_ZOOM,
   MIN_WIDGET_HEIGHT,
   MIN_WIDGET_WIDTH,
   MIN_ZOOM,
-  noteColorOptions,
   THEME_STORAGE_KEY,
   TOP_CANVAS_SAFE_INSET,
   ZOOM_SENSITIVITY,
   ZOOM_STEP_FACTOR,
 } from "@/app/_lib/whiteboard/constants";
+import {
+  createAiBoardArtifacts,
+  createCommandWidget,
+  nextNoteColor,
+  readWidgetStream,
+  trimAiBoardBrief,
+} from "@/app/_lib/whiteboard/generation";
 import {
   boardAccent,
   boardBounds,
@@ -64,7 +67,6 @@ import {
   contentFitKey,
   createBoardId,
   createNoteId,
-  createWidgetId,
   fitZoomForBoard,
   fittedWidgetHeight,
   hasClosestElement,
@@ -782,7 +784,7 @@ export default function Home() {
     const note: CanvasNote = {
       authorName: DEFAULT_NOTE_AUTHOR_NAME,
       body: "",
-      color: noteColorOptions[currentNotes.length % noteColorOptions.length],
+      color: nextNoteColor(currentNotes.length),
       createdAt: now,
       height: noteSize.height,
       id,
@@ -1095,42 +1097,11 @@ export default function Home() {
           method: "POST",
         });
 
-        if (!response.ok || !response.body) {
-          throw new Error("The widget generation API did not return a stream.");
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-
-          buffer += decoder.decode(value, { stream: !done });
-
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.trim()) {
-              continue;
-            }
-
-            const event = JSON.parse(line) as WidgetStreamEvent;
-            sawTerminalEvent = event.type === "done" || event.type === "error" || sawTerminalEvent;
-            handleStreamEvent(boardId, id, event);
-          }
-
-          if (done) {
-            break;
-          }
-        }
-
-        if (buffer.trim()) {
-          const event = JSON.parse(buffer) as WidgetStreamEvent;
+        await readWidgetStream(response, (parsedEvent) => {
+          const event = parsedEvent as WidgetStreamEvent;
           sawTerminalEvent = event.type === "done" || event.type === "error" || sawTerminalEvent;
           handleStreamEvent(boardId, id, event);
-        }
+        });
 
         if (!sawTerminalEvent) {
           throw new Error("Generation stopped before the widget finished.");
@@ -1167,60 +1138,7 @@ export default function Home() {
 
   const createAiBoardFromPlan = useCallback(
     (plan: AiBoardPlan) => {
-      const now = Date.now();
-      const boardId = createBoardId();
-      const notes: CanvasNote[] = plan.notes.map((plannedNote, index) => {
-        const fittedSize = noteTextSize(plannedNote.title, plannedNote.body);
-        const width = Math.min(
-          MAX_NOTE_WIDTH,
-          Math.max(DEFAULT_NOTE_WIDTH, plannedNote.width || fittedSize.width, fittedSize.width),
-        );
-        const height = Math.min(
-          MAX_NOTE_HEIGHT,
-          Math.max(DEFAULT_NOTE_HEIGHT, plannedNote.height || fittedSize.height, fittedSize.height),
-        );
-        const position = clampCanvasRectPosition(plannedNote.x, plannedNote.y, width, height);
-
-        return {
-          authorName: DEFAULT_NOTE_AUTHOR_NAME,
-          body: plannedNote.body,
-          color: plannedNote.color,
-          createdAt: now + index,
-          height,
-          id: createNoteId(),
-          title: plannedNote.title,
-          updatedAt: now + index,
-          width,
-          ...position,
-        };
-      });
-      const widgets: CanvasWidget[] = plan.widgets.map((plannedWidget, index) => {
-        const width = Math.min(560, Math.max(MIN_WIDGET_WIDTH, Math.round(plannedWidget.width)));
-        const height = Math.min(420, Math.max(MIN_WIDGET_HEIGHT, Math.round(plannedWidget.height)));
-        const position = clampCanvasRectPosition(plannedWidget.x, plannedWidget.y, width, height);
-
-        return {
-          authorName: DEFAULT_NOTE_AUTHOR_NAME,
-          createdAt: now + index,
-          exampleData: null,
-          height,
-          id: createWidgetId(),
-          openuiSource: "",
-          prompt: plannedWidget.prompt,
-          status: "streaming",
-          updatedAt: now + index,
-          width,
-          ...position,
-        };
-      });
-      const board: CanvasBoard = {
-        createdAt: now,
-        id: boardId,
-        name: plan.boardName.trim().slice(0, 48) || "AI Whiteboard",
-        notes,
-        updatedAt: now,
-        widgets,
-      };
+      const { board, widgets } = createAiBoardArtifacts(plan);
 
       setBoards((current) => [...current, board]);
       setActiveBoardId(board.id);
@@ -1240,14 +1158,7 @@ export default function Home() {
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
 
-      const brief: AiBoardBrief = {
-        audience: aiBoardBrief.audience.trim(),
-        dataSources: aiBoardBrief.dataSources.trim(),
-        metrics: aiBoardBrief.metrics.trim(),
-        notes: aiBoardBrief.notes.trim(),
-        purpose: aiBoardBrief.purpose.trim(),
-        tasks: aiBoardBrief.tasks.trim(),
-      };
+      const brief = trimAiBoardBrief(aiBoardBrief);
 
       if (!brief.purpose) {
         setAiBoardError("Describe what this whiteboard is for.");
@@ -1296,28 +1207,7 @@ export default function Home() {
         return;
       }
 
-      const now = Date.now();
-      const id = createWidgetId();
-      const position = clampCanvasRectPosition(
-        nextCommand.x,
-        nextCommand.y,
-        DEFAULT_WIDGET_WIDTH,
-        DEFAULT_WIDGET_HEIGHT,
-      );
-      const widget: CanvasWidget = {
-        authorName: DEFAULT_NOTE_AUTHOR_NAME,
-        createdAt: now,
-        exampleData: null,
-        height: DEFAULT_WIDGET_HEIGHT,
-        id,
-        openuiSource: "",
-        prompt,
-        status: "streaming",
-        updatedAt: now,
-        width: DEFAULT_WIDGET_WIDTH,
-        x: position.x,
-        y: position.y,
-      };
+      const { id, widget } = createCommandWidget(nextCommand);
 
       addWidgetToBoard(boardId, widget);
       setCommand(null);
