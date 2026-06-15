@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 const themeScript = `
 (() => {
   try {
-    const storedTheme = window.localStorage.getItem("new-dashboard.theme.v1");
+    const storedTheme = window.localStorage.getItem("new-dashboard.theme.preference.v1");
     const theme = storedTheme === "dark" || storedTheme === "light"
       ? storedTheme
       : window.matchMedia("(prefers-color-scheme: dark)").matches

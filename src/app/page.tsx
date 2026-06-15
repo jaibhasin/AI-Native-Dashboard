@@ -79,7 +79,7 @@ const MIN_WIDGET_HEIGHT = 200;
 const LEGACY_WIDGET_STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
 const BOARD_STORAGE_KEY = "new-dashboard.canvas.boards.v1";
 const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
-const THEME_STORAGE_KEY = "new-dashboard.theme.v1";
+const THEME_STORAGE_KEY = "new-dashboard.theme.preference.v1";
 const BOARD_TAB_SCROLL_EPSILON = 1;
 
 type ThemeMode = "light" | "dark";
@@ -470,18 +470,40 @@ function storedActiveBoardId(boards: CanvasBoard[]) {
     : boards[0]?.id ?? BLANK_BOARD_ID;
 }
 
-function preferredTheme(): ThemeMode {
+function storedTheme(): ThemeMode | null {
   if (typeof window === "undefined") {
-    return "light";
+    return null;
   }
 
-  const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  let storedTheme: string | null = null;
+
+  try {
+    storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 
   if (storedTheme === "dark" || storedTheme === "light") {
     return storedTheme;
   }
 
+  return null;
+}
+
+function systemTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function persistTheme(theme: ThemeMode) {
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Keep the visible theme change even when storage is unavailable.
+  }
 }
 
 function streamErrorMessage(error: unknown) {
@@ -1257,6 +1279,7 @@ export default function Home() {
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>("light");
   const [hasHydratedTheme, setHasHydratedTheme] = useState(false);
+  const [hasStoredTheme, setHasStoredTheme] = useState(false);
   const [boardTabsScrollState, setBoardTabsScrollState] = useState({
     canScrollLeft: false,
     canScrollRight: false,
@@ -1728,7 +1751,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    setTheme(preferredTheme());
+    const initialStoredTheme = storedTheme();
+
+    setHasStoredTheme(Boolean(initialStoredTheme));
+    setTheme(initialStoredTheme ?? systemTheme());
     setHasHydratedTheme(true);
   }, []);
 
@@ -1739,8 +1765,20 @@ export default function Home() {
 
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [hasHydratedTheme, theme]);
+
+  useEffect(() => {
+    if (!hasHydratedTheme || hasStoredTheme || typeof window === "undefined") {
+      return;
+    }
+
+    const themeMedia = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleThemeChange = () => setTheme(themeMedia.matches ? "dark" : "light");
+
+    themeMedia.addEventListener("change", handleThemeChange);
+
+    return () => themeMedia.removeEventListener("change", handleThemeChange);
+  }, [hasHydratedTheme, hasStoredTheme]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -2711,7 +2749,11 @@ export default function Home() {
           <button
             aria-label={`Switch to ${nextTheme} mode`}
             className="grid h-7 w-7 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
-            onClick={() => setTheme(nextTheme)}
+            onClick={() => {
+              setHasStoredTheme(true);
+              setTheme(nextTheme);
+              persistTheme(nextTheme);
+            }}
             title={`Switch to ${nextTheme} mode`}
             type="button"
           >
