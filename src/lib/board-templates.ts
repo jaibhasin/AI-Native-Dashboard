@@ -10,6 +10,7 @@ import type {
   MetricData,
   TableData,
 } from "@/lib/dashboard-schemas";
+import { DEFAULT_NOTE_AUTHOR_NAME } from "@/lib/dashboard-schemas";
 
 export const BLANK_BOARD_ID = "blank";
 export const BOARD_TEMPLATE_VERSION = 4;
@@ -36,6 +37,7 @@ type TemplateWidgetDefinition = Pick<
 };
 type TemplateNoteDefinition = Pick<CanvasNote, "body" | "color" | "height" | "title" | "width" | "x" | "y"> & {
   id: string;
+  authorName: string;
 };
 
 export type BoardTemplate = {
@@ -104,6 +106,7 @@ function note(
     id,
     title,
     body,
+    authorName: DEFAULT_NOTE_AUTHOR_NAME,
     color,
     height: TEMPLATE_NOTE_HEIGHT,
     width: TEMPLATE_NOTE_WIDTH,
