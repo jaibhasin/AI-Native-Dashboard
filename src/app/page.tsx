@@ -66,12 +66,12 @@ const MAX_NOTE_WIDTH = 440;
 const MAX_NOTE_HEIGHT = 320;
 const NOTE_HORIZONTAL_CHROME = 36;
 const NOTE_VERTICAL_CHROME = 58;
-const NOTE_AUTHOR_FOOTER_HEIGHT = 18;
+const NOTE_AUTHOR_LABEL_HEIGHT = 18;
 const NOTE_BODY_CHAR_WIDTH = 7;
 const NOTE_BODY_LINE_HEIGHT = 20;
 const TOP_CANVAS_SAFE_INSET = 180;
 const WIDGET_HEADER_HEIGHT = 44;
-const WIDGET_AUTHOR_FOOTER_HEIGHT = 18;
+const WIDGET_AUTHOR_LABEL_HEIGHT = 18;
 const OPENUI_STAGE_WIDTH = DEFAULT_WIDGET_WIDTH;
 const OPENUI_STAGE_MIN_HEIGHT = DEFAULT_WIDGET_HEIGHT;
 const MIN_WIDGET_WIDTH = 280;
@@ -328,7 +328,7 @@ function fittedWidgetHeight(widget: CanvasWidget, stageSize: ElementSize) {
   }
 
   const targetBodyHeight = (widget.width * stageSize.height) / stageSize.width;
-  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight + WIDGET_AUTHOR_FOOTER_HEIGHT);
+  const targetWidgetHeight = Math.round(WIDGET_HEADER_HEIGHT + targetBodyHeight + WIDGET_AUTHOR_LABEL_HEIGHT);
 
   return Math.min(CANVAS_HEIGHT - widget.y, Math.max(MIN_WIDGET_HEIGHT, targetWidgetHeight));
 }
@@ -785,7 +785,7 @@ function NoteFrame({
   const displayBody = note.body.trim() || "Start typing...";
   const displayAuthor = note.authorName.trim() || DEFAULT_NOTE_AUTHOR_NAME;
   const isEmpty = !note.title.trim() && !note.body.trim();
-  const noteSurfaceHeight = Math.max(0, note.height - NOTE_AUTHOR_FOOTER_HEIGHT);
+  const noteSurfaceHeight = Math.max(0, note.height - NOTE_AUTHOR_LABEL_HEIGHT);
 
   useEffect(() => {
     if (isManuallySized) {
@@ -899,6 +899,9 @@ function NoteFrame({
           width: note.width,
         }}
       >
+        <div className="mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)]">
+          {displayAuthor}
+        </div>
         <article
           className="group relative flex overflow-visible rounded-[5px] border text-[var(--text-primary)]"
           style={{
@@ -1050,9 +1053,6 @@ function NoteFrame({
           <Maximize2 className="h-3 w-3" />
         </button>
         </article>
-        <div className="mt-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)]">
-          {displayAuthor}
-        </div>
       </div>
     </div>
   );
@@ -1079,7 +1079,7 @@ function WidgetFrame({
 }) {
   const title = widget.exampleData?.title || widget.prompt;
   const displayAuthor = widget.authorName.trim() || DEFAULT_NOTE_AUTHOR_NAME;
-  const widgetSurfaceHeight = Math.max(MIN_WIDGET_HEIGHT - WIDGET_AUTHOR_FOOTER_HEIGHT, widget.height - WIDGET_AUTHOR_FOOTER_HEIGHT);
+  const widgetSurfaceHeight = Math.max(MIN_WIDGET_HEIGHT - WIDGET_AUTHOR_LABEL_HEIGHT, widget.height - WIDGET_AUTHOR_LABEL_HEIGHT);
   const statusLabel =
     widget.status === "streaming" ? "Generating" : widget.status === "error" ? "Error" : "Preview";
 
@@ -1108,6 +1108,9 @@ function WidgetFrame({
           width: widget.width,
         }}
       >
+        <div className="mb-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)]">
+          {displayAuthor}
+        </div>
       <article
         className="group relative flex overflow-hidden rounded-md border bg-[var(--panel)]"
         style={{
@@ -1206,9 +1209,6 @@ function WidgetFrame({
           </button>
         </div>
       </article>
-        <div className="mt-1 truncate px-1 text-[10px] font-medium leading-3 text-[var(--text-muted)]">
-          {displayAuthor}
-        </div>
       </div>
     </div>
   );
