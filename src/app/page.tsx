@@ -1085,8 +1085,7 @@ function WidgetFrame({
   const title = widget.exampleData?.title || widget.prompt;
   const displayAuthor = widget.authorName.trim() || DEFAULT_NOTE_AUTHOR_NAME;
   const widgetSurfaceHeight = Math.max(MIN_WIDGET_HEIGHT - WIDGET_AUTHOR_LABEL_HEIGHT, widget.height - WIDGET_AUTHOR_LABEL_HEIGHT);
-  const statusLabel =
-    widget.status === "streaming" ? "Generating" : widget.status === "error" ? "Error" : "Preview";
+  const statusLabel = widget.status === "streaming" ? "Generating" : widget.status === "error" ? "Error" : null;
 
   return (
     <div
@@ -1153,9 +1152,11 @@ function WidgetFrame({
               <div className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</div>
               <div className="truncate text-[11px] text-[var(--text-muted)]">{widget.prompt}</div>
             </div>
-            <span className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
-              {statusLabel}
-            </span>
+            {statusLabel ? (
+              <span className="rounded border border-[var(--border)] bg-[var(--surface-muted)] px-2 py-1 text-[11px] font-medium text-[var(--text-secondary)]">
+                {statusLabel}
+              </span>
+            ) : null}
             {widget.status === "error" ? (
               <button
                 aria-label="Retry widget"
