@@ -247,7 +247,7 @@ export function NoteFrame({
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 p-1.5">
+            <div className="min-h-0 flex-1 overflow-hidden p-1.5">
               {isEditing ? (
                 <div className="flex h-full flex-col gap-2">
                   <textarea
@@ -266,7 +266,7 @@ export function NoteFrame({
                 </div>
               ) : (
                 <button
-                  className={`block h-full w-full rounded px-1 py-0.5 text-left text-[12px] font-medium leading-5 transition hover:bg-white/45 ${
+                  className={`block h-full w-full overflow-hidden rounded px-1 py-0.5 text-left text-[12px] font-medium leading-5 transition hover:bg-white/45 ${
                     isEmpty ? "text-[var(--text-muted)]" : "text-[var(--text-secondary)]"
                   }`}
                   data-note-control

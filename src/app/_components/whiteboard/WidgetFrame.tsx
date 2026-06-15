@@ -255,7 +255,6 @@ export function WidgetFrame({
           className="group relative flex overflow-hidden rounded-md border bg-[var(--panel)]"
           style={{
             borderColor: "var(--border-medium)",
-            boxShadow: "var(--shadow-widget)",
             height: widgetSurfaceHeight,
             width: widget.width,
           }}
