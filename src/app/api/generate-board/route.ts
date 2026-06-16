@@ -9,6 +9,7 @@ import {
   type AiBoardPlan,
   type AiBoardWidgetPlan,
 } from "@/lib/ai-board-schemas";
+import { fallbackAiBoardPlan } from "@/lib/ai-board-fallback";
 import type { CanvasNoteColor } from "@/lib/dashboard-schemas";
 
 export const runtime = "nodejs";
@@ -178,6 +179,43 @@ function errorMessage(error: unknown) {
   }
 
   return "Unexpected board generation error.";
+}
+
+function parseJsonObject(content: string) {
+  const trimmedContent = content.trim();
+  const unfencedContent = trimmedContent
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  try {
+    return JSON.parse(unfencedContent);
+  } catch (error) {
+    const start = unfencedContent.indexOf("{");
+    const end = unfencedContent.lastIndexOf("}");
+
+    if (start === -1 || end <= start) {
+      throw error;
+    }
+
+    return JSON.parse(unfencedContent.slice(start, end + 1));
+  }
+}
+
+function modelTuningParams(provider: AIProvider) {
+  return provider === "openai" ? { reasoning_effort: "low" } : { temperature: 0.2 };
+}
+
+function fallbackBoardResponse(brief: AiBoardBrief, reason: string, error?: unknown) {
+  if (error) {
+    console.warn(`AI board planner failed; using fallback plan (${reason}).`, error);
+  }
+
+  return Response.json(fallbackAiBoardPlan(brief), {
+    headers: {
+      "X-AI-Board-Fallback": reason,
+    },
+  });
 }
 
 function fallbackBoardName(brief: AiBoardBrief) {
@@ -406,7 +444,7 @@ function parseBoardPlan(content: string | null | undefined, provider: AIProvider
     throw new Error(`${providerDisplayName(provider)} returned no board plan.`);
   }
 
-  return normalizeBoardPlan(JSON.parse(content), brief);
+  return normalizeBoardPlan(parseJsonObject(content), brief);
 }
 
 async function createStrictBoardPlan(client: ModelClient, provider: AIProvider, brief: AiBoardBrief) {
@@ -430,8 +468,7 @@ async function createStrictBoardPlan(client: ModelClient, provider: AIProvider, 
         schema: toJSONSchema(aiBoardPlanSchema),
       },
     },
-    reasoning_effort: "low",
-    ...(provider === "groq" ? { temperature: 0.2 } : {}),
+    ...modelTuningParams(provider),
   })) as ChatCompletionResult;
 
   return parseBoardPlan(completion.choices?.[0]?.message?.content, provider, brief);
@@ -457,8 +494,7 @@ async function createJsonObjectBoardPlan(client: ModelClient, provider: AIProvid
     response_format: {
       type: "json_object",
     },
-    reasoning_effort: "low",
-    ...(provider === "groq" ? { temperature: 0.2 } : {}),
+    ...modelTuningParams(provider),
   })) as ChatCompletionResult;
 
   return parseBoardPlan(completion.choices?.[0]?.message?.content, provider, brief);
@@ -509,18 +545,25 @@ async function createBoardPlanWithGroqFailover(apiKeys: string[], brief: AiBoard
 }
 
 export async function POST(request: Request) {
+  let brief: AiBoardBrief;
+
   try {
-    const brief = aiBoardBriefSchema.parse(await request.json());
+    brief = aiBoardBriefSchema.parse(await request.json());
+  } catch (error) {
+    return Response.json(
+      {
+        error: error instanceof ZodError ? "Describe what this whiteboard is for." : "The request body was not valid JSON.",
+      },
+      { status: 400 },
+    );
+  }
+
+  try {
     const provider = resolveProvider(process.env.AI_PROVIDER);
     const apiKeys = getApiKeys(provider);
 
     if (apiKeys.length === 0) {
-      return Response.json(
-        {
-          error: `Missing ${provider === "openai" ? "OPENAI_API_KEY" : "GROQ_API_KEY or GROQ_API_KEYS"}. Add it to your environment and retry.`,
-        },
-        { status: 500 },
-      );
+      return fallbackBoardResponse(brief, "missing-api-key");
     }
 
     const plan =
@@ -530,13 +573,6 @@ export async function POST(request: Request) {
 
     return Response.json(plan);
   } catch (error) {
-    const status = error instanceof ZodError ? 400 : 500;
-
-    return Response.json(
-      {
-        error: errorMessage(error),
-      },
-      { status },
-    );
+    return fallbackBoardResponse(brief, "planner-error", error);
   }
 }
