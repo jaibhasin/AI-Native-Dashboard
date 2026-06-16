@@ -22,16 +22,17 @@ export function CreateWithAIBoardModal({
   onUpdate: (field: AiBoardBriefField, value: string) => void;
   purposeInputRef: RefObject<HTMLTextAreaElement | null>;
 }) {
+  const canSubmit = Boolean(brief.purpose.trim()) && !isGenerating;
   const handleFormKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLFormElement>) => {
-      if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey) || isGenerating) {
+      if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey) || !canSubmit) {
         return;
       }
 
       event.preventDefault();
       event.currentTarget.requestSubmit();
     },
-    [isGenerating],
+    [canSubmit],
   );
   const optionalFields: Array<{
     field: AiBoardBriefField;
@@ -74,6 +75,7 @@ export function CreateWithAIBoardModal({
   return (
     <div className="absolute inset-0 z-[80] flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm">
       <form
+        aria-busy={isGenerating}
         className="flex max-h-[calc(100vh-3rem)] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-popover)]"
         onKeyDown={handleFormKeyDown}
         onSubmit={onSubmit}
@@ -137,25 +139,38 @@ export function CreateWithAIBoardModal({
               {error}
             </div>
           ) : null}
+          {isGenerating ? (
+            <div
+              className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm font-semibold text-[var(--text-secondary)]"
+              role="status"
+            >
+              Designing the board. Widgets will fill in after it opens.
+            </div>
+          ) : null}
         </div>
 
-        <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--border)] px-4 py-3">
-          <button
-            className="h-9 rounded-md border border-transparent px-3 text-sm font-semibold text-[var(--text-muted)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isGenerating}
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--primary-foreground)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:border-[var(--border-strong)] disabled:bg-[var(--disabled-bg)] disabled:text-[var(--disabled-text)]"
-            disabled={isGenerating}
-            type="submit"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            {isGenerating ? "Creating..." : "Create whiteboard"}
-          </button>
+        <footer className="flex shrink-0 flex-col gap-2 border-t border-[var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs font-medium text-[var(--text-muted)]">
+            The board opens first; widget generation continues in the background.
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              className="h-9 rounded-md border border-transparent px-3 text-sm font-semibold text-[var(--text-muted)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={isGenerating}
+              onClick={onClose}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--primary-foreground)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:border-[var(--border-strong)] disabled:bg-[var(--disabled-bg)] disabled:text-[var(--disabled-text)]"
+              disabled={!canSubmit}
+              type="submit"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {isGenerating ? "Designing..." : "Create whiteboard"}
+            </button>
+          </div>
         </footer>
       </form>
     </div>

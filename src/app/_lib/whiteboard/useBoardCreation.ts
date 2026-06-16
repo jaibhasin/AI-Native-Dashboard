@@ -10,6 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import { aiBoardPlanSchema, type AiBoardBrief, type AiBoardPlan } from "@/lib/ai-board-schemas";
+import { fallbackAiBoardPlan } from "@/lib/ai-board-fallback";
 import { BLANK_BOARD_ID } from "@/lib/board-templates";
 import type { CanvasBoard, CanvasWidget } from "@/lib/dashboard-schemas";
 import { createAiBoardArtifacts, trimAiBoardBrief } from "@/app/_lib/whiteboard/generation";
@@ -217,9 +218,18 @@ export function useBoardCreation({
           throw new Error(error);
         }
 
-        createAiBoardFromPlan(aiBoardPlanSchema.parse(body));
+        const parsedPlan = aiBoardPlanSchema.safeParse(body);
+
+        if (parsedPlan.success) {
+          createAiBoardFromPlan(parsedPlan.data);
+          return;
+        }
+
+        console.warn("AI board API returned an unusable plan; using fallback plan.", parsedPlan.error);
+        createAiBoardFromPlan(fallbackAiBoardPlan(brief));
       } catch (error) {
-        setAiBoardError(error instanceof Error ? error.message : "Board generation failed.");
+        console.warn("AI board planning failed; using fallback plan.", error);
+        createAiBoardFromPlan(fallbackAiBoardPlan(brief));
       } finally {
         setIsGeneratingAiBoard(false);
       }
