@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type SetStateAction } from "react";
 import { THEME_STORAGE_KEY } from "@/app/_lib/whiteboard/constants";
-import { preferredTheme } from "@/app/_lib/whiteboard/theme";
+import { preferredTheme, storedThemePreference } from "@/app/_lib/whiteboard/theme";
 import type { ThemeMode } from "@/app/_lib/whiteboard/types";
 
 export function useThemeMode() {
@@ -25,8 +25,36 @@ export function useThemeMode() {
 
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [hasHydratedTheme, theme]);
 
-  return [theme, setTheme] as const;
+  useEffect(() => {
+    if (!hasHydratedTheme || storedThemePreference()) {
+      return;
+    }
+
+    const themeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleSystemThemeChange = (event: MediaQueryListEvent) => {
+      if (storedThemePreference()) {
+        return;
+      }
+
+      setTheme(event.matches ? "dark" : "light");
+    };
+
+    themeQuery.addEventListener("change", handleSystemThemeChange);
+
+    return () => themeQuery.removeEventListener("change", handleSystemThemeChange);
+  }, [hasHydratedTheme]);
+
+  const setThemePreference = useCallback((themeAction: SetStateAction<ThemeMode>) => {
+    setTheme((currentTheme) => {
+      const nextTheme = typeof themeAction === "function" ? themeAction(currentTheme) : themeAction;
+
+      window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+
+      return nextTheme;
+    });
+  }, []);
+
+  return [theme, setThemePreference] as const;
 }

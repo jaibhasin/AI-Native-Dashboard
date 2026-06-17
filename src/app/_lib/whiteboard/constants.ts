@@ -33,7 +33,7 @@ export const MIN_WIDGET_HEIGHT = 200;
 export const LEGACY_WIDGET_STORAGE_KEY = "new-dashboard.canvas.widgets.v1";
 export const BOARD_STORAGE_KEY = "new-dashboard.canvas.boards.v1";
 export const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
-export const THEME_STORAGE_KEY = "new-dashboard.theme.v1";
+export const THEME_STORAGE_KEY = "new-dashboard.theme.preference.v1";
 export const BOARD_TAB_SCROLL_EPSILON = 1;
 export const AI_BOARD_WIDGET_CONCURRENCY = 2;
 

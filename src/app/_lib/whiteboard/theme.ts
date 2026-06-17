@@ -1,9 +1,9 @@
 import { THEME_STORAGE_KEY } from "./constants";
 import type { ThemeMode } from "./types";
 
-export function preferredTheme(): ThemeMode {
+export function storedThemePreference(): ThemeMode | null {
   if (typeof window === "undefined") {
-    return "light";
+    return null;
   }
 
   const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -12,5 +12,17 @@ export function preferredTheme(): ThemeMode {
     return storedTheme;
   }
 
+  return null;
+}
+
+export function systemTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "light";
+  }
+
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+export function preferredTheme(): ThemeMode {
+  return storedThemePreference() ?? systemTheme();
 }
