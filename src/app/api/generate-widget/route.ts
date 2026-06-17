@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { exampleWidgetDataSchema, type ExampleWidgetData } from "@/lib/dashboard-schemas";
 import type { WidgetStreamEvent } from "@/lib/widget-stream";
 import { createExampleData } from "./example-data";
 import { openuiUserPrompt } from "./prompts";
@@ -95,11 +96,12 @@ async function generateWithClient(
   provider: "openai" | "groq",
   prompt: string,
   controller: ReadableStreamDefaultController,
+  providedExampleData?: ExampleWidgetData | null,
 ) {
   const streamState = { emittedUiDelta: false };
 
   try {
-    const exampleData = await createExampleData(client, provider, prompt);
+    const exampleData = providedExampleData ?? await createExampleData(client, provider, prompt);
 
     streamEvent(controller, {
       type: "exampleData",
@@ -120,6 +122,7 @@ async function generateWithGroqFailover(
   apiKeys: string[],
   prompt: string,
   controller: ReadableStreamDefaultController,
+  providedExampleData?: ExampleWidgetData | null,
 ) {
   let lastError: unknown = null;
 
@@ -133,7 +136,7 @@ async function generateWithGroqFailover(
     const client = createModelClient("groq", selected.apiKey);
 
     try {
-      await generateWithClient(client, "groq", prompt, controller);
+      await generateWithClient(client, "groq", prompt, controller, providedExampleData);
       return;
     } catch (error) {
       if (emittedUiDeltaBeforeError(error)) {
@@ -167,7 +170,7 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const body = (await request.json()) as { prompt?: unknown };
+        const body = (await request.json()) as { exampleData?: unknown; prompt?: unknown };
         const provider = resolveProvider(process.env.AI_PROVIDER);
         const apiKeys = getApiKeys(provider);
 
@@ -180,6 +183,8 @@ export async function POST(request: Request) {
         }
 
         const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+        const parsedExampleData = exampleWidgetDataSchema.safeParse(body.exampleData);
+        const exampleData = parsedExampleData.success ? parsedExampleData.data : null;
 
         if (!prompt) {
           streamEvent(controller, {
@@ -190,9 +195,9 @@ export async function POST(request: Request) {
         }
 
         if (provider === "groq") {
-          await generateWithGroqFailover(apiKeys, prompt, controller);
+          await generateWithGroqFailover(apiKeys, prompt, controller, exampleData);
         } else {
-          await generateWithClient(createModelClient(provider, apiKeys[0]), provider, prompt, controller);
+          await generateWithClient(createModelClient(provider, apiKeys[0]), provider, prompt, controller, exampleData);
         }
       } catch (error) {
         streamEvent(controller, {

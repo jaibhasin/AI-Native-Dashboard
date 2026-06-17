@@ -223,13 +223,13 @@ export function BoardTabs({
       ) : (
         <div className="flex shrink-0 items-center gap-1">
           <button
-            className="inline-flex h-8 items-center gap-1.5 rounded border border-[var(--border)] px-2.5 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
+            className="ai-plan-tab-button inline-flex h-8 items-center gap-1.5 rounded border border-[var(--border)] px-2.5 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
             onClick={openAiBoardCreate}
-            title="Create with AI"
+            title="Plan with AI"
             type="button"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">Create with AI</span>
+            <span className="hidden md:inline">Plan with AI</span>
           </button>
           <button
             aria-label="Create blank whiteboard"

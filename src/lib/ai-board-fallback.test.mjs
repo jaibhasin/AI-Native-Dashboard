@@ -24,6 +24,9 @@ test("fallbackAiBoardPlan returns a valid useful board plan", () => {
     assert.ok(widget.prompt.length >= 8);
     assert.ok(widget.prompt.length <= 360);
     assert.ok(widget.prompt.includes("AI-generated dummy preview data only"));
+    assert.ok(widget.exampleData);
+    assert.equal(widget.exampleData.dataDisclosure, "Values are AI-generated preview data.");
+    assert.ok(widget.exampleData.metrics.length > 0);
     assert.ok(widget.width >= 360);
     assert.ok(widget.height >= 260);
   }
