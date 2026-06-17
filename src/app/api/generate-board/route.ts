@@ -1,5 +1,3 @@
-import Groq from "groq-sdk";
-import OpenAI from "openai";
 import { z, ZodError, toJSONSchema } from "zod/v4";
 import {
   aiBoardBriefSchema,
@@ -9,15 +7,28 @@ import {
   type AiBoardPlan,
   type AiBoardWidgetPlan,
 } from "@/lib/ai-board-schemas";
-import { fallbackAiBoardPlan } from "@/lib/ai-board-fallback";
-import type { CanvasNoteColor } from "@/lib/dashboard-schemas";
+import { fallbackAiBoardPlan, fallbackWidgetExampleData } from "@/lib/ai-board-fallback";
+import { exampleWidgetDataSchema, type CanvasNoteColor, type ExampleWidgetData } from "@/lib/dashboard-schemas";
+import {
+  chooseGroqKey,
+  coolDownGroqKey,
+  createChatCompletion,
+  createModelClient,
+  getApiKeys,
+  isRateLimitError,
+  providerDisplayName,
+  resolveProvider,
+  wasRateLimited,
+  type ChatCompletionResult,
+  type ModelClient,
+} from "../generate-widget/provider";
+import type { AIProvider } from "../generate-widget/shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_GROQ_BOARD_MODEL = "openai/gpt-oss-20b";
 const DEFAULT_OPENAI_BOARD_MODEL = "gpt-5.5";
-const GROQ_RATE_LIMIT_COOLDOWN_MS = 60_000;
 const AI_WIDGET_WIDTH = 440;
 const AI_WIDGET_HEIGHT = 320;
 const AI_WIDGET_GAP = 36;
@@ -27,20 +38,6 @@ const AI_NOTE_GAP = 18;
 const AI_NOTE_TOP_GAP = 28;
 const AI_CANVAS_CENTER_X = 100000;
 const AI_CANVAS_CENTER_Y = 100000;
-const aiProviderSchema = z.enum(["openai", "groq"]);
-
-let groqKeyCursor = 0;
-const groqKeyCooldowns = new Map<string, number>();
-
-type AIProvider = z.infer<typeof aiProviderSchema>;
-type ModelClient = Groq | OpenAI;
-type ChatCompletionResult = {
-  choices?: Array<{
-    message?: {
-      content?: string | null;
-    };
-  }>;
-};
 
 function asRecord(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -72,97 +69,12 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function resolveProvider(value: unknown): AIProvider {
-  const parsed = aiProviderSchema.safeParse(value);
-
-  return parsed.success ? parsed.data : "groq";
-}
-
-function providerDisplayName(provider: AIProvider) {
-  return provider === "openai" ? "OpenAI" : "Groq";
-}
-
-function splitApiKeys(value: string | undefined) {
-  return (
-    value
-      ?.split(/[\s,]+/)
-      .map((key) => key.trim())
-      .filter(Boolean) ?? []
-  );
-}
-
-function getApiKeys(provider: AIProvider) {
-  if (provider === "openai") {
-    return splitApiKeys(process.env.OPENAI_API_KEY);
-  }
-
-  const numberedKeys = Object.entries(process.env)
-    .filter(([name]) => /^GROQ_API_KEY_\d+$/.test(name))
-    .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true }))
-    .flatMap(([, value]) => splitApiKeys(value));
-  const keyPool = [...splitApiKeys(process.env.GROQ_API_KEYS), ...numberedKeys];
-
-  return keyPool.length > 0 ? keyPool : splitApiKeys(process.env.GROQ_API_KEY);
-}
-
 function getBoardModel(provider: AIProvider) {
   if (provider === "openai") {
     return process.env.OPENAI_BOARD_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_BOARD_MODEL;
   }
 
   return process.env.GROQ_BOARD_MODEL || process.env.GROQ_MOCK_DATA_MODEL || DEFAULT_GROQ_BOARD_MODEL;
-}
-
-function createModelClient(provider: AIProvider, apiKey: string): ModelClient {
-  return provider === "openai" ? new OpenAI({ apiKey }) : new Groq({ apiKey, maxRetries: 0 });
-}
-
-async function createChatCompletion(client: ModelClient, params: Record<string, unknown>) {
-  const completions = client.chat.completions as unknown as {
-    create: (completionParams: Record<string, unknown>) => Promise<unknown>;
-  };
-
-  return completions.create(params);
-}
-
-function isRateLimitError(error: unknown) {
-  const record = asRecord(error);
-  const status = record.status;
-  const code = asString(record.code).toLowerCase();
-  const name = asString(record.name).toLowerCase();
-  const message = asString(record.message).toLowerCase();
-
-  return (
-    status === 429 ||
-    code.includes("rate") ||
-    name.includes("ratelimit") ||
-    message.includes("rate limit") ||
-    message.includes("rate_limit")
-  );
-}
-
-function wasRateLimited(error: unknown) {
-  return isRateLimitError(error) || asRecord(error).rateLimited === true;
-}
-
-function chooseGroqKey(apiKeys: string[]) {
-  const now = Date.now();
-  const availableKeys = apiKeys
-    .map((apiKey, index) => ({ apiKey, index }))
-    .filter(({ apiKey }) => (groqKeyCooldowns.get(apiKey) ?? 0) <= now);
-
-  if (availableKeys.length === 0) {
-    return null;
-  }
-
-  const selected = availableKeys[groqKeyCursor % availableKeys.length];
-  groqKeyCursor = (groqKeyCursor + 1) % Number.MAX_SAFE_INTEGER;
-
-  return selected;
-}
-
-function coolDownGroqKey(apiKey: string) {
-  groqKeyCooldowns.set(apiKey, Date.now() + GROQ_RATE_LIMIT_COOLDOWN_MS);
 }
 
 function errorMessage(error: unknown) {
@@ -303,6 +215,12 @@ function notePosition(index: number, widgetCount: number, noteCount = Math.min(3
   };
 }
 
+function normalizeWidgetExampleData(value: unknown, prompt: string, index: number): ExampleWidgetData {
+  const parsed = exampleWidgetDataSchema.safeParse(value);
+
+  return parsed.success ? parsed.data : fallbackWidgetExampleData(prompt, index);
+}
+
 function normalizeWidgetPlan(value: unknown, index: number, count: number, brief: AiBoardBrief): AiBoardWidgetPlan {
   const record = asRecord(value);
   const fallbackPosition = gridPosition(index, count);
@@ -310,10 +228,12 @@ function normalizeWidgetPlan(value: unknown, index: number, count: number, brief
     asString(record.prompt || record.title || record.name, fallbackWidgetPrompt(brief, index)),
     brief,
   );
+  const exampleData = normalizeWidgetExampleData(record.exampleData ?? record.data, prompt, index);
   const width = clamp(Math.round(asNumber(record.width, AI_WIDGET_WIDTH)), 360, 560);
   const height = clamp(Math.round(asNumber(record.height, AI_WIDGET_HEIGHT)), 260, 420);
 
   return {
+    exampleData,
     prompt,
     x: Math.round(asNumber(record.x, fallbackPosition.x)),
     y: Math.round(asNumber(record.y, fallbackPosition.y)),
@@ -418,6 +338,8 @@ function boardPlanSystemPrompt() {
     "Treat data sources like docs, GitHub, email, CRM, spreadsheets, and logs as user-provided context only.",
     "Never claim that data was fetched, synced, connected, read, imported, or verified.",
     "Every widget prompt must be clear that the widget should use AI-generated dummy preview data only.",
+    "Also include exampleData for every widget in this same response so downstream widget rendering can reuse one planned data layer.",
+    "Each exampleData object must match its widget prompt and include realistic metrics, chart/table data, insights, or form fields as needed.",
     "Choose 4 to 8 non-duplicative widgets that cover the purpose, audience, tasks, metrics, data-source context, and additional notes.",
     "Prefer a balanced board: KPI snapshot, trend/forecast, breakdown table, task/status view, risks/insights, and decision/action view when relevant.",
     "Write widget prompts that are specific enough for a second AI call to generate the widget.",
@@ -483,7 +405,7 @@ async function createJsonObjectBoardPlan(client: ModelClient, provider: AIProvid
         content: [
           boardPlanSystemPrompt(),
           "Return only valid JSON matching this TypeScript shape:",
-          "{ boardName: string, widgets: { prompt: string, x: number, y: number, width: number, height: number }[], notes: { title: string, body: string, color: 'blue' | 'green' | 'amber' | 'rose', x: number, y: number, width: number, height: number }[] }",
+          "{ boardName: string, widgets: { prompt: string, exampleData: { title: string, subtitle: string, dataDisclosure: string, recommendedVisualization: 'metrics' | 'line_chart' | 'bar_chart' | 'table' | 'insights' | 'form' | 'composite', metrics: { label: string, value: string, delta: string, tone: 'neutral' | 'positive' | 'negative' | 'warning' }[], timeSeries: { title: string, series: { label: string, tone: 'neutral' | 'positive' | 'negative' | 'warning' }[], points: { label: string, values: number[] }[], projectionStartIndex: number }, table: { title: string, columns: string[], rows: { cells: string[] }[] }, insights: { label: string, detail: string, tone: 'neutral' | 'positive' | 'negative' | 'warning' }[], formFields: { label: string, type: 'text' | 'number' | 'date' | 'select', placeholder: string }[] }, x: number, y: number, width: number, height: number }[], notes: { title: string, body: string, color: 'blue' | 'green' | 'amber' | 'rose', x: number, y: number, width: number, height: number }[] }",
         ].join("\n"),
       },
       {

@@ -99,7 +99,7 @@ export function createAiBoardArtifacts(plan: AiBoardPlan) {
     return {
       authorName: DEFAULT_NOTE_AUTHOR_NAME,
       createdAt: now + index,
-      exampleData: null,
+      exampleData: plannedWidget.exampleData ?? null,
       height,
       id: createWidgetId(),
       openuiSource: "",

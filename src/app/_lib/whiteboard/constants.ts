@@ -36,6 +36,7 @@ export const ACTIVE_BOARD_STORAGE_KEY = "new-dashboard.canvas.activeBoard.v1";
 export const THEME_STORAGE_KEY = "new-dashboard.theme.preference.v1";
 export const BOARD_TAB_SCROLL_EPSILON = 1;
 export const AI_BOARD_WIDGET_CONCURRENCY = 2;
+export const AI_BOARD_WIDGET_QUEUE_STAGGER_MS = 650;
 
 export const noteColorStyles: Record<
   CanvasNoteColor,

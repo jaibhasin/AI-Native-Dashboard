@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { canvasNoteColorSchema } from "@/lib/dashboard-schemas";
+import { canvasNoteColorSchema, exampleWidgetDataSchema } from "@/lib/dashboard-schemas";
 
 const optionalBriefTextSchema = z.preprocess(
   (value) => (typeof value === "string" ? value.trim() : ""),
@@ -20,6 +20,7 @@ export const aiBoardBriefSchema = z.object({
 
 export const aiBoardWidgetPlanSchema = z.object({
   prompt: z.string().min(8).max(360),
+  exampleData: exampleWidgetDataSchema.optional(),
   x: z.number(),
   y: z.number(),
   width: z.number(),

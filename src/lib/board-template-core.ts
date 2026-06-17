@@ -268,7 +268,7 @@ function primaryBlockSource(blockName: string, data: ExampleWidgetData) {
   return "block0 = InsightList(\"Key findings\", [])";
 }
 
-function openuiSourceForData(data: ExampleWidgetData) {
+export function openuiSourceForData(data: ExampleWidgetData) {
   const blockName = "block0";
   const root = `root = DashboardWidget(${openuiString(data.title)}, ${openuiString(data.subtitle)}, ${openuiString(
     data.dataDisclosure,

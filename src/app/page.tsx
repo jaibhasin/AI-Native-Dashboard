@@ -451,7 +451,7 @@ export default function Home() {
 
   const retryWidget = useCallback(
     (widget: CanvasWidget) => {
-      void generateWidget(activeBoardId, widget.id, widget.prompt);
+      void generateWidget(activeBoardId, widget.id, widget.prompt, widget.exampleData);
     },
     [activeBoardId, generateWidget],
   );
