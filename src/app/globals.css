@@ -206,3 +206,139 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.ai-plan-tab-button {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(148, 163, 184, 0.42);
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
+.ai-plan-tab-button:hover {
+  border-color: rgba(148, 163, 184, 0.58);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.ai-plan-overlay {
+  background: rgba(15, 23, 42, 0.04);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.ai-plan-modal {
+  position: relative;
+  border-color: rgba(148, 163, 184, 0.48);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow:
+    0 18px 46px rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(18px) saturate(135%);
+}
+
+.ai-plan-icon-button,
+.ai-plan-field,
+.ai-plan-status {
+  border-color: rgba(148, 163, 184, 0.38);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+
+.ai-plan-icon-button:hover,
+.ai-plan-secondary-button:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.ai-plan-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-plan-summary::marker {
+  content: "";
+}
+
+.ai-plan-details[open] .ai-plan-summary-icon {
+  transform: rotate(180deg);
+}
+
+.ai-plan-field:focus {
+  border-color: rgba(39, 39, 42, 0.7);
+  box-shadow:
+    0 0 0 3px rgba(24, 24, 27, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.ai-plan-status {
+  color: var(--text-secondary);
+}
+
+.ai-plan-primary-button {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.ai-plan-primary-button:hover {
+  border-color: var(--primary-hover);
+  background: var(--primary-hover);
+}
+
+.ai-plan-primary-button:disabled {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--disabled-text);
+  box-shadow: none;
+}
+
+html[data-theme="dark"] .ai-plan-tab-button {
+  background: rgba(18, 22, 31, 0.72);
+  border-color: rgba(148, 163, 184, 0.26);
+  box-shadow:
+    0 8px 18px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+html[data-theme="dark"] .ai-plan-tab-button:hover {
+  border-color: rgba(148, 163, 184, 0.42);
+  background: rgba(24, 30, 41, 0.86);
+}
+
+html[data-theme="dark"] .ai-plan-overlay {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="dark"] .ai-plan-modal {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(18, 22, 31, 0.88);
+  box-shadow:
+    0 18px 46px rgba(0, 0, 0, 0.42),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+
+html[data-theme="dark"] .ai-plan-icon-button,
+html[data-theme="dark"] .ai-plan-field,
+html[data-theme="dark"] .ai-plan-status {
+  border-color: rgba(148, 163, 184, 0.26);
+  background: rgba(15, 23, 42, 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme="dark"] .ai-plan-icon-button:hover,
+html[data-theme="dark"] .ai-plan-secondary-button:hover {
+  background: rgba(30, 41, 59, 0.58);
+}
+
+html[data-theme="dark"] .ai-plan-field:focus {
+  border-color: rgba(229, 231, 235, 0.74);
+  box-shadow:
+    0 0 0 3px rgba(229, 231, 235, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
