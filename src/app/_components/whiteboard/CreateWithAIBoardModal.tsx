@@ -1,7 +1,13 @@
 "use client";
 
 import { ChevronDown, Sparkles, X } from "lucide-react";
-import { useCallback, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
+import {
+  useCallback,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
+} from "react";
 import type { AiBoardBrief } from "@/lib/ai-board-schemas";
 import type { AiBoardBriefField } from "@/app/_lib/whiteboard/types";
 
@@ -23,8 +29,20 @@ export function CreateWithAIBoardModal({
   purposeInputRef: RefObject<HTMLTextAreaElement | null>;
 }) {
   const canSubmit = Boolean(brief.purpose.trim()) && !isGenerating;
+  const [isOptionalContextOpen, setIsOptionalContextOpen] = useState(true);
   const handleFormKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLFormElement>) => {
+      if (event.key === "Escape") {
+        if (isGenerating) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+        return;
+      }
+
       if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey) || !canSubmit) {
         return;
       }
@@ -32,7 +50,7 @@ export function CreateWithAIBoardModal({
       event.preventDefault();
       event.currentTarget.requestSubmit();
     },
-    [canSubmit],
+    [canSubmit, isGenerating, onClose],
   );
   const optionalFields: Array<{
     field: AiBoardBriefField;
@@ -65,7 +83,6 @@ export function CreateWithAIBoardModal({
       placeholder: "Constraints, deadlines, context",
     },
   ];
-  const hasOptionalContext = optionalFields.some((field) => brief[field.field].trim());
 
   return (
     <div className="ai-plan-overlay absolute inset-0 z-[80] flex items-start justify-center p-4 pt-20 sm:pt-24">
@@ -110,7 +127,11 @@ export function CreateWithAIBoardModal({
             />
           </label>
 
-          <details className="ai-plan-details mt-2" open={hasOptionalContext || undefined}>
+          <details
+            className="ai-plan-details mt-2"
+            onToggle={(event) => setIsOptionalContextOpen(event.currentTarget.open)}
+            open={isOptionalContextOpen}
+          >
             <summary className="ai-plan-summary flex cursor-pointer select-none items-center justify-between rounded-md px-2 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]">
               <span>Optional context</span>
               <ChevronDown className="ai-plan-summary-icon h-3.5 w-3.5 transition-transform" />
