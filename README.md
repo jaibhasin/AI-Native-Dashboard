@@ -114,6 +114,8 @@ OPENAI_BOARD_MODEL=gpt-5.5
 GROQ_MOCK_DATA_MODEL=openai/gpt-oss-20b
 GROQ_UI_MODEL=llama-3.3-70b-versatile
 GROQ_BOARD_MODEL=openai/gpt-oss-20b
+GROQ_STT_MODEL=whisper-large-v3-turbo
+GROQ_STT_LANGUAGE=en
 ```
 
 Run the development server:
@@ -153,6 +155,7 @@ Do not expose provider keys in the browser or commit `.env` files.
 - Use `Create with AI` to generate a new editable whiteboard from a purpose, audience, tasks, metrics, source context, and notes.
 - Use the `+` control to create a blank personal whiteboard.
 - Move the pointer over the canvas and press `/` to open the command input at that location.
+- Use the mic button or `Cmd+M` / `Ctrl+M` in the command input to dictate a prompt with Groq speech-to-text.
 - Enter a prompt such as `show our burn rate and runway` or `show AI spend and token waste by workflow`.
 - Press `n` to create a note at the pointer location.
 - Drag a widget by its header.
