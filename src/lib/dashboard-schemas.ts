@@ -62,6 +62,68 @@ export const formFieldSchema = z
   })
   .describe("A form field preview.");
 
+export const funnelStepSchema = z
+  .object({
+    label: z.string().describe("Funnel stage label."),
+    value: z.number().describe("Count or amount at this stage."),
+    dropoff: z.string().describe("Drop-off text from prior stage. Use empty string if first stage."),
+    tone: toneSchema,
+  })
+  .describe("One funnel stage.");
+
+export const funnelSchema = z
+  .object({
+    title: z.string().describe("Funnel title. Use empty string if absent."),
+    steps: z.array(funnelStepSchema).describe("Ordered funnel stages."),
+  })
+  .describe("Conversion funnel data.");
+
+export const gaugeSchema = z
+  .object({
+    label: z.string().describe("Gauge label."),
+    value: z.number().describe("Current value."),
+    target: z.number().describe("Target or max value."),
+    unit: z.string().describe("Unit suffix such as % or empty string."),
+    tone: toneSchema,
+  })
+  .describe("A progress gauge.");
+
+export const rankingItemSchema = z
+  .object({
+    label: z.string().describe("Row label such as account name."),
+    value: z.string().describe("Formatted primary value."),
+    detail: z.string().describe("Secondary detail. Use empty string if absent."),
+    badge: z.string().describe("Optional badge such as risk level. Use empty string if absent."),
+    tone: toneSchema,
+  })
+  .describe("One ranked row.");
+
+export const rankingSchema = z
+  .object({
+    title: z.string().describe("Ranking title. Use empty string if absent."),
+    items: z.array(rankingItemSchema).describe("Ranked rows."),
+  })
+  .describe("Leaderboard or concentration ranking.");
+
+export const milestoneStatusSchema = z
+  .enum(["done", "active", "blocked", "todo"])
+  .describe("Milestone status.");
+
+export const milestoneItemSchema = z
+  .object({
+    label: z.string().describe("Milestone label."),
+    detail: z.string().describe("Short detail. Use empty string if absent."),
+    status: milestoneStatusSchema,
+  })
+  .describe("One milestone.");
+
+export const milestonesSchema = z
+  .object({
+    title: z.string().describe("Timeline title. Use empty string if absent."),
+    items: z.array(milestoneItemSchema).describe("Ordered milestones."),
+  })
+  .describe("Milestone or readiness timeline.");
+
 export const canvasNoteColorSchema = z.enum(["blue", "green", "amber", "rose"]);
 
 export const canvasNoteSchema = z.object({
@@ -85,7 +147,20 @@ export const exampleWidgetDataSchema = z.object({
     .string()
     .describe("Disclosure that this is preview/demo data, not verified source data."),
   recommendedVisualization: z
-    .enum(["metrics", "line_chart", "bar_chart", "table", "insights", "form", "composite"])
+    .enum([
+      "metrics",
+      "line_chart",
+      "bar_chart",
+      "table",
+      "insights",
+      "form",
+      "composite",
+      "stat",
+      "funnel",
+      "gauge",
+      "ranking",
+      "timeline",
+    ])
     .describe("Best visualization for the prompt."),
   metrics: z.array(metricSchema).describe("KPI values relevant to the prompt."),
   timeSeries: z
@@ -101,6 +176,10 @@ export const exampleWidgetDataSchema = z.object({
   table: tableSchema,
   insights: z.array(insightSchema).describe("Short observations about the example data."),
   formFields: z.array(formFieldSchema).describe("Fields for form preview requests."),
+  funnel: funnelSchema.default({ title: "", steps: [] }).describe("Conversion funnel stages."),
+  gauges: z.array(gaugeSchema).default([]).describe("Progress gauges for value-vs-target views."),
+  ranking: rankingSchema.default({ title: "", items: [] }).describe("Ranked list or leaderboard data."),
+  milestones: milestonesSchema.default({ title: "", items: [] }).describe("Milestone or readiness timeline."),
 });
 
 export type Tone = z.infer<typeof toneSchema>;
@@ -110,6 +189,14 @@ export type ChartPoint = z.infer<typeof chartPointSchema>;
 export type TableData = z.infer<typeof tableSchema>;
 export type InsightData = z.infer<typeof insightSchema>;
 export type FormFieldData = z.infer<typeof formFieldSchema>;
+export type FunnelStepData = z.infer<typeof funnelStepSchema>;
+export type FunnelData = z.infer<typeof funnelSchema>;
+export type GaugeData = z.infer<typeof gaugeSchema>;
+export type RankingItemData = z.infer<typeof rankingItemSchema>;
+export type RankingData = z.infer<typeof rankingSchema>;
+export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
+export type MilestoneItemData = z.infer<typeof milestoneItemSchema>;
+export type MilestonesData = z.infer<typeof milestonesSchema>;
 export type CanvasNoteColor = z.infer<typeof canvasNoteColorSchema>;
 export type CanvasNote = z.infer<typeof canvasNoteSchema>;
 export type ExampleWidgetData = z.infer<typeof exampleWidgetDataSchema>;

@@ -65,29 +65,27 @@ const founderArrData = exampleWidgetData({
 const founderEfficiencyData = exampleWidgetData({
   title: "AI spend efficiency",
   subtitle: "Useful output vs token waste",
-  recommendedVisualization: "metrics",
+  recommendedVisualization: "gauge",
   disclosure: TEMPLATE_DISCLOSURE,
-  metrics: [
-    { label: "AI spend", value: "$21.4k", delta: "-9% MoM", tone: "positive" },
-    { label: "Wasted tokens", value: "12.6%", delta: "-4.2pp", tone: "positive" },
-    { label: "Retry waste", value: "$2.8k", delta: "-$1.1k", tone: "positive" },
-    { label: "Cost/workflow", value: "$0.14", delta: "-18%", tone: "positive" },
+  gauges: [
+    { label: "Useful output", value: 87, target: 100, unit: "%", tone: "positive" },
+    { label: "Wasted tokens", value: 13, target: 100, unit: "%", tone: "warning" },
+    { label: "Cost/workflow", value: 14, target: 20, unit: "¢", tone: "positive" },
   ],
 });
 
 const founderCustomerRiskData = exampleWidgetData({
   title: "Customer concentration",
   subtitle: "Renewal and expansion risk",
-  recommendedVisualization: "table",
+  recommendedVisualization: "ranking",
   disclosure: TEMPLATE_DISCLOSURE,
-  table: {
+  ranking: {
     title: "Top account exposure",
-    columns: ["Account", "ARR", "Renewal", "Risk"],
-    rows: [
-      { cells: ["Northstar AI", "$212k", "Aug", "Low"] },
-      { cells: ["Kite Health", "$184k", "Sep", "Medium"] },
-      { cells: ["Mercury Ops", "$141k", "Jul", "High"] },
-      { cells: ["BrightPath", "$96k", "Oct", "Low"] },
+    items: [
+      { label: "Northstar AI", value: "$212k", detail: "Renewal Aug", badge: "Low", tone: "positive" },
+      { label: "Kite Health", value: "$184k", detail: "Renewal Sep", badge: "Medium", tone: "warning" },
+      { label: "Mercury Ops", value: "$141k", detail: "Renewal Jul", badge: "High", tone: "negative" },
+      { label: "BrightPath", value: "$96k", detail: "Renewal Oct", badge: "Low", tone: "positive" },
     ],
   },
 });
@@ -95,18 +93,16 @@ const founderCustomerRiskData = exampleWidgetData({
 const founderActivationData = exampleWidgetData({
   title: "Activation funnel",
   subtitle: "Signup to paid conversion",
-  recommendedVisualization: "bar_chart",
+  recommendedVisualization: "funnel",
   disclosure: TEMPLATE_DISCLOSURE,
-  timeSeries: {
+  funnel: {
     title: "Activation funnel",
-    projectionStartIndex: -1,
-    series: [{ label: "Accounts", tone: "positive" }],
-    points: [
-      { label: "Signup", values: [1240] },
-      { label: "Connected data", values: [812] },
-      { label: "First board", values: [604] },
-      { label: "Team invite", values: [318] },
-      { label: "Paid", values: [142] },
+    steps: [
+      { label: "Signup", value: 1240, dropoff: "", tone: "positive" },
+      { label: "Connected data", value: 812, dropoff: "-35%", tone: "neutral" },
+      { label: "First board", value: 604, dropoff: "-26%", tone: "neutral" },
+      { label: "Team invite", value: 318, dropoff: "-47%", tone: "warning" },
+      { label: "Paid", value: 142, dropoff: "-55%", tone: "positive" },
     ],
   },
 });
@@ -127,25 +123,33 @@ const founderGrossMarginData = exampleWidgetData({
 const founderFundraisingData = exampleWidgetData({
   title: "Fundraising readiness",
   subtitle: "Board memo · Series A prep",
-  recommendedVisualization: "insights",
+  recommendedVisualization: "timeline",
   disclosure: TEMPLATE_DISCLOSURE,
-  insights: [
-    {
-      label: "Growth narrative is holding",
-      detail: "Weekly active teams up 34% since pricing change. Net retention at 118%.",
-      tone: "positive",
-    },
-    {
-      label: "SOC 2 is the gating item",
-      detail: "Evidence packet and subprocessor list need one owner before partner meetings.",
-      tone: "warning",
-    },
-    {
-      label: "Margin story is improving",
-      detail: "Routing low-risk workflows to cheaper models lifted gross margin 3pp this quarter.",
-      tone: "positive",
-    },
-  ],
+  milestones: {
+    title: "Readiness milestones",
+    items: [
+      {
+        label: "Usage growth story",
+        detail: "Weekly active teams up 34% since pricing change.",
+        status: "done",
+      },
+      {
+        label: "SOC 2 evidence packet",
+        detail: "Subprocessor list and evidence need one owner.",
+        status: "blocked",
+      },
+      {
+        label: "Margin proof",
+        detail: "Routing low-risk workflows lifted margin 3pp.",
+        status: "done",
+      },
+      {
+        label: "Partner meetings",
+        detail: "Seed lead intro scheduled for next week.",
+        status: "active",
+      },
+    ],
+  },
 });
 
 const founderPrioritiesData = exampleWidgetData({

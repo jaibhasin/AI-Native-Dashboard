@@ -13,14 +13,18 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useId, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { z } from "zod/v4";
 import {
   chartPointSchema,
   chartSeriesSchema,
   formFieldSchema,
+  funnelStepSchema,
+  gaugeSchema,
   insightSchema,
   metricSchema,
+  milestoneItemSchema,
+  rankingItemSchema,
   tableSchema,
   type ChartPoint,
   type ChartSeries,
@@ -48,6 +52,13 @@ const seriesColors: Record<Tone, string> = {
   negative: "var(--chart-negative)",
   warning: "var(--chart-warning)",
 };
+
+let gradientIdCounter = 0;
+
+function createGradientId() {
+  gradientIdCounter += 1;
+  return `chart-gradient-${gradientIdCounter}`;
+}
 
 function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : [];
@@ -274,7 +285,7 @@ const LineChart = defineComponent({
     projectionStartIndex: z.number(),
   }),
   component: ({ props }) => {
-    const gradientId = useId().replace(/:/g, "");
+    const gradientId = createGradientId();
     const series = asArray(props.series).map((item, index) => ({
       label: safeText(item?.label) || `Series ${index + 1}`,
       tone: safeTone(item?.tone),
@@ -354,7 +365,7 @@ const BarChart = defineComponent({
     series: z.array(chartSeriesSchema),
   }),
   component: ({ props }) => {
-    const gradientId = useId().replace(/:/g, "");
+    const gradientId = createGradientId();
     const series = asArray(props.series).map((item, index) => ({
       label: safeText(item?.label) || `Series ${index + 1}`,
       tone: safeTone(item?.tone),
@@ -538,10 +549,270 @@ const FormPreview = defineComponent({
   },
 });
 
+const StatHero = defineComponent({
+  name: "StatHero",
+  description: "A headline KPI with delta and inline sparkline trend.",
+  props: z.object({
+    metric: metricSchema,
+    title: z.string(),
+    data: z.array(chartPointSchema),
+    series: z.array(chartSeriesSchema),
+    projectionStartIndex: z.number(),
+  }),
+  component: ({ props }) => {
+    const gradientId = createGradientId();
+    const metric = safeMetric(props.metric, 0);
+    const series = asArray(props.series).map((item, index) => ({
+      label: safeText(item?.label) || `Series ${index + 1}`,
+      tone: safeTone(item?.tone),
+    }));
+    const rows = chartRows(props.data, series);
+    const lineColor = seriesColors[series[0]?.tone ?? metric.tone];
+
+    return (
+      <BlockShell className="flex-1">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-2 pt-1.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                {metric.label}
+              </div>
+              <div className="mt-0.5 text-3xl font-bold leading-none tracking-tight text-[var(--text-primary)]">
+                {metric.value}
+              </div>
+              {metric.delta ? (
+                <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${toneClasses[metric.tone]}`}>
+                  {metric.delta}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          {rows.length > 0 ? (
+            <div className="min-h-[72px] flex-1">
+              {props.title ? (
+                <div className="mb-1 truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                  {props.title}
+                </div>
+              ) : null}
+              <ResponsiveContainer height={72} width="100%">
+                <RechartsLineChart data={rows} margin={{ bottom: 0, left: 0, right: 4, top: 4 }}>
+                  <defs>
+                    <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={lineColor} stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <Area dataKey="series0" fill={`url(#${gradientId})`} stroke="none" type="monotone" />
+                  <Line
+                    dataKey="series0"
+                    dot={false}
+                    stroke={lineColor}
+                    strokeWidth={2}
+                    type="monotone"
+                  />
+                </RechartsLineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : null}
+        </div>
+      </BlockShell>
+    );
+  },
+});
+
+const FunnelSteps = defineComponent({
+  name: "FunnelSteps",
+  description: "A conversion funnel with stage counts and drop-off percentages.",
+  props: z.object({
+    title: z.string(),
+    steps: z.array(funnelStepSchema),
+  }),
+  component: ({ props }) => {
+    const steps = asArray(props.steps).slice(0, 6);
+    const maxValue = Math.max(...steps.map((step) => step?.value ?? 0), 1);
+
+    return (
+      <BlockShell className="flex-1" title={props.title || undefined}>
+        <div className="space-y-1.5 px-2 pb-2">
+          {steps.map((step, index) => {
+            const tone = safeTone(step?.tone);
+            const width = `${Math.max(18, Math.round(((step?.value ?? 0) / maxValue) * 100))}%`;
+
+            return (
+              <div key={`${safeText(step?.label)}-${index}`}>
+                <div className="mb-0.5 flex items-center justify-between gap-2 text-[10px]">
+                  <span className="truncate font-medium text-[var(--text-primary)]">{safeText(step?.label)}</span>
+                  <span className="shrink-0 text-[var(--text-muted)]">
+                    {step?.value?.toLocaleString() ?? "0"}
+                    {safeText(step?.dropoff) ? ` · ${safeText(step?.dropoff)}` : ""}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-[var(--surface-muted)]">
+                  <div
+                    className="h-2 rounded-full"
+                    style={{ backgroundColor: seriesColors[tone], width }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </BlockShell>
+    );
+  },
+});
+
+const ProgressGauge = defineComponent({
+  name: "ProgressGauge",
+  description: "One to three value-vs-target progress gauges.",
+  props: z.object({
+    gauges: z.array(gaugeSchema),
+  }),
+  component: ({ props }) => {
+    const gauges = asArray(props.gauges).slice(0, 3);
+
+    return (
+      <div className={`grid gap-2 ${gauges.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
+        {gauges.map((gauge, index) => {
+          const tone = safeTone(gauge?.tone);
+          const value = typeof gauge?.value === "number" ? gauge.value : 0;
+          const target = typeof gauge?.target === "number" && gauge.target > 0 ? gauge.target : 100;
+          const percent = Math.min(100, Math.round((value / target) * 100));
+          const unit = safeText(gauge?.unit);
+
+          return (
+            <div className="rounded-lg bg-[var(--widget-block-bg)] px-2 py-2" key={`${safeText(gauge?.label)}-${index}`}>
+              <div className="truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                {safeText(gauge?.label)}
+              </div>
+              <div className="mt-1 text-xl font-bold leading-none text-[var(--text-primary)]">
+                {value}
+                {unit}
+              </div>
+              <div className="mt-1.5 h-1.5 rounded-full bg-[var(--surface-muted)]">
+                <div
+                  className="h-1.5 rounded-full"
+                  style={{ backgroundColor: seriesColors[tone], width: `${percent}%` }}
+                />
+              </div>
+              <div className="mt-1 text-[10px] text-[var(--text-muted)]">Target {target}{unit}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  },
+});
+
+const RankedList = defineComponent({
+  name: "RankedList",
+  description: "A ranked list with proportional bars and optional badges.",
+  props: z.object({
+    title: z.string(),
+    items: z.array(rankingItemSchema),
+  }),
+  component: ({ props }) => {
+    const items = asArray(props.items).slice(0, 6);
+    const numericValues = items.map((item) => {
+      const parsed = Number(safeText(item?.value).replace(/[^0-9.]/g, ""));
+
+      return Number.isFinite(parsed) ? parsed : 0;
+    });
+    const maxValue = Math.max(...numericValues, 1);
+
+    return (
+      <BlockShell className="flex-1" title={props.title || undefined}>
+        <div className="space-y-1.5 px-2 pb-2">
+          {items.map((item, index) => {
+            const tone = safeTone(item?.tone);
+            const badge = safeText(item?.badge);
+            const width = `${Math.max(12, Math.round((numericValues[index] / maxValue) * 100))}%`;
+
+            return (
+              <div key={`${safeText(item?.label)}-${index}`}>
+                <div className="mb-0.5 flex items-center justify-between gap-2">
+                  <div className="min-w-0 truncate text-[11px] font-medium text-[var(--text-primary)]">
+                    {safeText(item?.label)}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-[var(--text-primary)]">{safeText(item?.value)}</span>
+                    {badge ? (
+                      <span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${toneClasses[tone]}`}>
+                        {badge}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="h-1.5 rounded-full bg-[var(--surface-muted)]">
+                  <div className="h-1.5 rounded-full" style={{ backgroundColor: seriesColors[tone], width }} />
+                </div>
+                {safeText(item?.detail) ? (
+                  <div className="mt-0.5 truncate text-[10px] text-[var(--text-muted)]">{safeText(item?.detail)}</div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </BlockShell>
+    );
+  },
+});
+
+const milestoneStatusClasses: Record<string, string> = {
+  active: "border-[var(--board-founder-border)] bg-[var(--board-founder-surface)] text-[var(--board-founder-accent)]",
+  blocked: toneClasses.negative,
+  done: toneClasses.positive,
+  todo: toneClasses.neutral,
+};
+
+const MilestoneTracker = defineComponent({
+  name: "MilestoneTracker",
+  description: "A milestone timeline with done, active, blocked, and todo states.",
+  props: z.object({
+    title: z.string(),
+    items: z.array(milestoneItemSchema),
+  }),
+  component: ({ props }) => {
+    const items = asArray(props.items).slice(0, 5);
+
+    return (
+      <BlockShell className="flex-1" title={props.title || undefined}>
+        <div className="space-y-1.5 px-2 pb-2">
+          {items.map((item, index) => {
+            const status = safeText(item?.status) || "todo";
+            const statusClass = milestoneStatusClasses[status] ?? milestoneStatusClasses.todo;
+
+            return (
+              <div className="flex items-start gap-2 rounded-md bg-[var(--panel)]/70 px-2 py-1.5" key={`${safeText(item?.label)}-${index}`}>
+                <span className={`mt-0.5 shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase ${statusClass}`}>
+                  {status}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold leading-tight text-[var(--text-primary)]">
+                    {safeText(item?.label)}
+                  </div>
+                  {safeText(item?.detail) ? (
+                    <div className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]">{safeText(item?.detail)}</div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </BlockShell>
+    );
+  },
+});
+
 const DashboardBlock = z.union([
   MetricGrid.ref,
+  StatHero.ref,
   LineChart.ref,
   BarChart.ref,
+  FunnelSteps.ref,
+  ProgressGauge.ref,
+  RankedList.ref,
+  MilestoneTracker.ref,
   DataTable.ref,
   InsightList.ref,
   FormPreview.ref,
@@ -569,8 +840,13 @@ export const dashboardRenderLibrary = createLibrary({
   components: [
     DashboardWidget,
     MetricGrid,
+    StatHero,
     LineChart,
     BarChart,
+    FunnelSteps,
+    ProgressGauge,
+    RankedList,
+    MilestoneTracker,
     DataTable,
     InsightList,
     FormPreview,

@@ -6,14 +6,21 @@ import type {
   ChartSeries,
   ExampleWidgetData,
   FormFieldData,
+  FunnelData,
+  FunnelStepData,
+  GaugeData,
   InsightData,
   MetricData,
+  MilestoneItemData,
+  MilestonesData,
+  RankingData,
+  RankingItemData,
   TableData,
 } from "@/lib/dashboard-schemas";
 import { TEMPLATE_AUTHOR_NAME } from "@/lib/dashboard-schemas";
 
 export const BLANK_BOARD_ID = "blank";
-export const BOARD_TEMPLATE_VERSION = 6;
+export const BOARD_TEMPLATE_VERSION = 7;
 
 const TEMPLATE_WIDGET_WIDTH = 440;
 const TEMPLATE_WIDGET_HEIGHT = 320;
@@ -53,8 +60,12 @@ export type BoardTemplate = {
 type ExampleWidgetDataInput = {
   disclosure?: string;
   formFields?: FormFieldData[];
+  funnel?: FunnelData;
+  gauges?: GaugeData[];
   insights?: InsightData[];
   metrics?: MetricData[];
+  milestones?: MilestonesData;
+  ranking?: RankingData;
   recommendedVisualization: TemplateVisualization;
   subtitle: string;
   table?: TableData;
@@ -224,12 +235,37 @@ function emptyTimeSeries(): ExampleWidgetData["timeSeries"] {
   };
 }
 
+function emptyFunnel(): FunnelData {
+  return {
+    steps: [],
+    title: "",
+  };
+}
+
+function emptyRanking(): RankingData {
+  return {
+    items: [],
+    title: "",
+  };
+}
+
+function emptyMilestones(): MilestonesData {
+  return {
+    items: [],
+    title: "",
+  };
+}
+
 export function exampleWidgetData(input: ExampleWidgetDataInput): ExampleWidgetData {
   return {
     dataDisclosure: input.disclosure ?? PREVIEW_DISCLOSURE,
     formFields: input.formFields ?? [],
+    funnel: input.funnel ?? emptyFunnel(),
+    gauges: input.gauges ?? [],
     insights: input.insights ?? [],
     metrics: input.metrics ?? [],
+    milestones: input.milestones ?? emptyMilestones(),
+    ranking: input.ranking ?? emptyRanking(),
     recommendedVisualization: input.recommendedVisualization,
     subtitle: input.subtitle,
     table: input.table ?? emptyTable(),
@@ -284,6 +320,63 @@ function hasTable(data: ExampleWidgetData) {
   return data.table.columns.length > 0 && data.table.rows.length > 0;
 }
 
+function hasFunnel(data: ExampleWidgetData) {
+  return data.funnel.steps.length > 0;
+}
+
+function hasGauges(data: ExampleWidgetData) {
+  return data.gauges.length > 0;
+}
+
+function hasRanking(data: ExampleWidgetData) {
+  return data.ranking.items.length > 0;
+}
+
+function hasMilestones(data: ExampleWidgetData) {
+  return data.milestones.items.length > 0;
+}
+
+function funnelStepSource(step: FunnelStepData) {
+  return `{label: ${openuiString(step.label)}, value: ${step.value}, dropoff: ${openuiString(step.dropoff)}, tone: ${openuiString(step.tone)}}`;
+}
+
+function gaugeSource(gauge: GaugeData) {
+  return `{label: ${openuiString(gauge.label)}, value: ${gauge.value}, target: ${gauge.target}, unit: ${openuiString(gauge.unit)}, tone: ${openuiString(gauge.tone)}}`;
+}
+
+function rankingItemSource(item: RankingItemData) {
+  return `{label: ${openuiString(item.label)}, value: ${openuiString(item.value)}, detail: ${openuiString(item.detail)}, badge: ${openuiString(item.badge)}, tone: ${openuiString(item.tone)}}`;
+}
+
+function milestoneItemSource(item: MilestoneItemData) {
+  return `{label: ${openuiString(item.label)}, detail: ${openuiString(item.detail)}, status: ${openuiString(item.status)}}`;
+}
+
+function statHeroBlockSource(blockName: string, data: ExampleWidgetData) {
+  const metric = data.metrics[0] ?? { label: "Metric", value: "0", delta: "", tone: "neutral" as const };
+  const title = openuiString(data.timeSeries.title);
+  const points = openuiArray(data.timeSeries.points.map(chartPointSource));
+  const series = openuiArray(data.timeSeries.series.map(chartSeriesSource));
+
+  return `${blockName} = StatHero(${metricSource(metric)}, ${title}, ${points}, ${series}, ${data.timeSeries.projectionStartIndex})`;
+}
+
+function funnelBlockSource(blockName: string, funnel: FunnelData) {
+  return `${blockName} = FunnelSteps(${openuiString(funnel.title)}, ${openuiArray(funnel.steps.map(funnelStepSource))})`;
+}
+
+function gaugeBlockSource(blockName: string, gauges: GaugeData[]) {
+  return `${blockName} = ProgressGauge(${openuiArray(gauges.map(gaugeSource))})`;
+}
+
+function rankingBlockSource(blockName: string, ranking: RankingData) {
+  return `${blockName} = RankedList(${openuiString(ranking.title)}, ${openuiArray(ranking.items.map(rankingItemSource))})`;
+}
+
+function milestoneBlockSource(blockName: string, milestones: MilestonesData) {
+  return `${blockName} = MilestoneTracker(${openuiString(milestones.title)}, ${openuiArray(milestones.items.map(milestoneItemSource))})`;
+}
+
 function metricBlockSource(blockName: string, metrics: MetricData[]) {
   return `${blockName} = MetricGrid(${openuiArray(metrics.map(metricSource))})`;
 }
@@ -317,6 +410,26 @@ function formBlockSource(blockName: string, data: ExampleWidgetData) {
 }
 
 function primaryBlockSource(blockName: string, data: ExampleWidgetData) {
+  if (data.recommendedVisualization === "stat" && data.metrics.length > 0) {
+    return statHeroBlockSource(blockName, data);
+  }
+
+  if (data.recommendedVisualization === "funnel" && hasFunnel(data)) {
+    return funnelBlockSource(blockName, data.funnel);
+  }
+
+  if (data.recommendedVisualization === "gauge" && hasGauges(data)) {
+    return gaugeBlockSource(blockName, data.gauges);
+  }
+
+  if (data.recommendedVisualization === "ranking" && hasRanking(data)) {
+    return rankingBlockSource(blockName, data.ranking);
+  }
+
+  if (data.recommendedVisualization === "timeline" && hasMilestones(data)) {
+    return milestoneBlockSource(blockName, data.milestones);
+  }
+
   if (data.recommendedVisualization === "metrics" && data.metrics.length > 0) {
     return metricBlockSource(blockName, data.metrics);
   }
@@ -364,6 +477,22 @@ function compositeBlocksSource(data: ExampleWidgetData) {
   const blocks: string[] = [];
   const names: string[] = [];
   let index = 0;
+
+  if (data.metrics.length > 0 && hasChart(data) && data.recommendedVisualization === "composite") {
+    const heroName = `block${index}`;
+    blocks.push(statHeroBlockSource(heroName, data));
+    names.push(heroName);
+    index += 1;
+
+    if (data.metrics.length > 1) {
+      const metricsName = `block${index}`;
+      blocks.push(metricBlockSource(metricsName, data.metrics.slice(1)));
+      names.push(metricsName);
+      index += 1;
+    }
+
+    return { blockSources: blocks, blockNames: names };
+  }
 
   if (data.metrics.length > 0) {
     const blockName = `block${index}`;

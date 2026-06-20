@@ -276,6 +276,31 @@ function emptyTable(): ExampleWidgetData["table"] {
   };
 }
 
+function emptyFunnel(): ExampleWidgetData["funnel"] {
+  return { title: "", steps: [] };
+}
+
+function emptyGauges(): ExampleWidgetData["gauges"] {
+  return [];
+}
+
+function emptyRanking(): ExampleWidgetData["ranking"] {
+  return { title: "", items: [] };
+}
+
+function emptyMilestones(): ExampleWidgetData["milestones"] {
+  return { title: "", items: [] };
+}
+
+function emptyExtendedFields() {
+  return {
+    funnel: emptyFunnel(),
+    gauges: emptyGauges(),
+    ranking: emptyRanking(),
+    milestones: emptyMilestones(),
+  };
+}
+
 function isGenericLabel(value: string) {
   return /^(item|series|metric|value|point)\s*\d*$/i.test(value.trim());
 }
@@ -452,6 +477,7 @@ function runwayStartupData(seed: number): ExampleWidgetData {
       },
     ],
     formFields: [],
+    ...emptyExtendedFields(),
   };
 }
 
@@ -489,6 +515,7 @@ function createAiNativeStartupData(prompt: string): ExampleWidgetData {
         { label: "Model budget cap", type: "number", placeholder: "$52000" },
         { label: "Review date", type: "date", placeholder: "2026-07-01" },
       ],
+      ...emptyExtendedFields(),
     };
   }
 
@@ -585,6 +612,7 @@ function createAiNativeStartupData(prompt: string): ExampleWidgetData {
     table,
     insights,
     formFields: [],
+    ...emptyExtendedFields(),
   };
 }
 
@@ -782,8 +810,100 @@ function normalizeTimeSeries(value: unknown) {
   };
 }
 
+function normalizeFunnel(value: unknown) {
+  const record = asRecord(value);
+
+  return {
+    title: asString(record.title),
+    steps: asArray(record.steps).map((item, index) => {
+      const step = asRecord(item);
+
+      return {
+        label: asString(step.label, `Stage ${index + 1}`),
+        value: asNumber(step.value) ?? 0,
+        dropoff: asString(step.dropoff),
+        tone: normalizeTone(step.tone),
+      };
+    }),
+  };
+}
+
+function normalizeGauges(value: unknown) {
+  return asArray(value).map((item, index) => {
+    const gauge = asRecord(item);
+
+    return {
+      label: asString(gauge.label, `Gauge ${index + 1}`),
+      value: asNumber(gauge.value) ?? 0,
+      target: asNumber(gauge.target) ?? 100,
+      unit: asString(gauge.unit),
+      tone: normalizeTone(gauge.tone),
+    };
+  });
+}
+
+function normalizeRanking(value: unknown) {
+  const record = asRecord(value);
+
+  return {
+    title: asString(record.title),
+    items: asArray(record.items).map((item, index) => {
+      const row = asRecord(item);
+
+      return {
+        label: asString(row.label, `Item ${index + 1}`),
+        value: asString(row.value),
+        detail: asString(row.detail),
+        badge: asString(row.badge),
+        tone: normalizeTone(row.tone),
+      };
+    }),
+  };
+}
+
+function normalizeMilestones(value: unknown) {
+  const record = asRecord(value);
+
+  return {
+    title: asString(record.title),
+    items: asArray(record.items).map((item, index) => {
+      const milestone = asRecord(item);
+      const status = asString(milestone.status).toLowerCase();
+
+      return {
+        label: asString(milestone.label, `Milestone ${index + 1}`),
+        detail: asString(milestone.detail),
+        status:
+          status === "done" || status === "active" || status === "blocked" || status === "todo"
+            ? status
+            : "todo",
+      };
+    }),
+  };
+}
+
 function normalizeRecommendedVisualization(value: unknown) {
   const normalized = asString(value, "composite").toLowerCase().replace(/[\s-]+/g, "_");
+
+  if (normalized.includes("funnel") || normalized.includes("activation") || normalized.includes("conversion")) {
+    return "funnel";
+  }
+
+  if (normalized.includes("gauge") || normalized.includes("utilization") || normalized.includes("target")) {
+    return "gauge";
+  }
+
+  if (normalized.includes("rank") || normalized.includes("leaderboard") || normalized.includes("concentration")) {
+    return "ranking";
+  }
+
+  if (normalized.includes("timeline") || normalized.includes("milestone") || normalized.includes("readiness")) {
+    return "timeline";
+  }
+
+  if (normalized.includes("stat") || normalized.includes("hero") || normalized.includes("headline")) {
+    return "stat";
+  }
 
   if (normalized.includes("metric") || normalized.includes("kpi")) {
     return "metrics";
@@ -815,7 +935,12 @@ function normalizeRecommendedVisualization(value: unknown) {
     normalized === "table" ||
     normalized === "insights" ||
     normalized === "form" ||
-    normalized === "composite"
+    normalized === "composite" ||
+    normalized === "stat" ||
+    normalized === "funnel" ||
+    normalized === "gauge" ||
+    normalized === "ranking" ||
+    normalized === "timeline"
     ? normalized
     : "composite";
 }
@@ -833,6 +958,10 @@ function normalizeExampleData(value: unknown) {
     table: normalizeTable(record.table),
     insights: normalizeInsights(record.insights),
     formFields: normalizeFormFields(record.formFields ?? record.fields),
+    funnel: normalizeFunnel(record.funnel),
+    gauges: normalizeGauges(record.gauges),
+    ranking: normalizeRanking(record.ranking),
+    milestones: normalizeMilestones(record.milestones),
   };
 }
 
@@ -889,7 +1018,7 @@ async function createJsonObjectExampleData(client: ModelClient, provider: AIProv
         content: [
           mockDataSystemPrompt(),
           "Return only valid JSON matching this TypeScript shape:",
-          "{ title: string, subtitle: string, dataDisclosure: string, recommendedVisualization: string, metrics: Metric[], timeSeries: { title: string, series: Series[], points: Point[], projectionStartIndex: number }, table: { title: string, columns: string[], rows: { cells: string[] }[] }, insights: Insight[], formFields: FormField[] }",
+          "{ title: string, subtitle: string, dataDisclosure: string, recommendedVisualization: string, metrics: Metric[], timeSeries: { title: string, series: Series[], points: Point[], projectionStartIndex: number }, table: { title: string, columns: string[], rows: { cells: string[] }[] }, insights: Insight[], formFields: FormField[], funnel: { title: string, steps: { label: string, value: number, dropoff: string, tone: string }[] }, gauges: { label: string, value: number, target: number, unit: string, tone: string }[], ranking: { title: string, items: { label: string, value: string, detail: string, badge: string, tone: string }[] }, milestones: { title: string, items: { label: string, detail: string, status: string }[] } }",
           "All keys are required. Use empty arrays and empty strings where a section is not relevant.",
         ].join("\n"),
       },

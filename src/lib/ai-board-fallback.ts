@@ -74,6 +74,22 @@ function fallbackVisualization(prompt: string): ExampleWidgetData["recommendedVi
     return "form";
   }
 
+  if (/\b(funnel|activation|conversion|drop[- ]?off|signup)\b/i.test(prompt)) {
+    return "funnel";
+  }
+
+  if (/\b(gauge|utilization|vs target|margin goal|efficiency)\b/i.test(prompt)) {
+    return "gauge";
+  }
+
+  if (/\b(top|leaderboard|rank|concentration|accounts by)\b/i.test(prompt)) {
+    return "ranking";
+  }
+
+  if (/\b(milestone|readiness|roadmap|diligence|timeline)\b/i.test(prompt)) {
+    return "timeline";
+  }
+
   if (/\b(table|status|task|owner|breakdown|list|workstream)\b/i.test(prompt)) {
     return "table";
   }
@@ -84,6 +100,10 @@ function fallbackVisualization(prompt: string): ExampleWidgetData["recommendedVi
 
   if (/\b(trend|forecast|compare|comparison|over time|chart)\b/i.test(prompt)) {
     return "line_chart";
+  }
+
+  if (/\b(runway|headline|hero|single kpi)\b/i.test(prompt)) {
+    return "stat";
   }
 
   if (/\b(kpi|metric|snapshot|scorecard)\b/i.test(prompt)) {
@@ -200,6 +220,10 @@ export function fallbackWidgetExampleData(prompt: string, index = 0): ExampleWid
           { label: "Decision owner", placeholder: "Operations lead", type: "text" },
         ]
       : [],
+    funnel: { title: "", steps: [] },
+    gauges: [],
+    ranking: { title: "", items: [] },
+    milestones: { title: "", items: [] },
   };
 }
 
