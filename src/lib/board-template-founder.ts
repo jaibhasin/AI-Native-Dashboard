@@ -1,25 +1,50 @@
 import type { BoardTemplate } from "@/lib/board-template-core";
-import { exampleWidgetData, gridPosition, note, notePosition, widget } from "@/lib/board-template-core";
+import {
+  exampleWidgetData,
+  FOUNDER_NOTE_HEIGHT,
+  FOUNDER_NOTE_WIDTH,
+  founderNotePosition,
+  gridPositionSpan,
+  noteSized,
+  widgetSized,
+} from "@/lib/board-template-core";
+
+const TEMPLATE_DISCLOSURE = "Preview";
 
 const founderRunwayData = exampleWidgetData({
   title: "Runway forecast",
-  subtitle: "Cash, burn, and financing date",
-  recommendedVisualization: "metrics",
+  subtitle: "14.8 months runway at current burn",
+  recommendedVisualization: "composite",
+  disclosure: TEMPLATE_DISCLOSURE,
   metrics: [
-    { label: "Cash", value: "$2.4M", delta: "14.8 months left", tone: "positive" },
+    { label: "Cash on hand", value: "$2.4M", delta: "14.8 mo runway", tone: "positive" },
     { label: "Net burn", value: "$162k", delta: "-7% MoM", tone: "positive" },
     { label: "Default alive", value: "Yes", delta: "At current plan", tone: "positive" },
     { label: "Next raise", value: "Jan 2027", delta: "Target close", tone: "warning" },
   ],
+  timeSeries: {
+    title: "Cash balance trend",
+    projectionStartIndex: -1,
+    series: [{ label: "Cash ($k)", tone: "positive" }],
+    points: [
+      { label: "Jan", values: [2840] },
+      { label: "Feb", values: [2710] },
+      { label: "Mar", values: [2588] },
+      { label: "Apr", values: [2462] },
+      { label: "May", values: [2431] },
+      { label: "Jun", values: [2400] },
+    ],
+  },
 });
 
 const founderArrData = exampleWidgetData({
   title: "ARR growth",
-  subtitle: "Bookings, expansion, contraction",
+  subtitle: "$1.82M ARR · +34% YoY",
   recommendedVisualization: "line_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "ARR trajectory",
-    projectionStartIndex: -1,
+    projectionStartIndex: 5,
     series: [
       { label: "ARR", tone: "positive" },
       { label: "Expansion ARR", tone: "neutral" },
@@ -31,22 +56,8 @@ const founderArrData = exampleWidgetData({
       { label: "Apr", values: [1510, 126] },
       { label: "May", values: [1668, 143] },
       { label: "Jun", values: [1820, 161] },
-    ],
-  },
-});
-
-const founderBurnData = exampleWidgetData({
-  title: "Burn breakdown",
-  subtitle: "Current month",
-  recommendedVisualization: "table",
-  table: {
-    title: "Spend by area",
-    columns: ["Area", "Spend", "MoM", "Owner"],
-    rows: [
-      { cells: ["Payroll", "$118k", "+4%", "Founder"] },
-      { cells: ["AI infra", "$21k", "-9%", "Eng"] },
-      { cells: ["GTM tools", "$13k", "+6%", "Sales"] },
-      { cells: ["Ops vendors", "$10k", "-3%", "Ops"] },
+      { label: "Jul", values: [1980, 178] },
+      { label: "Aug", values: [2140, 192] },
     ],
   },
 });
@@ -55,6 +66,7 @@ const founderEfficiencyData = exampleWidgetData({
   title: "AI spend efficiency",
   subtitle: "Useful output vs token waste",
   recommendedVisualization: "metrics",
+  disclosure: TEMPLATE_DISCLOSURE,
   metrics: [
     { label: "AI spend", value: "$21.4k", delta: "-9% MoM", tone: "positive" },
     { label: "Wasted tokens", value: "12.6%", delta: "-4.2pp", tone: "positive" },
@@ -67,6 +79,7 @@ const founderCustomerRiskData = exampleWidgetData({
   title: "Customer concentration",
   subtitle: "Renewal and expansion risk",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Top account exposure",
     columns: ["Account", "ARR", "Renewal", "Risk"],
@@ -83,6 +96,7 @@ const founderActivationData = exampleWidgetData({
   title: "Activation funnel",
   subtitle: "Signup to paid conversion",
   recommendedVisualization: "bar_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Activation funnel",
     projectionStartIndex: -1,
@@ -101,6 +115,7 @@ const founderGrossMarginData = exampleWidgetData({
   title: "Gross margin",
   subtitle: "Model and infra impact",
   recommendedVisualization: "metrics",
+  disclosure: TEMPLATE_DISCLOSURE,
   metrics: [
     { label: "Gross margin", value: "72%", delta: "+3pp QoQ", tone: "positive" },
     { label: "Model COGS", value: "$18.6k", delta: "-11% MoM", tone: "positive" },
@@ -111,22 +126,23 @@ const founderGrossMarginData = exampleWidgetData({
 
 const founderFundraisingData = exampleWidgetData({
   title: "Fundraising readiness",
-  subtitle: "Milestones and diligence gaps",
+  subtitle: "Board memo · Series A prep",
   recommendedVisualization: "insights",
+  disclosure: TEMPLATE_DISCLOSURE,
   insights: [
     {
-      label: "Usage growth supports the story",
-      detail: "Weekly active teams are up 34% since the pricing change.",
+      label: "Growth narrative is holding",
+      detail: "Weekly active teams up 34% since pricing change. Net retention at 118%.",
       tone: "positive",
     },
     {
-      label: "Security packet is the gating item",
-      detail: "SOC 2 evidence and subprocessors need one owner before partner meetings.",
+      label: "SOC 2 is the gating item",
+      detail: "Evidence packet and subprocessor list need one owner before partner meetings.",
       tone: "warning",
     },
     {
-      label: "Margin proof is improving",
-      detail: "Routing cheaper models on low-risk workflows lifted margin by 3pp.",
+      label: "Margin story is improving",
+      detail: "Routing low-risk workflows to cheaper models lifted gross margin 3pp this quarter.",
       tone: "positive",
     },
   ],
@@ -136,6 +152,7 @@ const founderPrioritiesData = exampleWidgetData({
   title: "Weekly priorities",
   subtitle: "Blockers and owners",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Founder operating list",
     columns: ["Priority", "Owner", "Status", "Blocker"],
@@ -152,37 +169,76 @@ export const founderBoardTemplate: BoardTemplate = {
   id: "founder",
   name: "Founder",
   notes: [
-    note(
+    noteSized(
       "brief",
-      "Board brief",
-      "Keep runway, ARR, and customer risk visible together before making hiring or fundraise calls.",
+      "This week",
+      "Runway is healthy at 14.8 months. Focus on closing seed lead and tightening gross margin before fundraise conversations.",
       "blue",
-      notePosition(0),
+      { ...founderNotePosition(0), height: FOUNDER_NOTE_HEIGHT, width: FOUNDER_NOTE_WIDTH },
     ),
-    note(
+    noteSized(
       "watch",
-      "Watch item",
-      "Gross margin is the quiet constraint: AI infra savings compound faster than another small price change.",
+      "Risk to watch",
+      "Mercury Ops renews in July with High risk flag. Gross margin is the quiet constraint — AI infra savings compound faster than another price tweak.",
       "amber",
-      notePosition(1),
+      { ...founderNotePosition(1), height: FOUNDER_NOTE_HEIGHT, width: FOUNDER_NOTE_WIDTH },
     ),
-    note(
+    noteSized(
       "next-move",
-      "Next move",
-      "Review fundraising readiness after the priority blockers are assigned owners for the week.",
+      "Monday action",
+      "Assign SOC 2 evidence owner before partner calls. Review fundraising readiness once priority blockers have owners.",
       "green",
-      notePosition(2),
+      { ...founderNotePosition(2), height: FOUNDER_NOTE_HEIGHT, width: FOUNDER_NOTE_WIDTH },
     ),
   ],
   widgets: [
-    widget("runway", "show founder runway forecast with cash remaining, net burn, and next financing date", gridPosition(0, 0), founderRunwayData),
-    widget("arr", "show founder ARR growth, expansion, contraction, and net retention", gridPosition(1, 0), founderArrData),
-    widget("burn", "show founder burn breakdown by payroll, AI infra, GTM, and vendors", gridPosition(2, 0), founderBurnData),
-    widget("efficiency", "show founder AI spend efficiency and wasted token rate by workflow", gridPosition(0, 1), founderEfficiencyData),
-    widget("customer-risk", "show founder top customer concentration and renewal risk", gridPosition(1, 1), founderCustomerRiskData),
-    widget("activation", "show founder activation funnel from signup to paid conversion", gridPosition(2, 1), founderActivationData),
-    widget("gross-margin", "show founder gross margin impact from model and infrastructure costs", gridPosition(0, 2), founderGrossMarginData),
-    widget("fundraising", "show founder fundraising readiness milestones and diligence gaps", gridPosition(1, 2), founderFundraisingData),
-    widget("priorities", "show founder weekly priorities with blockers and owners", gridPosition(2, 2), founderPrioritiesData),
+    widgetSized(
+      "runway",
+      "show founder runway forecast with cash remaining, net burn, and next financing date",
+      gridPositionSpan(0, 0, 2, 1),
+      founderRunwayData,
+    ),
+    widgetSized(
+      "arr",
+      "show founder ARR growth, expansion, contraction, and net retention",
+      gridPositionSpan(2, 0, 1, 1),
+      founderArrData,
+    ),
+    widgetSized(
+      "efficiency",
+      "show founder AI spend efficiency and wasted token rate by workflow",
+      gridPositionSpan(0, 1),
+      founderEfficiencyData,
+    ),
+    widgetSized(
+      "customer-risk",
+      "show founder top customer concentration and renewal risk",
+      gridPositionSpan(1, 1),
+      founderCustomerRiskData,
+    ),
+    widgetSized(
+      "activation",
+      "show founder activation funnel from signup to paid conversion",
+      gridPositionSpan(2, 1),
+      founderActivationData,
+    ),
+    widgetSized(
+      "gross-margin",
+      "show founder gross margin impact from model and infrastructure costs",
+      gridPositionSpan(0, 2),
+      founderGrossMarginData,
+    ),
+    widgetSized(
+      "fundraising",
+      "show founder fundraising readiness milestones and diligence gaps",
+      gridPositionSpan(1, 2),
+      founderFundraisingData,
+    ),
+    widgetSized(
+      "priorities",
+      "show founder weekly priorities with blockers and owners",
+      gridPositionSpan(2, 2),
+      founderPrioritiesData,
+    ),
   ],
 };

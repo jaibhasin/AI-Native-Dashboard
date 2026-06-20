@@ -146,7 +146,9 @@ export function storedActiveBoardId(boards: CanvasBoard[]) {
 
   const stored = window.localStorage.getItem(ACTIVE_BOARD_STORAGE_KEY);
 
-  return boards.some((board) => board.id === stored)
-    ? stored ?? boards[0]?.id ?? BLANK_BOARD_ID
-    : boards[0]?.id ?? BLANK_BOARD_ID;
+  if (stored && boards.some((board) => board.id === stored)) {
+    return stored;
+  }
+
+  return boards.some((board) => board.id === "founder") ? "founder" : boards[0]?.id ?? BLANK_BOARD_ID;
 }

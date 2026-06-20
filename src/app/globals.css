@@ -95,6 +95,11 @@
   --chart-positive: #16a34a;
   --chart-negative: #52525b;
   --chart-warning: #ea580c;
+
+  --widget-block-bg: rgba(248, 250, 252, 0.72);
+  --widget-block-border: rgba(226, 232, 240, 0.9);
+  --widget-metric-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --widget-chart-grid: rgba(148, 163, 184, 0.28);
 }
 
 html[data-theme="dark"] {
@@ -192,6 +197,11 @@ html[data-theme="dark"] {
   --chart-positive: #4ade80;
   --chart-negative: #a1a1aa;
   --chart-warning: #f59e0b;
+
+  --widget-block-bg: rgba(23, 27, 37, 0.72);
+  --widget-block-border: rgba(52, 59, 73, 0.9);
+  --widget-metric-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --widget-chart-grid: rgba(148, 163, 184, 0.14);
 }
 
 @theme inline {

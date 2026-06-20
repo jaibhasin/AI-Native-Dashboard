@@ -2,6 +2,7 @@
 
 import { createLibrary, defineComponent } from "@openuidev/react-lang";
 import {
+  Area,
   Bar,
   BarChart as RechartsBarChart,
   CartesianGrid,
@@ -12,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useId, type ReactNode } from "react";
 import { z } from "zod/v4";
 import {
   chartPointSchema,
@@ -31,6 +33,13 @@ const toneClasses: Record<Tone, string> = {
   positive: "border-[var(--tone-positive-border)] bg-[var(--tone-positive-bg)] text-[var(--tone-positive-text)]",
   negative: "border-[var(--tone-negative-border)] bg-[var(--tone-negative-bg)] text-[var(--tone-negative-text)]",
   warning: "border-[var(--tone-warning-border)] bg-[var(--tone-warning-bg)] text-[var(--tone-warning-text)]",
+};
+
+const insightAccent: Record<Tone, string> = {
+  neutral: "var(--chart-neutral)",
+  positive: "var(--chart-positive)",
+  negative: "var(--chart-negative)",
+  warning: "var(--chart-warning)",
 };
 
 const seriesColors: Record<Tone, string> = {
@@ -128,6 +137,104 @@ function tableCell(row: { cells?: unknown[] } | unknown[] | null | undefined, co
   return safeText(row?.cells?.[columnIndex]);
 }
 
+function tableCellTone(column: string, value: string): Tone | null {
+  const columnLabel = column.toLowerCase();
+  const cellValue = value.toLowerCase();
+
+  if (columnLabel.includes("risk")) {
+    if (cellValue === "high") {
+      return "negative";
+    }
+
+    if (cellValue === "medium") {
+      return "warning";
+    }
+
+    if (cellValue === "low") {
+      return "positive";
+    }
+  }
+
+  if (columnLabel.includes("status")) {
+    if (cellValue.includes("blocked")) {
+      return "negative";
+    }
+
+    if (cellValue.includes("at risk")) {
+      return "warning";
+    }
+
+    if (cellValue.includes("on track")) {
+      return "positive";
+    }
+  }
+
+  if (columnLabel.includes("mom") || columnLabel.includes("delta")) {
+    if (cellValue.startsWith("+")) {
+      return "warning";
+    }
+
+    if (cellValue.startsWith("-")) {
+      return "positive";
+    }
+  }
+
+  return null;
+}
+
+function TableCellContent({ column, value }: { column: string; value: string }) {
+  const tone = tableCellTone(column, value);
+
+  if (!tone) {
+    return <>{value}</>;
+  }
+
+  return (
+    <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-semibold leading-none ${toneClasses[tone]}`}>
+      {value}
+    </span>
+  );
+}
+
+function BlockShell({
+  children,
+  className = "",
+  title,
+  trailing,
+}: {
+  children: ReactNode;
+  className?: string;
+  title?: string;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className={`flex min-h-0 flex-col rounded-lg bg-[var(--widget-block-bg)] ${className}`}>
+      {title ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 px-2 pt-1.5">
+          <div className="truncate text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+            {title}
+          </div>
+          {trailing}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
+}
+
+function ChartLegend({ series }: { series: Array<{ label: string; tone: Tone }> }) {
+  return (
+    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      {series.map((seriesItem, index) => (
+        <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]" key={`${seriesItem.label}-${index}`}>
+          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: seriesColors[seriesItem.tone] }} />
+          <span className="truncate">{seriesItem.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const MetricGrid = defineComponent({
   name: "MetricGrid",
   description: "A compact grid of KPI metric cards.",
@@ -136,23 +243,20 @@ const MetricGrid = defineComponent({
   }),
   component: ({ props }) => {
     const metrics = asArray(props.metrics).map(safeMetric).slice(0, 4);
+    const gridClass = metrics.length === 4 ? "grid-cols-4" : "grid-cols-2";
 
     return (
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid ${gridClass} gap-1.5`}>
         {metrics.map((metric, index) => (
           <div
-            className={`min-w-0 rounded-md border p-2.5 ${toneClasses[metric.tone]}`}
+            className={`min-w-0 rounded-lg border px-2 py-1.5 shadow-[var(--widget-metric-shadow)] ${toneClasses[metric.tone]}`}
             key={`${metric.label}-${index}`}
           >
-            <div className="truncate text-[11px] font-medium uppercase tracking-normal opacity-75">
-              {metric.label}
-            </div>
-            <div className="mt-1 truncate text-xl font-semibold leading-tight text-[var(--text-primary)]">
+            <div className="truncate text-[10px] font-semibold uppercase tracking-wide opacity-80">{metric.label}</div>
+            <div className="mt-0.5 truncate text-xl font-bold leading-none tracking-tight text-[var(--text-primary)]">
               {metric.value}
             </div>
-            {metric.delta ? (
-              <div className="mt-1 truncate text-xs font-medium">{metric.delta}</div>
-            ) : null}
+            {metric.delta ? <div className="mt-0.5 truncate text-[10px] font-medium opacity-90">{metric.delta}</div> : null}
           </div>
         ))}
       </div>
@@ -170,69 +274,73 @@ const LineChart = defineComponent({
     projectionStartIndex: z.number(),
   }),
   component: ({ props }) => {
+    const gradientId = useId().replace(/:/g, "");
     const series = asArray(props.series).map((item, index) => ({
       label: safeText(item?.label) || `Series ${index + 1}`,
       tone: safeTone(item?.tone),
     }));
     const rows = chartRows(props.data, series);
     const moneyUnit = chartMoneyUnit(props.title, series);
+    const hasProjection = props.projectionStartIndex >= 0;
 
     return (
-      <div className="min-h-0 rounded-md border border-[var(--border)] bg-[var(--panel)] p-2.5">
-        <div className="mb-2 truncate text-sm font-semibold text-[var(--text-primary)]">{props.title}</div>
-        <div className="h-[150px]">
-          <ResponsiveContainer
-            height="100%"
-            initialDimension={{ height: 150, width: 1 }}
-            minHeight={1}
-            minWidth={1}
-            width="100%"
-          >
-            <RechartsLineChart data={rows} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
-              <CartesianGrid stroke="var(--border-soft)" strokeDasharray="3 3" vertical={false} />
+      <BlockShell className="min-h-[168px] flex-1" title={props.title} trailing={<ChartLegend series={series} />}>
+        <div className="min-h-[148px] flex-1 px-1 pb-1">
+          <ResponsiveContainer height="100%" minHeight={148} width="100%">
+            <RechartsLineChart data={rows} margin={{ bottom: 2, left: -8, right: 4, top: 6 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor={seriesColors[series[0]?.tone ?? "neutral"]} stopOpacity={0.28} />
+                  <stop offset="100%" stopColor={seriesColors[series[0]?.tone ?? "neutral"]} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="var(--widget-chart-grid)" strokeDasharray="2 4" vertical={false} />
               <XAxis
+                axisLine={false}
                 dataKey="label"
                 interval="preserveStartEnd"
                 tick={{ fill: "var(--text-muted)", fontSize: 10 }}
                 tickLine={false}
               />
               <YAxis
+                axisLine={false}
                 tick={{ fill: "var(--text-muted)", fontSize: 10 }}
                 tickFormatter={moneyUnit ? (value) => formatMoneyTick(value, moneyUnit) : undefined}
                 tickLine={false}
-                width={56}
+                width={44}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "var(--panel)",
                   border: "1px solid var(--border)",
-                  borderRadius: 6,
+                  borderRadius: 8,
                   color: "var(--text-primary)",
-                  fontSize: 12,
+                  fontSize: 11,
+                  padding: "6px 8px",
                 }}
                 itemStyle={{ color: "var(--text-primary)" }}
-                labelStyle={{ color: "var(--text-secondary)" }}
+                labelStyle={{ color: "var(--text-secondary)", fontSize: 10 }}
               />
+              {series.length > 0 ? (
+                <Area dataKey="series0" fill={`url(#${gradientId})`} stroke="none" type="monotone" />
+              ) : null}
               {series.map((seriesItem, index) => (
                 <Line
+                  activeDot={{ fill: seriesColors[seriesItem.tone], r: 3, strokeWidth: 0 }}
                   dataKey={`series${index}`}
                   dot={false}
                   key={`${seriesItem.label}-${index}`}
                   name={seriesItem.label}
                   stroke={seriesColors[seriesItem.tone]}
-                  strokeDasharray={
-                    props.projectionStartIndex >= 0 && index === series.length - 1
-                      ? "4 4"
-                      : undefined
-                  }
-                  strokeWidth={2}
+                  strokeDasharray={hasProjection && index === 0 ? "5 4" : undefined}
+                  strokeWidth={2.25}
                   type="monotone"
                 />
               ))}
             </RechartsLineChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </BlockShell>
     );
   },
 });
@@ -246,57 +354,65 @@ const BarChart = defineComponent({
     series: z.array(chartSeriesSchema),
   }),
   component: ({ props }) => {
+    const gradientId = useId().replace(/:/g, "");
     const series = asArray(props.series).map((item, index) => ({
       label: safeText(item?.label) || `Series ${index + 1}`,
       tone: safeTone(item?.tone),
     }));
     const rows = chartRows(props.data, series);
     const moneyUnit = chartMoneyUnit(props.title, series);
+    const barColor = seriesColors[series[0]?.tone ?? "positive"];
 
     return (
-      <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-2.5">
-        <div className="mb-2 truncate text-sm font-semibold text-[var(--text-primary)]">{props.title}</div>
-        <div className="h-[150px]">
-          <ResponsiveContainer
-            height="100%"
-            initialDimension={{ height: 150, width: 1 }}
-            minHeight={1}
-            minWidth={1}
-            width="100%"
-          >
-            <RechartsBarChart data={rows} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
-              <CartesianGrid stroke="var(--border-soft)" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="label" tick={{ fill: "var(--text-muted)", fontSize: 10 }} tickLine={false} />
+      <BlockShell className="min-h-[168px] flex-1" title={props.title}>
+        <div className="min-h-[148px] flex-1 px-1 pb-1">
+          <ResponsiveContainer height="100%" minHeight={148} width="100%">
+            <RechartsBarChart data={rows} margin={{ bottom: 2, left: -8, right: 4, top: 6 }}>
+              <defs>
+                <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor={barColor} stopOpacity={0.95} />
+                  <stop offset="100%" stopColor={barColor} stopOpacity={0.55} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="var(--widget-chart-grid)" strokeDasharray="2 4" vertical={false} />
+              <XAxis
+                axisLine={false}
+                dataKey="label"
+                tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                tickLine={false}
+              />
               <YAxis
+                axisLine={false}
                 tick={{ fill: "var(--text-muted)", fontSize: 10 }}
                 tickFormatter={moneyUnit ? (value) => formatMoneyTick(value, moneyUnit) : undefined}
                 tickLine={false}
-                width={56}
+                width={44}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "var(--panel)",
                   border: "1px solid var(--border)",
-                  borderRadius: 6,
+                  borderRadius: 8,
                   color: "var(--text-primary)",
-                  fontSize: 12,
+                  fontSize: 11,
+                  padding: "6px 8px",
                 }}
                 itemStyle={{ color: "var(--text-primary)" }}
-                labelStyle={{ color: "var(--text-secondary)" }}
+                labelStyle={{ color: "var(--text-secondary)", fontSize: 10 }}
               />
               {series.map((seriesItem, index) => (
                 <Bar
                   dataKey={`series${index}`}
-                  fill={seriesColors[seriesItem.tone]}
+                  fill={`url(#${gradientId})`}
                   key={`${seriesItem.label}-${index}`}
                   name={seriesItem.label}
-                  radius={[4, 4, 0, 0]}
+                  radius={[5, 5, 0, 0]}
                 />
               ))}
             </RechartsBarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      </BlockShell>
     );
   },
 });
@@ -310,37 +426,39 @@ const DataTable = defineComponent({
     const rows = asArray(props.rows).slice(0, 8);
 
     return (
-      <div className="rounded-md border border-[var(--border)] bg-[var(--panel)]">
-        {props.title ? (
-          <div className="border-b border-[var(--border)] px-3 py-2 text-sm font-semibold text-[var(--text-primary)]">
-            {props.title}
-          </div>
-        ) : null}
-        <div>
-          <table className="w-full border-collapse text-left text-xs">
-            <thead className="sticky top-0 bg-[var(--surface-muted)] text-[var(--text-secondary)]">
-              <tr>
+      <BlockShell className="overflow-hidden" title={props.title || undefined}>
+        <div className="overflow-hidden px-1 pb-1">
+          <table className="w-full border-collapse text-left text-[11px]">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
                 {columns.map((column, index) => (
-                  <th className="whitespace-nowrap px-3 py-2 font-semibold" key={`${column}-${index}`}>
+                  <th className="whitespace-nowrap px-2 py-1 font-semibold" key={`${column}-${index}`}>
                     {column}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--border-soft)]">
+            <tbody>
               {rows.map((row, rowIndex) => (
-                <tr className="text-[var(--text-primary)]" key={rowIndex}>
-                  {columns.map((column, columnIndex) => (
-                    <td className="whitespace-nowrap px-3 py-2" key={`${column}-${columnIndex}`}>
-                      {tableCell(row, columnIndex)}
-                    </td>
-                  ))}
+                <tr
+                  className="border-t border-[var(--border-soft)] text-[var(--text-primary)] even:bg-[var(--surface-muted)]/60"
+                  key={rowIndex}
+                >
+                  {columns.map((column, columnIndex) => {
+                    const cellValue = tableCell(row, columnIndex);
+
+                    return (
+                      <td className="whitespace-nowrap px-2 py-1.5" key={`${column}-${columnIndex}`}>
+                        <TableCellContent column={column} value={cellValue} />
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </BlockShell>
     );
   },
 });
@@ -356,24 +474,28 @@ const InsightList = defineComponent({
     const items = asArray(props.items).slice(0, 4);
 
     return (
-      <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-3">
-        <div className="mb-2 truncate text-sm font-semibold text-[var(--text-primary)]">{props.title}</div>
-        <div className="space-y-2">
+      <BlockShell title={props.title}>
+        <div className="space-y-1 px-2 pb-2">
           {items.map((item, index) => {
             const tone = safeTone(item?.tone);
 
             return (
-              <div className="flex gap-2 text-xs" key={`${safeText(item?.label)}-${index}`}>
-                <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${toneClasses[tone]}`} />
+              <div
+                className="flex gap-2 rounded-md bg-[var(--panel)]/70 px-2 py-1.5"
+                key={`${safeText(item?.label)}-${index}`}
+                style={{ boxShadow: "inset 3px 0 0 " + insightAccent[tone] }}
+              >
                 <div className="min-w-0">
-                  <div className="font-semibold text-[var(--text-primary)]">{safeText(item?.label)}</div>
-                  <div className="text-[var(--text-muted)]">{safeText(item?.detail)}</div>
+                  <div className="text-[11px] font-semibold leading-tight text-[var(--text-primary)]">
+                    {safeText(item?.label)}
+                  </div>
+                  <div className="mt-0.5 text-[10px] leading-snug text-[var(--text-muted)]">{safeText(item?.detail)}</div>
                 </div>
               </div>
             );
           })}
         </div>
-      </div>
+      </BlockShell>
     );
   },
 });
@@ -390,14 +512,13 @@ const FormPreview = defineComponent({
     const fields = asArray(props.fields).slice(0, 4);
 
     return (
-      <div className="rounded-md border border-[var(--border)] bg-[var(--panel)] p-3">
-        <div className="mb-3 truncate text-sm font-semibold text-[var(--text-primary)]">{props.title}</div>
-        <div className="grid grid-cols-2 gap-2">
+      <BlockShell title={props.title}>
+        <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
           {fields.map((field, index) => (
-            <label className="min-w-0 text-xs font-medium text-[var(--text-secondary)]" key={`${safeText(field?.label)}-${index}`}>
-              <span className="mb-1 block truncate">{safeText(field?.label)}</span>
+            <label className="min-w-0 text-[10px] font-medium text-[var(--text-secondary)]" key={`${safeText(field?.label)}-${index}`}>
+              <span className="mb-0.5 block truncate">{safeText(field?.label)}</span>
               <input
-                className="h-8 w-full rounded border border-[var(--border-strong)] bg-[var(--surface-muted)] px-2 text-xs text-[var(--text-primary)] outline-none"
+                className="h-7 w-full rounded-md border border-[var(--border-strong)] bg-[var(--surface-muted)] px-2 text-[11px] text-[var(--text-primary)] outline-none"
                 disabled
                 placeholder={safeText(field?.placeholder)}
                 type={field?.type === "number" ? "number" : field?.type === "date" ? "date" : "text"}
@@ -406,13 +527,13 @@ const FormPreview = defineComponent({
           ))}
         </div>
         <button
-          className="mt-3 h-8 rounded bg-[var(--primary)] px-3 text-xs font-semibold text-[var(--primary-foreground)] opacity-80"
+          className="mx-2 mb-2 h-7 rounded-md bg-[var(--primary)] px-3 text-[11px] font-semibold text-[var(--primary-foreground)] opacity-85"
           disabled
           type="button"
         >
           {props.submitLabel}
         </button>
-      </div>
+      </BlockShell>
     );
   },
 });
@@ -437,15 +558,8 @@ const DashboardWidget = defineComponent({
     blocks: z.array(DashboardBlock),
   }),
   component: ({ props, renderNode }) => (
-    <div className="flex min-h-[320px] flex-col bg-[var(--surface)]">
-      <div className="border-b border-[var(--border)] px-4 py-3">
-        <div className="truncate text-base font-semibold text-[var(--text-primary)]">{props.title}</div>
-        {props.subtitle ? <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{props.subtitle}</div> : null}
-        <div className="mt-2 inline-flex rounded border border-[var(--border)] bg-[var(--panel)] px-2 py-1 text-[11px] font-medium text-[var(--text-muted)]">
-          {props.dataDisclosure}
-        </div>
-      </div>
-      <div className="flex-1 space-y-2 p-3">{renderNode(props.blocks)}</div>
+    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">{renderNode(props.blocks)}</div>
     </div>
   ),
 });

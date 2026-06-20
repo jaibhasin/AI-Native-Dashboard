@@ -228,8 +228,8 @@ export function fitZoomForBoard(board: CanvasBoard | undefined, viewport: HTMLEl
     return null;
   }
 
-  const availableWidth = Math.max(MIN_WIDGET_WIDTH, viewport.clientWidth - 96);
-  const availableHeight = Math.max(MIN_WIDGET_HEIGHT, viewport.clientHeight - TOP_CANVAS_SAFE_INSET - 48);
+  const availableWidth = Math.max(MIN_WIDGET_WIDTH, viewport.clientWidth - 120);
+  const availableHeight = Math.max(MIN_WIDGET_HEIGHT, viewport.clientHeight - TOP_CANVAS_SAFE_INSET - 72);
   const fitZoom = Math.floor(Math.min(1, availableWidth / bounds.width, availableHeight / bounds.height) * 100);
 
   return clampZoom(fitZoom);
