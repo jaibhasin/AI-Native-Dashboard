@@ -49,6 +49,7 @@ import {
   hasClosestElement,
   isEditableTarget,
   noteTextSize,
+  shouldCompactTemplateWidget,
 } from "@/app/_lib/whiteboard/geometry";
 import {
   createBlankBoard,
@@ -175,13 +176,13 @@ export default function Home() {
 
   const fitWidgetToContent = useCallback(
     (id: string, openuiSource: string, stageSize: ElementSize) => {
-      if (activeBoardIsTemplate) {
-        return;
-      }
-
-      const nextContentFitKey = contentFitKey(openuiSource, stageSize);
-
       updateWidget(activeBoardId, id, (widget) => {
+        if (activeBoardIsTemplate && !shouldCompactTemplateWidget(widget)) {
+          return widget;
+        }
+
+        const nextContentFitKey = contentFitKey(openuiSource, stageSize);
+
         if (
           widget.status !== "done" ||
           widget.openuiSource !== openuiSource ||

@@ -20,21 +20,21 @@ import type {
 import { TEMPLATE_AUTHOR_NAME } from "@/lib/dashboard-schemas";
 
 export const BLANK_BOARD_ID = "blank";
-export const BOARD_TEMPLATE_VERSION = 7;
+// Increment when prebuilt template content/layout changes. On load, every board in
+// BOARD_TEMPLATES (Founder, Engineering, Sales, Ops) is replaced if its stored
+// templateVersion does not match — personal boards are untouched.
+export const BOARD_TEMPLATE_VERSION = 10;
+export const TEMPLATE_DISCLOSURE = "AI-generated preview data.";
 
 const TEMPLATE_WIDGET_WIDTH = 440;
 const TEMPLATE_WIDGET_HEIGHT = 320;
-const TEMPLATE_NOTE_WIDTH = 284;
-const TEMPLATE_NOTE_HEIGHT = 108;
+const TEMPLATE_NOTE_HEIGHT = 120;
 export const FOUNDER_HERO_ROW_HEIGHT = 360;
-export const FOUNDER_NOTE_WIDTH = 340;
-export const FOUNDER_NOTE_HEIGHT = 120;
 const TEMPLATE_CANVAS_CENTER_X = 100000;
 const TEMPLATE_CANVAS_CENTER_Y = 100000;
 const TEMPLATE_GAP = 36;
-const TEMPLATE_NOTE_GAP = 18;
+const TEMPLATE_NOTE_ROW_GAP = 16;
 const TEMPLATE_NOTE_TOP_GAP = 28;
-const PREVIEW_DISCLOSURE = "AI-generated preview data.";
 
 export type TemplateGridCoordinate = 0 | 1 | 2;
 type TemplateVisualization = ExampleWidgetData["recommendedVisualization"];
@@ -136,23 +136,63 @@ export function gridPositionSpan(
   };
 }
 
-export function notePosition(column: TemplateGridCoordinate) {
-  const totalWidth = TEMPLATE_NOTE_WIDTH * 3 + TEMPLATE_NOTE_GAP * 2;
-  const totalWidgetHeight = TEMPLATE_WIDGET_HEIGHT * 3 + TEMPLATE_GAP * 2;
+function standardWidgetGridHeight() {
+  return TEMPLATE_WIDGET_HEIGHT * 3 + TEMPLATE_GAP * 2;
+}
+
+function noteColumnX(column: TemplateGridCoordinate, colSpan: 1 | 2 | 3 = 1) {
+  const totalWidth = TEMPLATE_WIDGET_WIDTH * 3 + TEMPLATE_GAP * 2;
 
   return {
-    x: TEMPLATE_CANVAS_CENTER_X - totalWidth / 2 + column * (TEMPLATE_NOTE_WIDTH + TEMPLATE_NOTE_GAP),
-    y: TEMPLATE_CANVAS_CENTER_Y - totalWidgetHeight / 2 - TEMPLATE_NOTE_HEIGHT - TEMPLATE_NOTE_TOP_GAP,
+    totalWidth,
+    width: colSpan * TEMPLATE_WIDGET_WIDTH + (colSpan - 1) * TEMPLATE_GAP,
+    x: TEMPLATE_CANVAS_CENTER_X - totalWidth / 2 + column * (TEMPLATE_WIDGET_WIDTH + TEMPLATE_GAP),
   };
 }
 
-export function founderNotePosition(column: TemplateGridCoordinate) {
-  const totalWidth = FOUNDER_NOTE_WIDTH * 3 + TEMPLATE_NOTE_GAP * 2;
+function noteYAboveGrid(totalWidgetHeight: number, noteRowFromWidgets: number) {
+  const noteBlockHeight = TEMPLATE_NOTE_HEIGHT + TEMPLATE_NOTE_ROW_GAP;
+
+  return (
+    TEMPLATE_CANVAS_CENTER_Y -
+    totalWidgetHeight / 2 -
+    TEMPLATE_NOTE_TOP_GAP -
+    TEMPLATE_NOTE_HEIGHT -
+    noteRowFromWidgets * noteBlockHeight
+  );
+}
+
+export function notePosition(column: TemplateGridCoordinate) {
+  const { x } = noteColumnX(column);
+
+  return {
+    x,
+    y: noteYAboveGrid(standardWidgetGridHeight(), 0),
+  };
+}
+
+export function notePositionSpan(column: TemplateGridCoordinate, colSpan: 1 | 2 | 3 = 1, noteRowFromWidgets = 0) {
+  const { x, width } = noteColumnX(column, colSpan);
+
+  return {
+    x,
+    y: noteYAboveGrid(standardWidgetGridHeight(), noteRowFromWidgets),
+    width,
+  };
+}
+
+export function founderNotePositionSpan(
+  column: TemplateGridCoordinate,
+  colSpan: 1 | 2 | 3 = 1,
+  noteRowFromWidgets = 0,
+) {
+  const { x, width } = noteColumnX(column, colSpan);
   const totalWidgetHeight = gridTotalHeight(FOUNDER_ROW_HEIGHTS);
 
   return {
-    x: TEMPLATE_CANVAS_CENTER_X - totalWidth / 2 + column * (FOUNDER_NOTE_WIDTH + TEMPLATE_NOTE_GAP),
-    y: TEMPLATE_CANVAS_CENTER_Y - totalWidgetHeight / 2 - FOUNDER_NOTE_HEIGHT - TEMPLATE_NOTE_TOP_GAP,
+    x,
+    y: noteYAboveGrid(totalWidgetHeight, noteRowFromWidgets),
+    width,
   };
 }
 
@@ -194,7 +234,7 @@ export function note(
   return noteSized(id, title, body, color, {
     ...position,
     height: TEMPLATE_NOTE_HEIGHT,
-    width: TEMPLATE_NOTE_WIDTH,
+    width: TEMPLATE_WIDGET_WIDTH,
   });
 }
 
@@ -258,7 +298,7 @@ function emptyMilestones(): MilestonesData {
 
 export function exampleWidgetData(input: ExampleWidgetDataInput): ExampleWidgetData {
   return {
-    dataDisclosure: input.disclosure ?? PREVIEW_DISCLOSURE,
+    dataDisclosure: input.disclosure ?? TEMPLATE_DISCLOSURE,
     formFields: input.formFields ?? [],
     funnel: input.funnel ?? emptyFunnel(),
     gauges: input.gauges ?? [],

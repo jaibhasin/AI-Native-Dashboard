@@ -147,6 +147,12 @@ export function contentFitKey(openuiSource: string, stageSize: ElementSize) {
   ].join(":");
 }
 
+export function shouldCompactTemplateWidget(widget: CanvasWidget) {
+  const visualization = widget.exampleData?.recommendedVisualization;
+
+  return visualization === "metrics";
+}
+
 export function fittedWidgetHeight(widget: CanvasWidget, stageSize: ElementSize) {
   if (stageSize.width <= 0 || stageSize.height <= 0) {
     return widget.height;

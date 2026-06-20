@@ -82,6 +82,16 @@ export function createBlankBoard(widgets: CanvasWidget[] = [], now = Date.now())
   };
 }
 
+export function resetPrebuiltTemplates(boards: CanvasBoard[], now = Date.now()): CanvasBoard[] {
+  const boardById = new Map(boards.map((board) => [board.id, board]));
+
+  BOARD_TEMPLATES.forEach((template) => {
+    boardById.set(template.id, createBoardFromTemplate(template, now));
+  });
+
+  return ensureBoardSet([...boardById.values()]);
+}
+
 export function ensureBoardSet(boards: CanvasBoard[]) {
   const now = Date.now();
   const boardById = new Map<string, CanvasBoard>();
@@ -100,6 +110,8 @@ export function ensureBoardSet(boards: CanvasBoard[]) {
     boardById.set(BLANK_BOARD_ID, createBlankBoard([], now));
   }
 
+  // Rehydrate all prebuilt tabs from source when missing, mismatched, or outdated.
+  // Retried/edited template widgets persist until BOARD_TEMPLATE_VERSION bumps.
   BOARD_TEMPLATES.forEach((template) => {
     const currentBoard = boardById.get(template.id);
 

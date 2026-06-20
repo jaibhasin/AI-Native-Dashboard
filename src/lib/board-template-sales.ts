@@ -1,10 +1,11 @@
 import type { BoardTemplate } from "@/lib/board-template-core";
-import { exampleWidgetData, gridPosition, note, notePosition, widget } from "@/lib/board-template-core";
+import { exampleWidgetData, gridPosition, note, notePosition, TEMPLATE_DISCLOSURE, widget } from "@/lib/board-template-core";
 
 const salesPipelineData = exampleWidgetData({
   title: "Pipeline coverage",
-  subtitle: "Current quarter",
+  subtitle: "Current quarter · commit vs target",
   recommendedVisualization: "bar_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Pipeline by stage",
     projectionStartIndex: -1,
@@ -21,8 +22,9 @@ const salesPipelineData = exampleWidgetData({
 
 const salesWinRateData = exampleWidgetData({
   title: "Win rate trend",
-  subtitle: "Last 6 months",
+  subtitle: "Last 6 months · sales cycle",
   recommendedVisualization: "line_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Win rate and cycle",
     projectionStartIndex: -1,
@@ -43,8 +45,9 @@ const salesWinRateData = exampleWidgetData({
 
 const salesForecastData = exampleWidgetData({
   title: "Revenue forecast",
-  subtitle: "Commit and best case",
+  subtitle: "Commit and best case by segment",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Forecast by segment",
     columns: ["Segment", "Commit", "Best case", "Risk"],
@@ -59,22 +62,23 @@ const salesForecastData = exampleWidgetData({
 
 const salesStuckDealsData = exampleWidgetData({
   title: "Stuck deals",
-  subtitle: "Blockers and next actions",
+  subtitle: "Blockers and recommended actions",
   recommendedVisualization: "insights",
+  disclosure: TEMPLATE_DISCLOSURE,
   insights: [
     {
       label: "Security reviews slow expansion",
-      detail: "Five high-value deals are waiting on vendor questionnaires.",
+      detail: "Five high-value deals wait on vendor questionnaires — route to one owner with next step written.",
       tone: "warning",
     },
     {
       label: "Champion silence is rising",
-      detail: "Three demos have no buyer reply after pricing was sent.",
+      detail: "Three demos have no buyer reply after pricing — recommend mutual-intro or ROI proof follow-up.",
       tone: "negative",
     },
     {
       label: "AI ROI proof helps closes",
-      detail: "Deals with workflow savings attached close 9 days faster.",
+      detail: "Deals with workflow savings attached close 9 days faster — attach savings to stuck commit deals.",
       tone: "positive",
     },
   ],
@@ -84,6 +88,7 @@ const salesLeadSourceData = exampleWidgetData({
   title: "Lead source ROI",
   subtitle: "CAC payback by channel",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Channel economics",
     columns: ["Channel", "Pipeline", "CAC payback", "ROI"],
@@ -100,6 +105,7 @@ const salesOutboundData = exampleWidgetData({
   title: "Outbound sequences",
   subtitle: "AI-personalized reply rate",
   recommendedVisualization: "bar_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Sequence performance",
     projectionStartIndex: -1,
@@ -120,6 +126,7 @@ const salesExpansionData = exampleWidgetData({
   title: "Expansion pipeline",
   subtitle: "Renewal risk by account",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Expansion and renewal watch",
     columns: ["Account", "Upside", "Renewal", "Risk"],
@@ -136,6 +143,7 @@ const salesDemoConversionData = exampleWidgetData({
   title: "Demo conversion",
   subtitle: "Demo to proposal by rep",
   recommendedVisualization: "bar_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Rep conversion",
     projectionStartIndex: -1,
@@ -154,6 +162,7 @@ const salesSecurityReviewData = exampleWidgetData({
   title: "Security review queue",
   subtitle: "Enterprise deal blockers",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Reviews blocking deals",
     columns: ["Deal", "Value", "Age", "Needed"],
@@ -170,20 +179,72 @@ export const salesBoardTemplate: BoardTemplate = {
   id: "sales",
   name: "Sales",
   notes: [
-    note("brief", "Board brief", "Read pipeline, conversion, expansion, and deal blockers as one weekly revenue operating view.", "blue", notePosition(0)),
-    note("watch", "Watch item", "Security review aging is the enterprise choke point; it can erase forecast confidence late in-quarter.", "amber", notePosition(1)),
-    note("next-move", "Next move", "Route stuck commit deals to one owner with the blocker reason and next best action already written.", "green", notePosition(2)),
+    note(
+      "brief",
+      "This week",
+      "Read pipeline ($168k commit), win rate (28%), and expansion as one revenue view. ROI-proof sequences convert at 19% reply.",
+      "blue",
+      notePosition(0),
+    ),
+    note(
+      "watch",
+      "Risk to watch",
+      "Vector Bank ($212k) has waited 18d on DPA redlines and Acme AI ($146k) is at 12d on SOC 2 — security queue is the enterprise choke point.",
+      "amber",
+      notePosition(1),
+    ),
+    note(
+      "next-move",
+      "Next move",
+      "Route stuck commit deals to one owner with blocker reason and next best action written. Attach AI ROI proof to the three silent-champion demos.",
+      "green",
+      notePosition(2),
+    ),
   ],
   widgets: [
     widget("pipeline", "show sales pipeline coverage by stage for the current quarter", gridPosition(0, 0), salesPipelineData),
     widget("win-rate", "show sales win rate and sales cycle trend by month", gridPosition(1, 0), salesWinRateData),
-    widget("forecast", "show sales revenue forecast by segment with commit and best case", gridPosition(2, 0), salesForecastData),
-    widget("stuck-deals", "show sales stuck deals, blocker reason, and next best action", gridPosition(0, 1), salesStuckDealsData),
-    widget("lead-source", "show sales lead source ROI and CAC payback by channel", gridPosition(1, 1), salesLeadSourceData),
-    widget("outbound", "show sales outbound sequence performance and AI-personalized reply rate", gridPosition(2, 1), salesOutboundData),
-    widget("expansion", "show sales expansion pipeline and renewal risk by account", gridPosition(0, 2), salesExpansionData),
-    widget("demo-conversion", "show sales demo-to-proposal conversion by rep", gridPosition(1, 2), salesDemoConversionData),
-    widget("security-review", "show sales security review queue blocking enterprise deals", gridPosition(2, 2), salesSecurityReviewData),
+    widget(
+      "forecast",
+      "show sales revenue forecast by segment with commit and best case",
+      gridPosition(2, 0),
+      salesForecastData,
+    ),
+    widget(
+      "stuck-deals",
+      "summarize sales stuck deals with blockers and recommended actions",
+      gridPosition(0, 1),
+      salesStuckDealsData,
+    ),
+    widget(
+      "lead-source",
+      "show sales lead source ROI and CAC payback by channel",
+      gridPosition(1, 1),
+      salesLeadSourceData,
+    ),
+    widget(
+      "outbound",
+      "show sales outbound sequence performance and AI-personalized reply rate",
+      gridPosition(2, 1),
+      salesOutboundData,
+    ),
+    widget(
+      "expansion",
+      "show sales expansion pipeline and renewal risk by account",
+      gridPosition(0, 2),
+      salesExpansionData,
+    ),
+    widget(
+      "demo-conversion",
+      "show sales demo-to-proposal conversion by rep",
+      gridPosition(1, 2),
+      salesDemoConversionData,
+    ),
+    widget(
+      "security-review",
+      "show sales security review queue blocking enterprise deals",
+      gridPosition(2, 2),
+      salesSecurityReviewData,
+    ),
   ],
 };
-

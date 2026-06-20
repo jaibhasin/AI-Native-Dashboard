@@ -1,10 +1,11 @@
 import type { BoardTemplate } from "@/lib/board-template-core";
-import { exampleWidgetData, gridPosition, note, notePosition, widget } from "@/lib/board-template-core";
+import { exampleWidgetData, gridPosition, note, notePosition, TEMPLATE_DISCLOSURE, widget } from "@/lib/board-template-core";
 
 const engineeringVelocityData = exampleWidgetData({
   title: "Engineering velocity",
-  subtitle: "Past 6 sprints",
+  subtitle: "Past 6 sprints · shipped PRs",
   recommendedVisualization: "line_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Sprint throughput",
     projectionStartIndex: -1,
@@ -25,8 +26,13 @@ const engineeringVelocityData = exampleWidgetData({
 
 const engineeringIncidentsData = exampleWidgetData({
   title: "Incident load",
-  subtitle: "Severity and response",
-  recommendedVisualization: "bar_chart",
+  subtitle: "Severity, volume, and MTTR",
+  recommendedVisualization: "composite",
+  disclosure: TEMPLATE_DISCLOSURE,
+  metrics: [
+    { label: "MTTR", value: "42m", delta: "-11m WoW", tone: "positive" },
+    { label: "P0/P1 this week", value: "2", delta: "Down from 4", tone: "positive" },
+  ],
   timeSeries: {
     title: "Incidents by week",
     projectionStartIndex: -1,
@@ -45,10 +51,11 @@ const engineeringIncidentsData = exampleWidgetData({
 
 const engineeringModelData = exampleWidgetData({
   title: "Model reliability",
-  subtitle: "Latency, retries, and cost",
+  subtitle: "P95 latency · routing tier · cost per run",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
-    title: "Workflow health",
+    title: "Agent workflow health",
     columns: ["Workflow", "P95 latency", "Retry rate", "Cost/run"],
     rows: [
       { cells: ["Research agent", "7.8s", "4.1%", "$0.18"] },
@@ -60,23 +67,25 @@ const engineeringModelData = exampleWidgetData({
 });
 
 const engineeringQualityData = exampleWidgetData({
-  title: "Quality and evals",
-  subtitle: "Release readiness",
-  recommendedVisualization: "insights",
+  title: "Release quality",
+  subtitle: "Product eval pass rate · rollback risk",
+  recommendedVisualization: "composite",
+  disclosure: TEMPLATE_DISCLOSURE,
+  metrics: [{ label: "Eval pass rate", value: "91%", delta: "+6pp after routing", tone: "positive" }],
   insights: [
     {
-      label: "Eval pass rate recovered",
-      detail: "Routing changes lifted agent accuracy after the latest prompt cleanup.",
+      label: "Product evals recovered",
+      detail: "Closed-loop routing lifted agent accuracy after the latest prompt cleanup.",
       tone: "positive",
     },
     {
       label: "Checkout flow needs review",
-      detail: "Two newest failures are clustered in billing-state transitions.",
+      detail: "Two newest eval failures cluster in billing-state transitions.",
       tone: "warning",
     },
     {
       label: "Rollback risk is low",
-      detail: "No migration failures or schema drift showed up in staging checks.",
+      detail: "No migration failures or schema drift in staging canary checks.",
       tone: "positive",
     },
   ],
@@ -86,6 +95,7 @@ const engineeringDeploymentData = exampleWidgetData({
   title: "Deployment health",
   subtitle: "Builds and lead time",
   recommendedVisualization: "metrics",
+  disclosure: TEMPLATE_DISCLOSURE,
   metrics: [
     { label: "Deploys", value: "34", delta: "+8 this week", tone: "positive" },
     { label: "Failed builds", value: "6", delta: "-3 vs last week", tone: "positive" },
@@ -98,6 +108,7 @@ const engineeringPrReviewData = exampleWidgetData({
   title: "PR review bottlenecks",
   subtitle: "Repos and reviewer load",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Slow review queues",
     columns: ["Repo", "Median wait", "Reviewer", "Backlog"],
@@ -114,6 +125,7 @@ const engineeringTestsData = exampleWidgetData({
   title: "Test coverage",
   subtitle: "Coverage and flaky hotspots",
   recommendedVisualization: "bar_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Coverage by surface",
     projectionStartIndex: -1,
@@ -132,8 +144,9 @@ const engineeringTestsData = exampleWidgetData({
 
 const engineeringAgentEvalData = exampleWidgetData({
   title: "Agent eval coverage",
-  subtitle: "Critical workflow checks",
+  subtitle: "Product evals by critical workflow",
   recommendedVisualization: "table",
+  disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Eval matrix",
     columns: ["Workflow", "Coverage", "Pass rate", "Gap"],
@@ -148,8 +161,9 @@ const engineeringAgentEvalData = exampleWidgetData({
 
 const engineeringInfraData = exampleWidgetData({
   title: "Infra saturation",
-  subtitle: "Cost and service risk",
+  subtitle: "Inference spend and saturation risk",
   recommendedVisualization: "bar_chart",
+  disclosure: TEMPLATE_DISCLOSURE,
   timeSeries: {
     title: "Service cost and saturation",
     projectionStartIndex: -1,
@@ -170,20 +184,77 @@ export const engineeringBoardTemplate: BoardTemplate = {
   id: "engineering",
   name: "Engineering",
   notes: [
-    note("brief", "Board brief", "Use this board to balance shipping speed against reliability, eval coverage, and AI runtime cost.", "blue", notePosition(0)),
-    note("watch", "Watch item", "PR review and flaky tests are linked; unblock reviewers before adding more release process.", "rose", notePosition(1)),
-    note("next-move", "Next move", "Pick one critical agent workflow and close the eval gap before the next deployment window.", "green", notePosition(2)),
+    note(
+      "brief",
+      "This week",
+      "Balance shipping speed with product eval coverage and inference cost. S6 merged 86 PRs with escaped bugs down to 4.",
+      "blue",
+      notePosition(0),
+    ),
+    note(
+      "watch",
+      "Risk to watch",
+      "Maya has 12 PRs waiting on web-app and Web surface shows 9 flaky tests — unblock reviewers before adding release process.",
+      "amber",
+      notePosition(1),
+    ),
+    note(
+      "next-move",
+      "Next move",
+      "Close the research-agent eval gap (68% coverage) before the next deployment window. Product evals are taste made executable here.",
+      "green",
+      notePosition(2),
+    ),
   ],
   widgets: [
     widget("velocity", "show engineering velocity across recent sprints", gridPosition(0, 0), engineeringVelocityData),
-    widget("incidents", "show engineering incident load by severity and MTTR", gridPosition(1, 0), engineeringIncidentsData),
-    widget("models", "show engineering model latency, retries, and cost by workflow", gridPosition(2, 0), engineeringModelData),
-    widget("quality", "show engineering release quality, eval pass rate, and rollback risk", gridPosition(0, 1), engineeringQualityData),
-    widget("deployments", "show engineering deployment health with failed builds and lead time", gridPosition(1, 1), engineeringDeploymentData),
-    widget("pr-review", "show engineering PR review bottlenecks by repo and reviewer", gridPosition(2, 1), engineeringPrReviewData),
-    widget("tests", "show engineering test coverage and flaky test hotspots", gridPosition(0, 2), engineeringTestsData),
-    widget("agent-evals", "show engineering AI agent eval coverage by critical workflow", gridPosition(1, 2), engineeringAgentEvalData),
-    widget("infra", "show engineering infrastructure cost and saturation risks by service", gridPosition(2, 2), engineeringInfraData),
+    widget(
+      "incidents",
+      "show engineering incident load by severity and MTTR",
+      gridPosition(1, 0),
+      engineeringIncidentsData,
+    ),
+    widget(
+      "models",
+      "show engineering P95 latency, model routing, retries, and cost per agent run by workflow",
+      gridPosition(2, 0),
+      engineeringModelData,
+    ),
+    widget(
+      "quality",
+      "show engineering product eval pass rate, release readiness, and rollback risk",
+      gridPosition(0, 1),
+      engineeringQualityData,
+    ),
+    widget(
+      "deployments",
+      "show engineering deployment health with failed builds and lead time",
+      gridPosition(1, 1),
+      engineeringDeploymentData,
+    ),
+    widget(
+      "pr-review",
+      "show engineering PR review bottlenecks by repo and reviewer",
+      gridPosition(2, 1),
+      engineeringPrReviewData,
+    ),
+    widget(
+      "tests",
+      "show engineering test coverage and flaky test hotspots",
+      gridPosition(0, 2),
+      engineeringTestsData,
+    ),
+    widget(
+      "agent-evals",
+      "show engineering product eval coverage by critical agent workflow",
+      gridPosition(1, 2),
+      engineeringAgentEvalData,
+    ),
+    widget(
+      "infra",
+      "show engineering inference spend and infrastructure saturation risks by service",
+      gridPosition(2, 2),
+      engineeringInfraData,
+    ),
   ],
 };
-

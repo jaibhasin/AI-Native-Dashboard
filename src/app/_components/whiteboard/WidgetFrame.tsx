@@ -12,7 +12,6 @@ import {
 } from "react";
 import {
   MIN_WIDGET_HEIGHT,
-  OPENUI_STAGE_MIN_HEIGHT,
   OPENUI_STAGE_WIDTH,
   WIDGET_AUTHOR_LABEL_HEIGHT,
 } from "@/app/_lib/whiteboard/constants";
@@ -64,10 +63,11 @@ const WidgetBody = memo(function WidgetBody({
   const stageRef = useRef<HTMLDivElement>(null);
   const [bodySize, setBodySize] = useState<ElementSize>({ height: 0, width: 0 });
   const [stageSize, setStageSize] = useState<ElementSize>({
-    height: OPENUI_STAGE_MIN_HEIGHT,
+    height: 1,
     width: OPENUI_STAGE_WIDTH,
   });
   const [measuredStageSource, setMeasuredStageSource] = useState("");
+  const stageWidth = Math.max(OPENUI_STAGE_WIDTH, widget.width);
 
   useLayoutEffect(() => {
     const bodyElement = bodyRef.current;
@@ -83,8 +83,8 @@ const WidgetBody = memo(function WidgetBody({
         width: bodyElement.clientWidth,
       };
       const nextStageSize = measuredSize(stageElement, {
-        height: OPENUI_STAGE_MIN_HEIGHT,
-        width: OPENUI_STAGE_WIDTH,
+        height: 1,
+        width: stageWidth,
       });
 
       setBodySize((current) => (sameSize(current, nextBodySize) ? current : nextBodySize));
@@ -110,7 +110,7 @@ const WidgetBody = memo(function WidgetBody({
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [widget.openuiSource]);
+  }, [stageWidth, widget.openuiSource]);
 
   useEffect(() => {
     if (measuredStageSource !== widget.openuiSource || widget.status !== "done" || !widget.openuiSource) {
@@ -141,7 +141,7 @@ const WidgetBody = memo(function WidgetBody({
       : 1;
 
   return (
-    <div ref={bodyRef} className="relative h-full overflow-hidden bg-[var(--surface)]" data-openui-fit-body>
+    <div ref={bodyRef} className="relative flex h-full flex-col items-start overflow-hidden bg-[var(--surface)]" data-openui-fit-body>
       <div
         className="relative"
         data-openui-fit-shell
@@ -154,10 +154,9 @@ const WidgetBody = memo(function WidgetBody({
           ref={stageRef}
           data-openui-fit-stage
           style={{
-            minHeight: OPENUI_STAGE_MIN_HEIGHT,
             transform: `scale(${contentScale})`,
             transformOrigin: "top left",
-            width: OPENUI_STAGE_WIDTH,
+            width: stageWidth,
           }}
         >
           <Renderer

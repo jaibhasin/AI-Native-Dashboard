@@ -1,19 +1,16 @@
 import type { BoardTemplate } from "@/lib/board-template-core";
 import {
   exampleWidgetData,
-  FOUNDER_NOTE_HEIGHT,
-  FOUNDER_NOTE_WIDTH,
-  founderNotePosition,
+  founderNotePositionSpan,
   gridPositionSpan,
   noteSized,
+  TEMPLATE_DISCLOSURE,
   widgetSized,
 } from "@/lib/board-template-core";
 
-const TEMPLATE_DISCLOSURE = "Preview";
-
 const founderRunwayData = exampleWidgetData({
   title: "Runway forecast",
-  subtitle: "14.8 months runway at current burn",
+  subtitle: "14.8 months runway · inference COGS in burn",
   recommendedVisualization: "composite",
   disclosure: TEMPLATE_DISCLOSURE,
   metrics: [
@@ -39,39 +36,51 @@ const founderRunwayData = exampleWidgetData({
 
 const founderArrData = exampleWidgetData({
   title: "ARR growth",
-  subtitle: "$1.82M ARR · +34% YoY",
-  recommendedVisualization: "line_chart",
+  subtitle: "$1.82M ARR · NRR 118% · logo churn easing",
+  recommendedVisualization: "composite",
   disclosure: TEMPLATE_DISCLOSURE,
+  metrics: [{ label: "Net retention", value: "118%", delta: "+4pp QoQ", tone: "positive" }],
   timeSeries: {
-    title: "ARR trajectory",
+    title: "ARR, expansion, and contraction",
     projectionStartIndex: 5,
     series: [
       { label: "ARR", tone: "positive" },
       { label: "Expansion ARR", tone: "neutral" },
+      { label: "Contraction", tone: "warning" },
     ],
     points: [
-      { label: "Jan", values: [1120, 84] },
-      { label: "Feb", values: [1245, 96] },
-      { label: "Mar", values: [1395, 108] },
-      { label: "Apr", values: [1510, 126] },
-      { label: "May", values: [1668, 143] },
-      { label: "Jun", values: [1820, 161] },
-      { label: "Jul", values: [1980, 178] },
-      { label: "Aug", values: [2140, 192] },
+      { label: "Jan", values: [1120, 84, 18] },
+      { label: "Feb", values: [1245, 96, 16] },
+      { label: "Mar", values: [1395, 108, 19] },
+      { label: "Apr", values: [1510, 126, 14] },
+      { label: "May", values: [1668, 143, 12] },
+      { label: "Jun", values: [1820, 161, 11] },
+      { label: "Jul", values: [1980, 178, 10] },
+      { label: "Aug", values: [2140, 192, 9] },
     ],
   },
 });
 
 const founderEfficiencyData = exampleWidgetData({
-  title: "AI spend efficiency",
-  subtitle: "Useful output vs token waste",
-  recommendedVisualization: "gauge",
+  title: "Token efficiency",
+  subtitle: "Inference cost per workflow · retry waste",
+  recommendedVisualization: "composite",
   disclosure: TEMPLATE_DISCLOSURE,
-  gauges: [
-    { label: "Useful output", value: 87, target: 100, unit: "%", tone: "positive" },
-    { label: "Wasted tokens", value: 13, target: 100, unit: "%", tone: "warning" },
-    { label: "Cost/workflow", value: 14, target: 20, unit: "¢", tone: "positive" },
+  metrics: [
+    { label: "Useful output", value: "87%", delta: "Token efficiency", tone: "positive" },
+    { label: "Retry waste", value: "13%", delta: "-2pp MoM", tone: "positive" },
+    { label: "Cost/workflow", value: "14¢", delta: "Blended avg", tone: "positive" },
   ],
+  table: {
+    title: "Cost per workflow",
+    columns: ["Workflow", "Cost/run", "Retry waste", "Route tier"],
+    rows: [
+      { cells: ["Research agent", "$0.18", "4.1%", "Frontier"] },
+      { cells: ["Support triage", "$0.04", "2.7%", "Small model"] },
+      { cells: ["Code review", "$0.22", "5.6%", "Frontier"] },
+      { cells: ["Sales enrich", "$0.11", "8.9%", "Routed"] },
+    ],
+  },
 });
 
 const founderCustomerRiskData = exampleWidgetData({
@@ -91,8 +100,8 @@ const founderCustomerRiskData = exampleWidgetData({
 });
 
 const founderActivationData = exampleWidgetData({
-  title: "Activation funnel",
-  subtitle: "Signup to paid conversion",
+  title: "PLG activation",
+  subtitle: "Signup to paid · time-to-value",
   recommendedVisualization: "funnel",
   disclosure: TEMPLATE_DISCLOSURE,
   funnel: {
@@ -109,12 +118,12 @@ const founderActivationData = exampleWidgetData({
 
 const founderGrossMarginData = exampleWidgetData({
   title: "Gross margin",
-  subtitle: "Model and infra impact",
+  subtitle: "Inference COGS vs infra COGS",
   recommendedVisualization: "metrics",
   disclosure: TEMPLATE_DISCLOSURE,
   metrics: [
     { label: "Gross margin", value: "72%", delta: "+3pp QoQ", tone: "positive" },
-    { label: "Model COGS", value: "$18.6k", delta: "-11% MoM", tone: "positive" },
+    { label: "Inference COGS", value: "$18.6k", delta: "-11% MoM", tone: "positive" },
     { label: "Infra COGS", value: "$24.1k", delta: "+2% MoM", tone: "neutral" },
     { label: "Target margin", value: "75%", delta: "3pp gap", tone: "warning" },
   ],
@@ -122,7 +131,7 @@ const founderGrossMarginData = exampleWidgetData({
 
 const founderFundraisingData = exampleWidgetData({
   title: "Fundraising readiness",
-  subtitle: "Board memo · Series A prep",
+  subtitle: "Series A prep · diligence gaps",
   recommendedVisualization: "timeline",
   disclosure: TEMPLATE_DISCLOSURE,
   milestones: {
@@ -140,7 +149,7 @@ const founderFundraisingData = exampleWidgetData({
       },
       {
         label: "Margin proof",
-        detail: "Routing low-risk workflows lifted margin 3pp.",
+        detail: "Model routing lifted margin 3pp without slowing agents.",
         status: "done",
       },
       {
@@ -162,7 +171,7 @@ const founderPrioritiesData = exampleWidgetData({
     columns: ["Priority", "Owner", "Status", "Blocker"],
     rows: [
       { cells: ["Close seed lead", "CEO", "On track", "Partner call"] },
-      { cells: ["Cut AI waste", "CTO", "On track", "Eval signoff"] },
+      { cells: ["Cut retry waste", "CTO", "On track", "Eval signoff"] },
       { cells: ["Launch pricing", "GTM", "At risk", "Billing copy"] },
       { cells: ["SOC 2 packet", "Ops", "Blocked", "Evidence owner"] },
     ],
@@ -176,29 +185,29 @@ export const founderBoardTemplate: BoardTemplate = {
     noteSized(
       "brief",
       "This week",
-      "Runway is healthy at 14.8 months. Focus on closing seed lead and tightening gross margin before fundraise conversations.",
+      "Runway is healthy at 14.8 months. Tokenmaxx model routing before the next hire — inference COGS down 11% MoM while ARR climbs.",
       "blue",
-      { ...founderNotePosition(0), height: FOUNDER_NOTE_HEIGHT, width: FOUNDER_NOTE_WIDTH },
+      { ...founderNotePositionSpan(0, 2, 1), height: 120 },
     ),
     noteSized(
       "watch",
       "Risk to watch",
-      "Mercury Ops renews in July with High risk flag. Gross margin is the quiet constraint — AI infra savings compound faster than another price tweak.",
+      "Mercury Ops renews in July with High risk. Gross margin is the quiet constraint — routing low-risk workflows compounds faster than another price tweak.",
       "amber",
-      { ...founderNotePosition(1), height: FOUNDER_NOTE_HEIGHT, width: FOUNDER_NOTE_WIDTH },
+      { ...founderNotePositionSpan(2, 1, 1), height: 120 },
     ),
     noteSized(
       "next-move",
-      "Monday action",
-      "Assign SOC 2 evidence owner before partner calls. Review fundraising readiness once priority blockers have owners.",
+      "Next move",
+      "Assign SOC 2 evidence owner before partner calls. Close the research-agent eval gap and review fundraising readiness once blockers have owners.",
       "green",
-      { ...founderNotePosition(2), height: FOUNDER_NOTE_HEIGHT, width: FOUNDER_NOTE_WIDTH },
+      { ...founderNotePositionSpan(0, 3, 0), height: 120 },
     ),
   ],
   widgets: [
     widgetSized(
       "runway",
-      "show founder runway forecast with cash remaining, net burn, and next financing date",
+      "show founder runway forecast with cash remaining, net burn, inference COGS, and next financing date",
       gridPositionSpan(0, 0, 2, 1),
       founderRunwayData,
     ),
@@ -210,7 +219,7 @@ export const founderBoardTemplate: BoardTemplate = {
     ),
     widgetSized(
       "efficiency",
-      "show founder AI spend efficiency and wasted token rate by workflow",
+      "show founder token efficiency and inference cost per workflow with retry waste breakdown",
       gridPositionSpan(0, 1),
       founderEfficiencyData,
     ),
@@ -222,13 +231,13 @@ export const founderBoardTemplate: BoardTemplate = {
     ),
     widgetSized(
       "activation",
-      "show founder activation funnel from signup to paid conversion",
+      "show founder PLG activation funnel from signup to paid conversion",
       gridPositionSpan(2, 1),
       founderActivationData,
     ),
     widgetSized(
       "gross-margin",
-      "show founder gross margin impact from model and infrastructure costs",
+      "show founder gross margin impact from inference COGS and infrastructure costs",
       gridPositionSpan(0, 2),
       founderGrossMarginData,
     ),

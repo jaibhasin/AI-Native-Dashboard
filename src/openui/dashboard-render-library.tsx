@@ -572,8 +572,8 @@ const StatHero = defineComponent({
     return (
       <BlockShell className="flex-1">
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-2 pt-1.5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
+          <div className={`flex min-h-0 flex-1 ${rows.length > 0 ? "flex-row items-stretch gap-3" : ""}`}>
+            <div className="min-w-0 shrink-0">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                 {metric.label}
               </div>
@@ -586,34 +586,34 @@ const StatHero = defineComponent({
                 </div>
               ) : null}
             </div>
+            {rows.length > 0 ? (
+              <div className="min-h-[72px] min-w-0 flex-1">
+                {props.title ? (
+                  <div className="mb-1 truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    {props.title}
+                  </div>
+                ) : null}
+                <ResponsiveContainer height={72} width="100%">
+                  <RechartsLineChart data={rows} margin={{ bottom: 0, left: 0, right: 4, top: 4 }}>
+                    <defs>
+                      <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
+                        <stop offset="100%" stopColor={lineColor} stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <Area dataKey="series0" fill={`url(#${gradientId})`} stroke="none" type="monotone" />
+                    <Line
+                      dataKey="series0"
+                      dot={false}
+                      stroke={lineColor}
+                      strokeWidth={2}
+                      type="monotone"
+                    />
+                  </RechartsLineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : null}
           </div>
-          {rows.length > 0 ? (
-            <div className="min-h-[72px] flex-1">
-              {props.title ? (
-                <div className="mb-1 truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                  {props.title}
-                </div>
-              ) : null}
-              <ResponsiveContainer height={72} width="100%">
-                <RechartsLineChart data={rows} margin={{ bottom: 0, left: 0, right: 4, top: 4 }}>
-                  <defs>
-                    <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor={lineColor} stopOpacity={0.3} />
-                      <stop offset="100%" stopColor={lineColor} stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <Area dataKey="series0" fill={`url(#${gradientId})`} stroke="none" type="monotone" />
-                  <Line
-                    dataKey="series0"
-                    dot={false}
-                    stroke={lineColor}
-                    strokeWidth={2}
-                    type="monotone"
-                  />
-                </RechartsLineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : null}
         </div>
       </BlockShell>
     );
@@ -829,8 +829,8 @@ const DashboardWidget = defineComponent({
     blocks: z.array(DashboardBlock),
   }),
   component: ({ props, renderNode }) => (
-    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 p-2">{renderNode(props.blocks)}</div>
+    <div className="flex flex-col bg-[var(--surface)]">
+      <div className="flex flex-col gap-1.5 p-2">{renderNode(props.blocks)}</div>
     </div>
   ),
 });
