@@ -69,6 +69,7 @@ import { useNoteEditing } from "@/app/_lib/whiteboard/useNoteEditing";
 import { useOnboardingWalkthrough } from "@/app/_lib/whiteboard/useOnboardingWalkthrough";
 import { useThemeMode } from "@/app/_lib/whiteboard/useThemeMode";
 import { useWidgetGeneration } from "@/app/_lib/whiteboard/useWidgetGeneration";
+import { promptLength, trackEvent } from "@/lib/analytics";
 
 export default function Home() {
   const commandInputRef = useRef<HTMLInputElement>(null);
@@ -86,6 +87,7 @@ export default function Home() {
   });
   const widgetInteractionRef = useRef<WidgetInteraction | null>(null);
   const hasScrolledHydratedBoardRef = useRef(false);
+  const hasTrackedSessionRef = useRef(false);
   const manuallySizedNoteIdsRef = useRef<Set<string>>(new Set());
 
   const [isPanning, setIsPanning] = useState(false);
@@ -185,6 +187,7 @@ export default function Home() {
 
   const deleteWidget = useCallback(
     (id: string) => {
+      trackEvent("widget_deleted", { board_id: activeBoardId, widget_id: id });
       updateBoardWidgets(activeBoardId, (current) => current.filter((widget) => widget.id !== id));
     },
     [activeBoardId, updateBoardWidgets],
@@ -236,6 +239,24 @@ export default function Home() {
 
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    if (!hasHydratedBoards || hasTrackedSessionRef.current) {
+      return;
+    }
+
+    hasTrackedSessionRef.current = true;
+    const board = resolveActiveBoard(boards, activeBoardId);
+
+    trackEvent("session_started");
+    trackEvent("board_viewed", {
+      board_id: activeBoardId,
+      board_name: board?.name ?? "unknown",
+      is_template: Boolean(board?.templateId),
+      source: "initial_load",
+      template_id: board?.templateId ?? "none",
+    });
+  }, [activeBoardId, boards, hasHydratedBoards]);
 
   useEffect(() => {
     if (!hasHydratedBoards || hasScrolledHydratedBoardRef.current) {
@@ -319,6 +340,17 @@ export default function Home() {
     [scale, viewportRef],
   );
 
+  const closeCommand = useCallback(
+    (source: "canvas_click" | "close_button" | "escape" | "note_shortcut" | "submit") => {
+      if (command) {
+        trackEvent("command_closed", { source });
+      }
+
+      setCommand(null);
+    },
+    [command],
+  );
+
   const addNoteToActiveBoard = useCallback((targetPosition?: { x: number; y: number }) => {
     if (!activeBoard) {
       return;
@@ -356,7 +388,15 @@ export default function Home() {
     };
 
     updateBoardNotes(activeBoard.id, (current) => [...current, note]);
-    setCommand(null);
+    trackEvent("note_created", {
+      board_id: activeBoard.id,
+      source: targetPosition ? "cursor" : "keyboard",
+    });
+
+    if (command) {
+      closeCommand("note_shortcut");
+    }
+
     setEditingNoteId(id);
     setEditingNoteFocus("body");
     setNewlyCreatedNoteId(id);
@@ -366,6 +406,8 @@ export default function Home() {
     }
   }, [
     activeBoard,
+    closeCommand,
+    command,
     focusBoard,
     getVisibleCanvasCenter,
     setEditingNoteFocus,
@@ -400,6 +442,7 @@ export default function Home() {
       : getVisibleCanvasCenter();
 
     stopEditingNote();
+    trackEvent("command_opened", { source: "keyboard" });
     setCommand({
       x: position.x,
       y: position.y,
@@ -411,6 +454,7 @@ export default function Home() {
     const position = getVisibleCanvasCenter();
 
     stopEditingNote();
+    trackEvent("command_opened", { source: "onboarding" });
     setCommand({
       x: position.x,
       y: position.y,
@@ -445,7 +489,7 @@ export default function Home() {
 
         if (command) {
           event.preventDefault();
-          setCommand(null);
+          closeCommand("escape");
         }
         return;
       }
@@ -473,7 +517,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [addNoteAtCursor, command, editingNoteId, openCommandAtCursor, stopEditingNote]);
+  }, [addNoteAtCursor, closeCommand, command, editingNoteId, openCommandAtCursor, stopEditingNote]);
 
   useEffect(() => {
     if (!commandPosition) {
@@ -501,15 +545,25 @@ export default function Home() {
       const { id, widget } = createCommandWidget(nextCommand);
 
       addWidgetToBoard(boardId, widget);
-      setCommand(null);
+      trackEvent("widget_prompt_submitted", {
+        board_id: boardId,
+        prompt_length: promptLength(prompt),
+        source: "command",
+      });
+      closeCommand("submit");
       void generateWidget(boardId, id, prompt);
     },
-    [activeBoardId, addWidgetToBoard, generateWidget],
+    [activeBoardId, addWidgetToBoard, closeCommand, generateWidget],
   );
 
   const retryWidget = useCallback(
     (widget: CanvasWidget) => {
-      void generateWidget(activeBoardId, widget.id, widget.prompt, widget.exampleData);
+      trackEvent("widget_retried", {
+        board_id: activeBoardId,
+        prompt_length: promptLength(widget.prompt),
+        widget_id: widget.id,
+      });
+      void generateWidget(activeBoardId, widget.id, widget.prompt, widget.exampleData, { isRetry: true });
     },
     [activeBoardId, generateWidget],
   );
@@ -534,7 +588,7 @@ export default function Home() {
     }
 
     stopEditingNote();
-    setCommand(null);
+    closeCommand("canvas_click");
 
     const viewport = viewportRef.current;
 
@@ -552,7 +606,7 @@ export default function Home() {
 
     viewport.setPointerCapture(event.pointerId);
     setIsPanning(true);
-  }, [stopEditingNote, viewportRef]);
+  }, [closeCommand, stopEditingNote, viewportRef]);
 
   const handlePointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
@@ -710,6 +764,7 @@ export default function Home() {
               command={command}
               commandInputRef={commandInputRef}
               createWidgetFromCommand={createWidgetFromCommand}
+              onCloseCommand={closeCommand}
               scale={scale}
               setCommand={setCommand}
             />

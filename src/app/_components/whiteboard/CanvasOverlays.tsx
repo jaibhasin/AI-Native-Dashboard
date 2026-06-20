@@ -4,6 +4,7 @@ import { Minus, Moon, Plus, Sun } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ThemeMode } from "@/app/_lib/whiteboard/types";
 import { ZOOM_STEP_FACTOR } from "@/app/_lib/whiteboard/constants";
+import { trackEvent } from "@/lib/analytics";
 
 export function CanvasOverlays({
   adjustZoom,
@@ -28,7 +29,10 @@ export function CanvasOverlays({
         <button
           aria-label={`Switch to ${nextTheme} mode`}
           className="grid h-7 w-7 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)]"
-          onClick={() => setTheme(nextTheme)}
+          onClick={() => {
+            trackEvent("theme_toggled", { next_theme: nextTheme });
+            setTheme(nextTheme);
+          }}
           title={`Switch to ${nextTheme} mode`}
           type="button"
         >
@@ -38,7 +42,10 @@ export function CanvasOverlays({
           aria-label="Zoom out"
           className="grid h-7 w-7 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           disabled={!canZoomOut}
-          onClick={() => adjustZoom(1 / ZOOM_STEP_FACTOR)}
+          onClick={() => {
+            trackEvent("zoom_changed", { direction: "out", source: "button" });
+            adjustZoom(1 / ZOOM_STEP_FACTOR);
+          }}
           title="Zoom out"
           type="button"
         >
@@ -48,7 +55,10 @@ export function CanvasOverlays({
           aria-label="Zoom in"
           className="grid h-7 w-7 place-items-center rounded border border-[var(--border)] text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           disabled={!canZoomIn}
-          onClick={() => adjustZoom(ZOOM_STEP_FACTOR)}
+          onClick={() => {
+            trackEvent("zoom_changed", { direction: "in", source: "button" });
+            adjustZoom(ZOOM_STEP_FACTOR);
+          }}
           title="Zoom in"
           type="button"
         >

@@ -72,6 +72,11 @@ export function useBoardCreation({
           return current;
         }
 
+        trackEvent("board_deleted", {
+          board_id: boardId,
+          board_name: boardToDelete.name,
+        });
+
         return current.filter((board) => board.id !== boardId);
       });
 
@@ -99,6 +104,7 @@ export function useBoardCreation({
         board_id: boardId,
         board_name: board?.name ?? "unknown",
         is_template: Boolean(board?.templateId),
+        source: "tab_click",
         template_id: board?.templateId ?? "none",
       });
 
@@ -127,6 +133,7 @@ export function useBoardCreation({
     setAiBoardError(null);
     setCommand(null);
     stopEditingNote();
+    trackEvent("plan_with_ai_opened");
   }, [setCommand, stopEditingNote]);
 
   const closeAiBoardCreate = useCallback(() => {
@@ -173,6 +180,12 @@ export function useBoardCreation({
     setCommand(null);
     stopEditingNote();
 
+    trackEvent("board_created", {
+      board_id: board.id,
+      board_name: board.name,
+      source: "blank",
+    });
+
     requestAnimationFrame(() => focusBoard(board));
   }, [boardNameDraft, focusBoard, setActiveBoardId, setBoards, setCommand, stopEditingNote]);
 
@@ -192,6 +205,7 @@ export function useBoardCreation({
       trackEvent("plan_with_ai_completed", {
         board_id: board.id,
         board_name: board.name,
+        source: "ai_plan",
         widget_count: widgets.length,
       });
       void generateAiBoardWidgets(board.id, widgets);
@@ -213,6 +227,15 @@ export function useBoardCreation({
 
       setIsGeneratingAiBoard(true);
       setAiBoardError(null);
+
+      trackEvent("plan_with_ai_submitted", {
+        has_audience: Boolean(brief.audience),
+        has_data_sources: Boolean(brief.dataSources),
+        has_metrics: Boolean(brief.metrics),
+        has_notes: Boolean(brief.notes),
+        has_tasks: Boolean(brief.tasks),
+        purpose_length: brief.purpose.length,
+      });
 
       try {
         const response = await fetch("/api/generate-board", {

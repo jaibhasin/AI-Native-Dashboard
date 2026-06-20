@@ -31,10 +31,21 @@ export function useOnboardingWalkthrough() {
       setStep(ONBOARDING_WELCOME_STEP);
       setIsActive(true);
       setHasHydrated(true);
+      trackEvent("onboarding_welcome_shown");
     });
 
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    if (!isActive || step === null || step < 0) {
+      return;
+    }
+
+    trackEvent("onboarding_step_viewed", {
+      step_index: step,
+    });
+  }, [isActive, step]);
 
   const complete = useCallback(() => {
     window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "completed");

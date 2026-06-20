@@ -4,6 +4,7 @@ import { LoaderCircle, Mic, Square, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import type { CommandState } from "@/app/_lib/whiteboard/types";
+import { trackEvent } from "@/lib/analytics";
 
 const AUDIO_MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/mpeg"];
 
@@ -31,12 +32,14 @@ export function CanvasCommand({
   command,
   commandInputRef,
   createWidgetFromCommand,
+  onCloseCommand,
   scale,
   setCommand,
 }: {
   command: CommandState;
   commandInputRef: RefObject<HTMLInputElement | null>;
   createWidgetFromCommand: (nextCommand: CommandState) => void;
+  onCloseCommand: (source: "close_button" | "escape") => void;
   scale: number;
   setCommand: Dispatch<SetStateAction<CommandState | null>>;
 }) {
@@ -114,6 +117,10 @@ export function CanvasCommand({
           return;
         }
 
+        trackEvent("voice_transcription_completed", {
+          transcript_length: body.text.trim().length,
+        });
+
         setCommand((current) => {
           if (!current) {
             return current;
@@ -137,6 +144,9 @@ export function CanvasCommand({
         }
 
         setVoiceError(error instanceof Error ? error.message : "Could not transcribe the recording.");
+        trackEvent("voice_transcription_failed", {
+          error: (error instanceof Error ? error.message : "unknown").slice(0, 120),
+        });
       } finally {
         abortControllerRef.current = null;
 
@@ -148,7 +158,7 @@ export function CanvasCommand({
     [commandInputRef, setCommand],
   );
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (source: "keyboard" | "mic") => {
     if (!canRecord || isTranscribing) {
       return;
     }
@@ -160,6 +170,7 @@ export function CanvasCommand({
 
     try {
       setVoiceError("");
+      trackEvent("voice_recording_started", { source });
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = recordingMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -185,6 +196,8 @@ export function CanvasCommand({
 
         if (!didCancel) {
           void transcribeRecording(chunks, recorder.mimeType);
+        } else {
+          trackEvent("voice_recording_cancelled");
         }
       });
 
@@ -215,7 +228,7 @@ export function CanvasCommand({
       }
 
       event.preventDefault();
-      void startRecording();
+      void startRecording("keyboard");
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -257,7 +270,7 @@ export function CanvasCommand({
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
-            setCommand(null);
+            onCloseCommand("escape");
           }
         }}
         placeholder="show burn rate, top contributors, forecast inputs..."
@@ -274,7 +287,7 @@ export function CanvasCommand({
             : "border-[var(--border)]"
         }`}
         disabled={!canRecord || isTranscribing}
-        onClick={startRecording}
+        onClick={() => startRecording("mic")}
         title={
           isRecording
             ? "Stop recording"
@@ -298,7 +311,7 @@ export function CanvasCommand({
         onClick={() => {
           abortControllerRef.current?.abort();
           stopRecording(true);
-          setCommand(null);
+          onCloseCommand("close_button");
         }}
         title="Close"
         type="button"

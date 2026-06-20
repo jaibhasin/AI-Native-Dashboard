@@ -10,9 +10,15 @@ import {
 } from "@/app/_lib/whiteboard/constants";
 import { readWidgetStream } from "@/app/_lib/whiteboard/generation";
 import { streamErrorMessage } from "@/app/_lib/whiteboard/geometry";
-import { trackEvent } from "@/lib/analytics";
+import { promptLength, trackEvent } from "@/lib/analytics";
 
 type UpdateWidget = (boardId: string, id: string, updater: (widget: CanvasWidget) => CanvasWidget) => void;
+
+type WidgetStreamContext = {
+  fallbackExampleData?: ExampleWidgetData | null;
+  isRetry: boolean;
+  prompt: string;
+};
 
 function wait(milliseconds: number) {
   return new Promise((resolve) => {
@@ -24,10 +30,21 @@ function canUseLocalRenderFallback(error: string) {
   return /rate limit|rate limited|cooling down|cooldown/i.test(error);
 }
 
+function widgetEventProperties(boardId: string, context: WidgetStreamContext, extra?: Record<string, string | number | boolean>) {
+  return {
+    board_id: boardId,
+    from_template: Boolean(context.fallbackExampleData),
+    is_retry: context.isRetry,
+    prompt_length: promptLength(context.prompt),
+    ...extra,
+  };
+}
+
 export function useWidgetGeneration(updateWidget: UpdateWidget) {
   const handleStreamEvent = useCallback(
-    (boardId: string, id: string, event: WidgetStreamEvent, fallbackExampleData?: ExampleWidgetData | null) => {
+    (boardId: string, id: string, event: WidgetStreamEvent, context: WidgetStreamContext) => {
       const now = Date.now();
+      const { fallbackExampleData } = context;
 
       if (event.type === "exampleData") {
         updateWidget(boardId, id, (widget) => ({
@@ -57,18 +74,21 @@ export function useWidgetGeneration(updateWidget: UpdateWidget) {
             status: "done",
             updatedAt: now,
           }));
-          trackEvent("widget_generated", {
-            board_id: boardId,
-            from_template: true,
-            used_fallback: true,
-          });
+          trackEvent(
+            "widget_generated",
+            widgetEventProperties(boardId, context, {
+              used_fallback: true,
+            }),
+          );
           return;
         }
 
-        trackEvent("widget_generation_failed", {
-          board_id: boardId,
-          error: event.error.slice(0, 120),
-        });
+        trackEvent(
+          "widget_generation_failed",
+          widgetEventProperties(boardId, context, {
+            error: event.error.slice(0, 120),
+          }),
+        );
 
         updateWidget(boardId, id, (widget) => ({
           ...widget,
@@ -84,18 +104,30 @@ export function useWidgetGeneration(updateWidget: UpdateWidget) {
         status: "done",
         updatedAt: now,
       }));
-      trackEvent("widget_generated", {
-        board_id: boardId,
-        from_template: Boolean(fallbackExampleData),
-        used_fallback: false,
-      });
+      trackEvent(
+        "widget_generated",
+        widgetEventProperties(boardId, context, {
+          used_fallback: false,
+        }),
+      );
     },
     [updateWidget],
   );
 
   const generateWidget = useCallback(
-    async (boardId: string, id: string, prompt: string, providedExampleData?: ExampleWidgetData | null) => {
+    async (
+      boardId: string,
+      id: string,
+      prompt: string,
+      providedExampleData?: ExampleWidgetData | null,
+      options?: { isRetry?: boolean },
+    ) => {
       const exampleData = providedExampleData ?? null;
+      const context: WidgetStreamContext = {
+        fallbackExampleData: exampleData,
+        isRetry: Boolean(options?.isRetry),
+        prompt,
+      };
 
       updateWidget(boardId, id, (widget) => ({
         ...widget,
@@ -121,7 +153,7 @@ export function useWidgetGeneration(updateWidget: UpdateWidget) {
         await readWidgetStream(response, (parsedEvent) => {
           const event = parsedEvent as WidgetStreamEvent;
           sawTerminalEvent = event.type === "done" || event.type === "error" || sawTerminalEvent;
-          handleStreamEvent(boardId, id, event, exampleData);
+          handleStreamEvent(boardId, id, event, context);
         });
 
         if (!sawTerminalEvent) {
@@ -139,18 +171,21 @@ export function useWidgetGeneration(updateWidget: UpdateWidget) {
             status: "done",
             updatedAt: Date.now(),
           }));
-          trackEvent("widget_generated", {
-            board_id: boardId,
-            from_template: true,
-            used_fallback: true,
-          });
+          trackEvent(
+            "widget_generated",
+            widgetEventProperties(boardId, context, {
+              used_fallback: true,
+            }),
+          );
           return;
         }
 
-        trackEvent("widget_generation_failed", {
-          board_id: boardId,
-          error: errorText.slice(0, 120),
-        });
+        trackEvent(
+          "widget_generation_failed",
+          widgetEventProperties(boardId, context, {
+            error: errorText.slice(0, 120),
+          }),
+        );
 
         updateWidget(boardId, id, (widget) => ({
           ...widget,

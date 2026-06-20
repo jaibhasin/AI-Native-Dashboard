@@ -17,11 +17,13 @@ import {
   isEditableTarget,
 } from "@/app/_lib/whiteboard/geometry";
 import type { PendingZoomScroll } from "@/app/_lib/whiteboard/types";
+import { trackEvent } from "@/lib/analytics";
 
 export function useCanvasViewport() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef(100);
   const pendingZoomScrollRef = useRef<PendingZoomScroll | null>(null);
+  const lastPinchZoomTrackRef = useRef(0);
   const [zoom, setZoom] = useState(100);
   const scale = zoom / 100;
 
@@ -167,6 +169,17 @@ export function useCanvasViewport() {
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
       });
+
+      const now = Date.now();
+
+      if (now - lastPinchZoomTrackRef.current > 800) {
+        lastPinchZoomTrackRef.current = now;
+        trackEvent("zoom_changed", {
+          direction: event.deltaY > 0 ? "out" : "in",
+          source: "pinch",
+          zoom_level: Math.round(nextZoom),
+        });
+      }
     },
     [setCanvasZoom],
   );

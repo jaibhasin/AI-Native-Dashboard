@@ -10,6 +10,7 @@ import {
 } from "@/app/_lib/whiteboard/constants";
 import { clampCanvasRectPosition, noteTextSize } from "@/app/_lib/whiteboard/geometry";
 import type { NoteFocusTarget } from "@/app/_lib/whiteboard/types";
+import { trackEvent } from "@/lib/analytics";
 
 type UpdateBoardNotes = (boardId: string, updater: (notes: CanvasNote[]) => CanvasNote[]) => void;
 type UpdateNote = (boardId: string, id: string, updater: (note: CanvasNote) => CanvasNote) => void;
@@ -26,6 +27,7 @@ export function useNoteEditing(
 
   const deleteNote = useCallback(
     (id: string) => {
+      trackEvent("note_deleted", { board_id: activeBoardId, note_id: id });
       updateBoardNotes(activeBoardId, (current) => current.filter((note) => note.id !== id));
       setEditingNoteId((current) => (current === id ? null : current));
       setEditingNoteFocus(null);
