@@ -229,6 +229,7 @@ export function CanvasCommand({
     <form
       className="absolute z-30 flex h-10 w-[17rem] items-center gap-2 rounded-md border border-[var(--border-strong)] bg-[var(--panel-translucent-strong)] px-2.5 shadow-[var(--shadow-popover)] backdrop-blur sm:w-[25rem]"
       data-command-input
+      data-onboarding-target="canvas-command"
       onSubmit={(event) => {
         event.preventDefault();
         createWidgetFromCommand(command);

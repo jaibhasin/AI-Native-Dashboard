@@ -67,7 +67,7 @@ export function useBoardCreation({
         const boardToDelete = current.find((board) => board.id === boardId);
         const personalBoardCount = current.filter((board) => !board.templateId).length;
 
-        if (!boardToDelete || boardToDelete.templateId || personalBoardCount <= 1) {
+        if (!boardToDelete || boardToDelete.templateId || boardToDelete.id === BLANK_BOARD_ID || personalBoardCount <= 1) {
           return current;
         }
 

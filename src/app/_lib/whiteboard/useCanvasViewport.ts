@@ -50,6 +50,20 @@ export function useCanvasViewport() {
     [scale],
   );
 
+  const resetBlankViewport = useCallback(() => {
+    const viewport = viewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    pendingZoomScrollRef.current = null;
+    zoomRef.current = 100;
+    setZoom(100);
+    viewport.scrollLeft = CANVAS_CENTER_X - viewport.clientWidth / 2;
+    viewport.scrollTop = CANVAS_CENTER_Y - viewport.clientHeight / 2 - TOP_CANVAS_SAFE_INSET;
+  }, []);
+
   const focusBoard = useCallback(
     (board: CanvasBoard | undefined) => {
       const viewport = viewportRef.current;
@@ -217,6 +231,7 @@ export function useCanvasViewport() {
     focusBoard,
     getVisibleCanvasCenter,
     handleWheel,
+    resetBlankViewport,
     scale,
     viewportRef,
     zoom,

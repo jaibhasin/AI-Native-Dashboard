@@ -20,9 +20,10 @@ import { CanvasCommand } from "@/app/_components/whiteboard/CanvasCommand";
 import { CanvasOverlays } from "@/app/_components/whiteboard/CanvasOverlays";
 import { CreateWithAIBoardModal } from "@/app/_components/whiteboard/CreateWithAIBoardModal";
 import { NoteFrame } from "@/app/_components/whiteboard/NoteFrame";
+import { OnboardingWalkthrough } from "@/app/_components/whiteboard/OnboardingWalkthrough";
+import { OnboardingWelcome } from "@/app/_components/whiteboard/OnboardingWelcome";
 import { WidgetFrame } from "@/app/_components/whiteboard/WidgetFrame";
 import {
-  ACTIVE_BOARD_STORAGE_KEY,
   BOARD_STORAGE_KEY,
   CANVAS_CENTER_X,
   CANVAS_CENTER_Y,
@@ -55,7 +56,8 @@ import {
   createBlankBoard,
   ensureBoardSet,
   parseStoredBoards,
-  storedActiveBoardId,
+  prepareBlankLandingBoards,
+  resolveActiveBoard,
 } from "@/app/_lib/whiteboard/storage";
 import type { CommandState, ElementSize, WidgetInteraction } from "@/app/_lib/whiteboard/types";
 import { useBoardTabsScroll } from "@/app/_lib/whiteboard/useBoardTabsScroll";
@@ -64,6 +66,7 @@ import { useBoardMutations } from "@/app/_lib/whiteboard/useBoardMutations";
 import { useCanvasStyle } from "@/app/_lib/whiteboard/useCanvasStyle";
 import { useCanvasViewport } from "@/app/_lib/whiteboard/useCanvasViewport";
 import { useNoteEditing } from "@/app/_lib/whiteboard/useNoteEditing";
+import { useOnboardingWalkthrough } from "@/app/_lib/whiteboard/useOnboardingWalkthrough";
 import { useThemeMode } from "@/app/_lib/whiteboard/useThemeMode";
 import { useWidgetGeneration } from "@/app/_lib/whiteboard/useWidgetGeneration";
 
@@ -91,10 +94,10 @@ export default function Home() {
   const [activeBoardId, setActiveBoardId] = useState(BLANK_BOARD_ID);
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
   const [theme, setTheme] = useThemeMode();
-  const { adjustZoom, focusBoard, getVisibleCanvasCenter, handleWheel, scale, viewportRef, zoom } =
+  const { adjustZoom, focusBoard, getVisibleCanvasCenter, handleWheel, resetBlankViewport, scale, viewportRef, zoom } =
     useCanvasViewport();
   const commandPosition = command ? `${command.x}:${command.y}` : null;
-  const activeBoard = boards.find((board) => board.id === activeBoardId) ?? boards[0];
+  const activeBoard = useMemo(() => resolveActiveBoard(boards, activeBoardId), [activeBoardId, boards]);
   const activeBoardIsTemplate = Boolean(activeBoard?.templateId);
   const widgets = activeBoard?.widgets ?? [];
   const notes = boardNotes(activeBoard);
@@ -160,6 +163,26 @@ export default function Home() {
   });
   const { boardTabsScrollRef, boardTabsScrollState, scrollBoardTabs, updateBoardTabsScrollState } =
     useBoardTabsScroll(activeBoardId, totalBoardCount, isCreatingBoardName);
+  const { dismiss: dismissOnboarding, hasHydrated: hasHydratedOnboarding, isActive: isOnboardingActive, next: nextOnboardingStep, startTour, step: onboardingStep } =
+    useOnboardingWalkthrough();
+
+  const handleDismissOnboarding = useCallback(() => {
+    dismissOnboarding();
+    setCommand(null);
+  }, [dismissOnboarding]);
+
+  const handleNextOnboardingStep = useCallback(() => {
+    if (onboardingStep === 0) {
+      setCommand(null);
+    }
+
+    nextOnboardingStep();
+  }, [nextOnboardingStep, onboardingStep]);
+
+  const handleStartTour = useCallback(() => {
+    startTour();
+  }, [startTour]);
+
   const deleteWidget = useCallback(
     (id: string) => {
       updateBoardWidgets(activeBoardId, (current) => current.filter((widget) => widget.id !== id));
@@ -204,10 +227,10 @@ export default function Home() {
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const storedBoards = parseStoredBoards();
+      const storedBoards = prepareBlankLandingBoards(parseStoredBoards());
 
       setBoards(storedBoards);
-      setActiveBoardId(storedActiveBoardId(storedBoards));
+      setActiveBoardId(BLANK_BOARD_ID);
       setHasHydratedBoards(true);
     });
 
@@ -220,12 +243,12 @@ export default function Home() {
     }
 
     const frame = requestAnimationFrame(() => {
-      focusBoard(activeBoard);
+      resetBlankViewport();
       hasScrolledHydratedBoardRef.current = true;
     });
 
     return () => cancelAnimationFrame(frame);
-  }, [activeBoard, focusBoard, hasHydratedBoards]);
+  }, [hasHydratedBoards, resetBlankViewport]);
 
   useEffect(() => {
     if (!hasHydratedBoards) {
@@ -242,8 +265,19 @@ export default function Home() {
     });
 
     window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(boards));
-    window.localStorage.setItem(ACTIVE_BOARD_STORAGE_KEY, activeBoardId);
-  }, [activeBoardId, boards, hasHydratedBoards]);
+  }, [boards, hasHydratedBoards]);
+
+  useEffect(() => {
+    if (!isCreatingAiBoard || !isOnboardingActive) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      handleDismissOnboarding();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [handleDismissOnboarding, isCreatingAiBoard, isOnboardingActive]);
 
   useEffect(() => {
     if (!editingNoteId) {
@@ -372,6 +406,29 @@ export default function Home() {
       value: "",
     });
   }, [getVisibleCanvasCenter, stopEditingNote]);
+
+  const openCommandAtCenter = useCallback(() => {
+    const position = getVisibleCanvasCenter();
+
+    stopEditingNote();
+    setCommand({
+      x: position.x,
+      y: position.y,
+      value: "",
+    });
+  }, [getVisibleCanvasCenter, stopEditingNote]);
+
+  useEffect(() => {
+    if (!isOnboardingActive || onboardingStep !== 0) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      openCommandAtCenter();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [isOnboardingActive, onboardingStep, openCommandAtCenter]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -595,6 +652,7 @@ export default function Home() {
     <main className="min-h-screen bg-[var(--app-bg)] p-3 text-[var(--text-primary)] sm:p-5">
       <section className="relative h-[calc(100vh-1.5rem)] overflow-hidden rounded-lg border border-[var(--border-medium)] bg-[var(--panel)] shadow-[var(--shadow-panel)] sm:h-[calc(100vh-2.5rem)]">
         <div
+          data-canvas-viewport
           ref={viewportRef}
           className={`absolute inset-0 overflow-auto bg-[var(--canvas-bg)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
             isPanning ? "cursor-grabbing" : "cursor-grab"
@@ -611,37 +669,41 @@ export default function Home() {
           onWheel={handleWheel}
         >
           <div aria-label="Scrollable grid canvas" className="relative" style={canvasStyle}>
-            {widgets.map((widget) => (
-              <WidgetFrame
-                accent={activeBoardAccent}
-                key={widget.id}
-                onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
-                onDelete={deleteWidget}
-                onContentMeasured={fitWidgetToContent}
-                onRetry={retryWidget}
-                onStartInteraction={startWidgetInteraction}
-                scale={scale}
-                widget={widget}
-              />
-            ))}
-            {notes.map((note) => (
-              <NoteFrame
-                focusTarget={editingNoteId === note.id ? editingNoteFocus : null}
-                isEditing={editingNoteId === note.id}
-                isManuallySized={isNoteManuallySized(note.id)}
-                isNewlyCreated={newlyCreatedNoteId === note.id}
-                key={note.id}
-                note={note}
-                onBringToFront={(id) => bringNoteToFront(activeBoardId, id)}
-                onDelete={deleteNote}
-                onEdit={editNote}
-                onFocusHandled={handleNoteFocusHandled}
-                onStopEditing={stopEditingNote}
-                onStartInteraction={startWidgetInteraction}
-                onUpdate={updateNoteFields}
-                scale={scale}
-              />
-            ))}
+            {hasHydratedBoards
+              ? widgets.map((widget) => (
+                  <WidgetFrame
+                    accent={activeBoardAccent}
+                    key={widget.id}
+                    onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
+                    onDelete={deleteWidget}
+                    onContentMeasured={fitWidgetToContent}
+                    onRetry={retryWidget}
+                    onStartInteraction={startWidgetInteraction}
+                    scale={scale}
+                    widget={widget}
+                  />
+                ))
+              : null}
+            {hasHydratedBoards
+              ? notes.map((note) => (
+                  <NoteFrame
+                    focusTarget={editingNoteId === note.id ? editingNoteFocus : null}
+                    isEditing={editingNoteId === note.id}
+                    isManuallySized={isNoteManuallySized(note.id)}
+                    isNewlyCreated={newlyCreatedNoteId === note.id}
+                    key={note.id}
+                    note={note}
+                    onBringToFront={(id) => bringNoteToFront(activeBoardId, id)}
+                    onDelete={deleteNote}
+                    onEdit={editNote}
+                    onFocusHandled={handleNoteFocusHandled}
+                    onStopEditing={stopEditingNote}
+                    onStartInteraction={startWidgetInteraction}
+                    onUpdate={updateNoteFields}
+                    scale={scale}
+                  />
+                ))
+              : null}
           </div>
           {command ? (
             <CanvasCommand
@@ -693,6 +755,19 @@ export default function Home() {
           theme={theme}
           zoom={zoom}
         />
+        {hasHydratedBoards && hasHydratedOnboarding && isOnboardingActive && onboardingStep === -1 ? (
+          <OnboardingWelcome
+            onDismiss={handleDismissOnboarding}
+            onStart={handleStartTour}
+          />
+        ) : null}
+        {hasHydratedBoards && hasHydratedOnboarding && isOnboardingActive && onboardingStep !== null && onboardingStep >= 0 ? (
+          <OnboardingWalkthrough
+            onDismiss={handleDismissOnboarding}
+            onNext={handleNextOnboardingStep}
+            step={onboardingStep}
+          />
+        ) : null}
 
       </section>
     </main>

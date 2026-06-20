@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { z } from "zod/v4";
 import {
   chartPointSchema,
@@ -58,6 +58,52 @@ let gradientIdCounter = 0;
 function createGradientId() {
   gradientIdCounter += 1;
   return `chart-gradient-${gradientIdCounter}`;
+}
+
+function MeasuredChart({ children, height }: { children: ReactNode; height: number }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ height: number; width: number } | null>(null);
+
+  useEffect(() => {
+    const node = containerRef.current;
+
+    if (!node) {
+      return;
+    }
+
+    const update = () => {
+      const width = node.clientWidth;
+
+      if (width > 0) {
+        setSize((current) =>
+          current?.width === width && current.height === height ? current : { height, width },
+        );
+      }
+    };
+
+    update();
+
+    if (typeof ResizeObserver === "undefined") {
+      const frame = requestAnimationFrame(update);
+
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+
+    return () => observer.disconnect();
+  }, [height]);
+
+  return (
+    <div className="w-full min-w-0" ref={containerRef} style={{ height }}>
+      {size ? (
+        <ResponsiveContainer height={size.height} width={size.width}>
+          {children}
+        </ResponsiveContainer>
+      ) : null}
+    </div>
+  );
 }
 
 function asArray<T>(value: T[] | null | undefined) {
@@ -297,7 +343,7 @@ const LineChart = defineComponent({
     return (
       <BlockShell className="min-h-[168px] flex-1" title={props.title} trailing={<ChartLegend series={series} />}>
         <div className="min-h-[148px] flex-1 px-1 pb-1">
-          <ResponsiveContainer height="100%" minHeight={148} width="100%">
+          <MeasuredChart height={148}>
             <RechartsLineChart data={rows} margin={{ bottom: 2, left: -8, right: 4, top: 6 }}>
               <defs>
                 <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
@@ -349,7 +395,7 @@ const LineChart = defineComponent({
                 />
               ))}
             </RechartsLineChart>
-          </ResponsiveContainer>
+          </MeasuredChart>
         </div>
       </BlockShell>
     );
@@ -377,7 +423,7 @@ const BarChart = defineComponent({
     return (
       <BlockShell className="min-h-[168px] flex-1" title={props.title}>
         <div className="min-h-[148px] flex-1 px-1 pb-1">
-          <ResponsiveContainer height="100%" minHeight={148} width="100%">
+          <MeasuredChart height={148}>
             <RechartsBarChart data={rows} margin={{ bottom: 2, left: -8, right: 4, top: 6 }}>
               <defs>
                 <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
@@ -421,7 +467,7 @@ const BarChart = defineComponent({
                 />
               ))}
             </RechartsBarChart>
-          </ResponsiveContainer>
+          </MeasuredChart>
         </div>
       </BlockShell>
     );
@@ -593,7 +639,7 @@ const StatHero = defineComponent({
                     {props.title}
                   </div>
                 ) : null}
-                <ResponsiveContainer height={72} width="100%">
+                <MeasuredChart height={72}>
                   <RechartsLineChart data={rows} margin={{ bottom: 0, left: 0, right: 4, top: 4 }}>
                     <defs>
                       <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
@@ -610,7 +656,7 @@ const StatHero = defineComponent({
                       type="monotone"
                     />
                   </RechartsLineChart>
-                </ResponsiveContainer>
+                </MeasuredChart>
               </div>
             ) : null}
           </div>

@@ -12,7 +12,6 @@ import {
   type CanvasWidget,
 } from "@/lib/dashboard-schemas";
 import {
-  ACTIVE_BOARD_STORAGE_KEY,
   BOARD_STORAGE_KEY,
   CANVAS_CENTER_X,
   CANVAS_CENTER_Y,
@@ -82,6 +81,24 @@ export function createBlankBoard(widgets: CanvasWidget[] = [], now = Date.now())
   };
 }
 
+export function prepareBlankLandingBoards(boards: CanvasBoard[], now = Date.now()): CanvasBoard[] {
+  const normalizedBoards = ensureBoardSet(boards);
+  const blankBoard = normalizedBoards.find((board) => board.id === BLANK_BOARD_ID);
+
+  if (!blankBoard) {
+    return normalizedBoards;
+  }
+
+  return normalizedBoards.map((board) =>
+    board.id === BLANK_BOARD_ID
+      ? {
+          ...createBlankBoard([], now),
+          createdAt: blankBoard.createdAt,
+        }
+      : board,
+  );
+}
+
 export function resetPrebuiltTemplates(boards: CanvasBoard[], now = Date.now()): CanvasBoard[] {
   const boardById = new Map(boards.map((board) => [board.id, board]));
 
@@ -110,6 +127,10 @@ export function ensureBoardSet(boards: CanvasBoard[]) {
     boardById.set(BLANK_BOARD_ID, createBlankBoard([], now));
   }
 
+  if (!boardById.has(BLANK_BOARD_ID)) {
+    boardById.set(BLANK_BOARD_ID, createBlankBoard([], now));
+  }
+
   // Rehydrate all prebuilt tabs from source when missing, mismatched, or outdated.
   // Retried/edited template widgets persist until BOARD_TEMPLATE_VERSION bumps.
   BOARD_TEMPLATES.forEach((template) => {
@@ -133,6 +154,14 @@ export function ensureBoardSet(boards: CanvasBoard[]) {
   return [...orderedBoards, ...extraBoards];
 }
 
+export function resolveActiveBoard(boards: CanvasBoard[], activeBoardId: string): CanvasBoard {
+  return (
+    boards.find((board) => board.id === activeBoardId) ??
+    boards.find((board) => board.id === BLANK_BOARD_ID) ??
+    createBlankBoard()
+  );
+}
+
 export function parseStoredBoards() {
   if (typeof window === "undefined") {
     return ensureBoardSet([createBlankBoard()]);
@@ -149,18 +178,4 @@ export function parseStoredBoards() {
   }
 
   return ensureBoardSet([createBlankBoard(parseLegacyStoredWidgets())]);
-}
-
-export function storedActiveBoardId(boards: CanvasBoard[]) {
-  if (typeof window === "undefined") {
-    return BLANK_BOARD_ID;
-  }
-
-  const stored = window.localStorage.getItem(ACTIVE_BOARD_STORAGE_KEY);
-
-  if (stored && boards.some((board) => board.id === stored)) {
-    return stored;
-  }
-
-  return boards.some((board) => board.id === "founder") ? "founder" : boards[0]?.id ?? BLANK_BOARD_ID;
 }

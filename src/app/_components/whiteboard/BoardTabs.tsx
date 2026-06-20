@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight, Plus, Sparkles, X } from "lucide-react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { boardEmoji } from "@/app/_lib/whiteboard/geometry";
+import { BLANK_BOARD_ID } from "@/lib/board-templates";
 import type { CanvasBoard } from "@/lib/dashboard-schemas";
 
 type BoardTabsScrollState = {
@@ -81,11 +82,12 @@ export function BoardTabs({
           </>
         ) : null}
         <div
+          data-board-tabs-scroll
           ref={boardTabsScrollRef}
           className="flex min-w-0 flex-1 scroll-px-8 items-center gap-2 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onScroll={updateBoardTabsScrollState}
         >
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1" data-onboarding-target="prebuilt-tabs">
             {prebuiltBoards.map((board) => {
               const isActive = board.id === activeBoardId;
 
@@ -118,7 +120,7 @@ export function BoardTabs({
           <div className="flex shrink-0 items-center gap-1">
             {personalBoards.map((board) => {
               const isActive = board.id === activeBoardId;
-              const canDelete = personalBoards.length > 1;
+              const canDelete = personalBoards.length > 1 && board.id !== BLANK_BOARD_ID;
 
               return (
                 <div
@@ -224,6 +226,7 @@ export function BoardTabs({
         <div className="flex shrink-0 items-center gap-1">
           <button
             className="ai-plan-tab-button inline-flex h-8 items-center gap-1.5 rounded border border-[var(--border)] px-2.5 text-sm font-semibold text-[var(--text-secondary)] transition hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
+            data-onboarding-target="plan-with-ai"
             onClick={openAiBoardCreate}
             title="Plan with AI"
             type="button"
