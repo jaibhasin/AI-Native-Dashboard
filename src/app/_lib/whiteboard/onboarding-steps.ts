@@ -11,7 +11,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     id: "command",
     target: "[data-onboarding-target='canvas-command']",
     title: "Add widgets with /",
-    body: "Type a metric or chart right here — like show burn rate and runway. Press Enter to generate a widget on your canvas.",
+    body: "Type or dictate a metric or chart right here — like show burn rate and runway. Use the mic or Cmd+M / Ctrl+M for voice. Press Enter to generate a widget on your canvas.",
     placement: "bottom",
   },
   {

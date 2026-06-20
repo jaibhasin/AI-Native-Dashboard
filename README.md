@@ -2,13 +2,14 @@
 
 Build AI whiteboards and operating dashboards by asking questions on an infinite canvas.
 
-AI Native Dashboard is an OpenUI-powered prototype for creating editable operating dashboards from natural language. Instead of starting with a chart builder, the app starts with a canvas of whiteboards, notes, and movable widgets. Press `/`, ask for the metric or view you want, and the app generates a dashboard widget in that spot.
+AI Native Dashboard is an OpenUI-powered prototype for creating editable operating dashboards from natural language. Instead of starting with a chart builder, the app starts with a canvas of whiteboards, notes, and movable widgets. Press `/`, type or dictate your prompt, and the app generates a dashboard widget in that spot.
 
 The demo focuses on teams that need fast operating visibility: founder metrics, engineering health, sales pipeline, ops workflows, model spend, token waste, retries, agent quality, and runway impact.
 
 ## Highlights
 
 - Natural-language widget generation from anywhere on the canvas
+- Voice prompts via mic or `Cmd+M` / `Ctrl+M` (Groq speech-to-text)
 - Prebuilt Founder, Engineering, Sales, and Ops whiteboard templates
 - AI-assisted whiteboard creation from a short operating brief
 - Multiple personal whiteboards with local persistence
