@@ -227,8 +227,20 @@ export function fallbackWidgetExampleData(prompt: string, index = 0): ExampleWid
   };
 }
 
+function gridColumns(count: number) {
+  if (count <= 4) {
+    return 2;
+  }
+
+  if (count <= 6) {
+    return 3;
+  }
+
+  return 4;
+}
+
 function widgetPosition(index: number, count: number) {
-  const columns = count <= 4 ? 2 : 3;
+  const columns = gridColumns(count);
   const rows = Math.ceil(count / columns);
   const column = index % columns;
   const row = Math.floor(index / columns);
@@ -242,7 +254,7 @@ function widgetPosition(index: number, count: number) {
 }
 
 function notePosition(index: number, count: number, widgetCount: number) {
-  const columns = widgetCount <= 4 ? 2 : 3;
+  const columns = gridColumns(widgetCount);
   const rows = Math.ceil(widgetCount / columns);
   const totalWidgetHeight = FALLBACK_WIDGET_HEIGHT * rows + FALLBACK_WIDGET_GAP * (rows - 1);
   const totalNoteWidth = FALLBACK_NOTE_WIDTH * count + FALLBACK_NOTE_GAP * Math.max(0, count - 1);
@@ -263,9 +275,14 @@ function fallbackWidgets(brief: AiBoardBrief): AiBoardWidgetPlan[] {
   const prompts = [
     `Show an executive KPI snapshot for ${purpose} covering ${metrics}`,
     `Show the most important trend and forecast for ${purpose} using ${metrics}`,
+    `Show a forecast and projection view for ${purpose} using ${metrics}`,
     `Show a status table for ${tasks}`,
     `Summarize risks, blockers, opportunities, and recommendations for ${purpose}`,
     `Compare the important segments, sources, or workstreams for ${audience} using ${dataSources}`,
+    `Show a leaderboard or ranking of top contributors, accounts, or workstreams for ${audience}`,
+    `Show a conversion funnel or activation drop-off view for ${purpose}`,
+    `Show gauge-style value-vs-target metrics for ${metrics}`,
+    `Show milestone and readiness timeline for ${tasks}`,
     `Show recommended decisions, next actions, owners, and due dates for ${audience} based on ${notes}`,
   ];
 
@@ -303,9 +320,23 @@ function fallbackNotes(brief: AiBoardBrief, widgetCount: number): AiBoardNotePla
       color: "amber" as const,
       title: "Preview data",
     },
+    {
+      body: brief.tasks
+        ? clipped(`Prioritize ${brief.tasks}.`, 180)
+        : "Focus on the highest-impact workstreams and owners.",
+      color: "rose" as const,
+      title: "Priorities",
+    },
+    {
+      body: brief.notes
+        ? clipped(brief.notes, 180)
+        : "Watch for blockers, assumptions, and open decisions.",
+      color: "blue" as const,
+      title: "Risks & assumptions",
+    },
   ].filter((note) => note.body.trim());
 
-  return notes.slice(0, 3).map((note, index, currentNotes) => ({
+  return notes.slice(0, 5).map((note, index, currentNotes) => ({
     ...notePosition(index, currentNotes.length, widgetCount),
     ...note,
     height: FALLBACK_NOTE_HEIGHT,

@@ -39,8 +39,8 @@ export const aiBoardNotePlanSchema = z.object({
 
 export const aiBoardPlanSchema = z.object({
   boardName: z.string().min(1).max(48),
-  widgets: z.array(aiBoardWidgetPlanSchema).min(4).max(8),
-  notes: z.array(aiBoardNotePlanSchema).max(3),
+  widgets: z.array(aiBoardWidgetPlanSchema).min(8).max(12),
+  notes: z.array(aiBoardNotePlanSchema).max(6),
 });
 
 export type AiBoardBrief = z.infer<typeof aiBoardBriefSchema>;

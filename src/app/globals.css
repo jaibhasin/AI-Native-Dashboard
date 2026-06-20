@@ -287,6 +287,19 @@ body {
   color: var(--text-secondary);
 }
 
+.ai-plan-subtitle,
+.ai-plan-helper {
+  color: var(--text-muted);
+}
+
+.ai-plan-status-spinner {
+  color: var(--text-secondary);
+}
+
+.ai-plan-error {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
 .ai-plan-primary-button {
   border-color: var(--primary);
   background: var(--primary);
@@ -351,6 +364,15 @@ html[data-theme="dark"] .ai-plan-field:focus {
   box-shadow:
     0 0 0 3px rgba(229, 231, 235, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+html[data-theme="dark"] .ai-plan-subtitle,
+html[data-theme="dark"] .ai-plan-helper {
+  color: var(--text-faint);
+}
+
+html[data-theme="dark"] .ai-plan-error {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 @keyframes onboarding-fade-in {

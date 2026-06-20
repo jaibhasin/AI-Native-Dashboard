@@ -15,8 +15,8 @@ test("fallbackAiBoardPlan returns a valid useful board plan", () => {
   const plan = fallbackAiBoardPlan(brief);
 
   assert.match(plan.boardName, /CEO and leadership team/i);
-  assert.equal(plan.widgets.length, 6);
-  assert.ok(plan.notes.length >= 2);
+  assert.equal(plan.widgets.length, 11);
+  assert.ok(plan.notes.length >= 4);
 
   for (const widget of plan.widgets) {
     assert.equal(typeof widget.x, "number");

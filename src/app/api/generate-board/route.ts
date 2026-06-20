@@ -69,6 +69,18 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function gridColumns(count: number) {
+  if (count <= 4) {
+    return 2;
+  }
+
+  if (count <= 6) {
+    return 3;
+  }
+
+  return 4;
+}
+
 function getBoardModel(provider: AIProvider) {
   if (provider === "openai") {
     return process.env.OPENAI_BOARD_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_BOARD_MODEL;
@@ -156,10 +168,15 @@ function fallbackWidgetPrompt(brief: AiBoardBrief, index: number) {
   const variants = [
     `Show the executive KPI snapshot for ${context}`,
     `Show the most important trend and forecast for ${context}`,
+    `Show a forecast and projection view for ${context}`,
     `Break down the key workstreams, owners, and blockers for ${context}`,
     `Summarize risks, opportunities, and recommended next actions for ${context}`,
     `Compare the most important metric segments for ${context}`,
     `Show priority tasks, status, owner, and due date for ${context}`,
+    `Show a leaderboard or ranking of top contributors or accounts for ${context}`,
+    `Show a conversion funnel or activation drop-off view for ${context}`,
+    `Show gauge-style value-vs-target metrics for ${context}`,
+    `Show milestone and readiness timeline for ${context}`,
     `Show data quality assumptions and gaps for ${context}`,
     `Show weekly operating rhythm and decision points for ${context}`,
   ];
@@ -190,7 +207,7 @@ function withPreviewQualifier(prompt: string, brief: AiBoardBrief) {
 }
 
 function gridPosition(index: number, count: number, width = AI_WIDGET_WIDTH, height = AI_WIDGET_HEIGHT) {
-  const columns = count <= 4 ? 2 : 3;
+  const columns = gridColumns(count);
   const rows = Math.ceil(count / columns);
   const column = index % columns;
   const row = Math.floor(index / columns);
@@ -203,9 +220,9 @@ function gridPosition(index: number, count: number, width = AI_WIDGET_WIDTH, hei
   };
 }
 
-function notePosition(index: number, widgetCount: number, noteCount = Math.min(3, Math.max(1, widgetCount))) {
+function notePosition(index: number, widgetCount: number, noteCount = Math.min(6, Math.max(1, widgetCount))) {
   const totalWidth = AI_NOTE_WIDTH * noteCount + AI_NOTE_GAP * (noteCount - 1);
-  const columns = widgetCount <= 4 ? 2 : 3;
+  const columns = gridColumns(widgetCount);
   const rows = Math.ceil(widgetCount / columns);
   const totalWidgetHeight = AI_WIDGET_HEIGHT * rows + AI_WIDGET_GAP * (rows - 1);
 
@@ -264,7 +281,7 @@ function normalizeNotePlan(value: unknown, index: number, widgetCount: number): 
 }
 
 function organizeLayout(widgets: AiBoardWidgetPlan[], notes: AiBoardNotePlan[]) {
-  const columns = widgets.length <= 4 ? 2 : 3;
+  const columns = gridColumns(widgets.length);
   const rows = Math.ceil(widgets.length / columns);
   const columnWidth = Math.max(...widgets.map((widget) => widget.width), AI_WIDGET_WIDTH);
   const rowHeights = Array.from({ length: rows }, (_, row) =>
@@ -310,17 +327,86 @@ function organizeLayout(widgets: AiBoardWidgetPlan[], notes: AiBoardNotePlan[]) 
   };
 }
 
+function defaultNotePlans(brief: AiBoardBrief, widgetCount: number): AiBoardNotePlan[] {
+  const defaults = [
+    {
+      body: brief.purpose.slice(0, 180),
+      color: "blue" as CanvasNoteColor,
+      title: "Board goal",
+    },
+    {
+      body: brief.metrics
+        ? `Track ${brief.metrics}.`.slice(0, 180)
+        : "Focus the review on the few metrics that change decisions.",
+      color: "green" as CanvasNoteColor,
+      title: "Metrics",
+    },
+    {
+      body: brief.dataSources
+        ? "Named data sources are context only; widgets use preview data.".slice(0, 180)
+        : "Widgets use AI-generated preview data, not live source data.",
+      color: "amber" as CanvasNoteColor,
+      title: "Preview data",
+    },
+    {
+      body: brief.tasks
+        ? `Prioritize ${brief.tasks}.`.slice(0, 180)
+        : "Focus on the highest-impact workstreams and owners.",
+      color: "rose" as CanvasNoteColor,
+      title: "Priorities",
+    },
+  ];
+
+  return defaults.map((note, index) => ({
+    ...notePosition(index, widgetCount, defaults.length),
+    ...note,
+    height: AI_NOTE_HEIGHT,
+    width: AI_NOTE_WIDTH,
+  }));
+}
+
+function padNotesWithDefaults(notes: AiBoardNotePlan[], brief: AiBoardBrief, widgetCount: number) {
+  const minimumNotes = 4;
+  const paddedNotes = [...notes];
+
+  if (paddedNotes.length >= minimumNotes) {
+    return paddedNotes.slice(0, 6);
+  }
+
+  const defaults = defaultNotePlans(brief, widgetCount);
+
+  for (const defaultNote of defaults) {
+    if (paddedNotes.length >= minimumNotes) {
+      break;
+    }
+
+    const isDuplicate = paddedNotes.some(
+      (note) => note.title === defaultNote.title || note.body === defaultNote.body,
+    );
+
+    if (!isDuplicate) {
+      paddedNotes.push(defaultNote);
+    }
+  }
+
+  return paddedNotes.slice(0, 6);
+}
+
 function normalizeBoardPlan(value: unknown, brief: AiBoardBrief): AiBoardPlan {
   const record = asRecord(value);
-  const rawWidgets = asArray(record.widgets).slice(0, 8);
-  const targetWidgetCount = clamp(rawWidgets.length || 6, 4, 8);
+  const rawWidgets = asArray(record.widgets).slice(0, 12);
+  const targetWidgetCount = clamp(rawWidgets.length || 11, 10, 12);
   const widgets = Array.from({ length: targetWidgetCount }, (_, index) =>
     normalizeWidgetPlan(rawWidgets[index], index, targetWidgetCount, brief),
   );
-  const rawNotes = asArray(record.notes).slice(0, 3);
-  const notes = rawNotes
-    .map((note, index) => normalizeNotePlan(note, index, widgets.length))
-    .filter((note) => note.title.trim() || note.body.trim());
+  const rawNotes = asArray(record.notes).slice(0, 6);
+  const notes = padNotesWithDefaults(
+    rawNotes
+      .map((note, index) => normalizeNotePlan(note, index, widgets.length))
+      .filter((note) => note.title.trim() || note.body.trim()),
+    brief,
+    widgets.length,
+  );
   const organizedLayout = organizeLayout(widgets, notes);
 
   return aiBoardPlanSchema.parse({
@@ -342,12 +428,12 @@ function boardPlanSystemPrompt() {
     "Each exampleData object must match its widget prompt and include realistic metrics, chart/table data, funnel/gauge/ranking/milestone fields, insights, or form fields as needed.",
     "Vary recommendedVisualization across widgets: prefer stat, funnel, gauge, ranking, timeline, metrics, line_chart, bar_chart, table, insights, form, or composite as appropriate.",
     "Use funnel for conversion views, gauge for value-vs-target, ranking for leaderboards, timeline for milestones/readiness, and stat for single headline KPIs.",
-    "Choose 4 to 8 non-duplicative widgets that cover the purpose, audience, tasks, metrics, data-source context, and additional notes.",
-    "Prefer a balanced board: KPI snapshot, trend/forecast, breakdown table, task/status view, risks/insights, and decision/action view when relevant.",
+    "Choose 10 to 12 non-duplicative widgets that cover the purpose, audience, tasks, metrics, data-source context, and additional notes.",
+    "Prefer a balanced full board: KPI snapshot, trend, forecast, breakdown table, ranking/leaderboard, funnel, gauges, milestone/timeline, task/status view, segment comparison, risks/insights, decision/action view, and data-quality view when relevant.",
     "Write widget prompts that are specific enough for a second AI call to generate the widget.",
     "Place widgets in a clean non-overlapping grid around x=100000 and y=100000.",
     "Use width 440 and height 320 for most widgets; use height up to 380 only when table or insight content needs room.",
-    "Use up to 3 notes above the widget grid for goals, assumptions, source-context caveats, or priorities.",
+    "Use 4 to 6 notes above the widget grid for goals, assumptions, source-context caveats, priorities, and risks.",
     "Keep boardName short, concrete, and readable in a tab.",
   ].join("\n");
 }
@@ -468,6 +554,120 @@ async function createBoardPlanWithGroqFailover(apiKeys: string[], brief: AiBoard
   throw new Error("All configured Groq API keys are cooling down. Wait a minute, then retry.");
 }
 
+const BRIEF_REFINEMENT_PURPOSE_THRESHOLD = 40;
+
+function briefNeedsRefinement(brief: AiBoardBrief) {
+  const optionalFields = [brief.audience, brief.tasks, brief.metrics, brief.dataSources];
+  const filledOptionalCount = optionalFields.filter((value) => value.trim().length > 0).length;
+
+  return brief.purpose.trim().length < BRIEF_REFINEMENT_PURPOSE_THRESHOLD || filledOptionalCount <= 1;
+}
+
+function refineBriefSystemPrompt() {
+  return [
+    "You expand sparse operating briefs into complete whiteboard planning inputs.",
+    "Infer realistic audience, tasks, metrics, data sources, and notes that fit the stated purpose.",
+    "Treat data sources as user-provided context only; never claim live access, sync, or verification.",
+    "Keep the user's intent and domain; do not invent unrelated goals.",
+    "Return only valid JSON matching the brief shape with all six fields populated.",
+    "If a field already has user content, keep its meaning but you may clarify wording slightly.",
+  ].join("\n");
+}
+
+function refineBriefUserPrompt(brief: AiBoardBrief) {
+  return [
+    "Expand this brief into a complete operating brief for dashboard planning.",
+    `Purpose: ${brief.purpose}`,
+    `Team or audience: ${brief.audience || "Not specified"}`,
+    `Important tasks: ${brief.tasks || "Not specified"}`,
+    `Important metrics: ${brief.metrics || "Not specified"}`,
+    `Data sources named by user: ${brief.dataSources || "Not specified"}`,
+    `Additional notes: ${brief.notes || "Not specified"}`,
+  ].join("\n");
+}
+
+function mergeRefinedBrief(original: AiBoardBrief, refined: AiBoardBrief): AiBoardBrief {
+  const pickField = (field: keyof AiBoardBrief) => {
+    const originalValue = original[field].trim();
+    const refinedValue = refined[field].trim();
+
+    if (originalValue) {
+      return originalValue;
+    }
+
+    return refinedValue;
+  };
+
+  const purpose = original.purpose.trim() || refined.purpose.trim();
+
+  return aiBoardBriefSchema.parse({
+    audience: pickField("audience"),
+    dataSources: pickField("dataSources"),
+    metrics: pickField("metrics"),
+    notes: pickField("notes"),
+    purpose: purpose || refined.purpose.trim(),
+    tasks: pickField("tasks"),
+  });
+}
+
+async function createRefinedBrief(client: ModelClient, provider: AIProvider, brief: AiBoardBrief) {
+  const completion = (await createChatCompletion(client, {
+    model: getBoardModel(provider),
+    messages: [
+      {
+        role: "system",
+        content: refineBriefSystemPrompt(),
+      },
+      {
+        role: "user",
+        content: refineBriefUserPrompt(brief),
+      },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "ai_board_brief",
+        strict: true,
+        schema: toJSONSchema(aiBoardBriefSchema),
+      },
+    },
+    ...modelTuningParams(provider),
+  })) as ChatCompletionResult;
+
+  const content = completion.choices?.[0]?.message?.content;
+
+  if (!content) {
+    throw new Error(`${providerDisplayName(provider)} returned no refined brief.`);
+  }
+
+  const refined = aiBoardBriefSchema.parse(parseJsonObject(content));
+
+  return mergeRefinedBrief(brief, refined);
+}
+
+async function refineBriefSafely(provider: AIProvider, apiKeys: string[], brief: AiBoardBrief) {
+  if (!briefNeedsRefinement(brief) || apiKeys.length === 0) {
+    return brief;
+  }
+
+  try {
+    if (provider === "groq") {
+      const selected = chooseGroqKey(apiKeys);
+
+      if (!selected) {
+        return brief;
+      }
+
+      return await createRefinedBrief(createModelClient("groq", selected.apiKey), "groq", brief);
+    }
+
+    return await createRefinedBrief(createModelClient(provider, apiKeys[0]), provider, brief);
+  } catch (error) {
+    console.warn("AI brief refinement failed; using original brief.", error);
+    return brief;
+  }
+}
+
 export async function POST(request: Request) {
   let brief: AiBoardBrief;
 
@@ -490,10 +690,12 @@ export async function POST(request: Request) {
       return fallbackBoardResponse(brief, "missing-api-key");
     }
 
+    const planBrief = await refineBriefSafely(provider, apiKeys, brief);
+
     const plan =
       provider === "groq"
-        ? await createBoardPlanWithGroqFailover(apiKeys, brief)
-        : await createBoardPlan(createModelClient(provider, apiKeys[0]), provider, brief);
+        ? await createBoardPlanWithGroqFailover(apiKeys, planBrief)
+        : await createBoardPlan(createModelClient(provider, apiKeys[0]), provider, planBrief);
 
     return Response.json(plan);
   } catch (error) {
