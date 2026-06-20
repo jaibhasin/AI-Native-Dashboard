@@ -11,6 +11,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@amplitude/analytics-browser": "^2.44.1",
+    "@amplitude/plugin-session-replay-browser": "^1.32.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@openuidev/cli": "^0.0.7",
     "@openuidev/react-lang": "^0.2.6",

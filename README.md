@@ -116,6 +116,9 @@ GROQ_UI_MODEL=llama-3.3-70b-versatile
 GROQ_BOARD_MODEL=openai/gpt-oss-20b
 GROQ_STT_MODEL=whisper-large-v3-turbo
 GROQ_STT_LANGUAGE=en
+
+# Browser analytics (safe to expose to the client).
+NEXT_PUBLIC_AMPLITUDE_API_KEY=your_amplitude_api_key
 ```
 
 Run the development server:

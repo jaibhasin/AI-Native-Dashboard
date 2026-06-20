@@ -16,6 +16,7 @@ import type { CanvasBoard, CanvasWidget } from "@/lib/dashboard-schemas";
 import { createAiBoardArtifacts, trimAiBoardBrief } from "@/app/_lib/whiteboard/generation";
 import { createBoardId } from "@/app/_lib/whiteboard/geometry";
 import type { AiBoardBriefField, CommandState } from "@/app/_lib/whiteboard/types";
+import { trackEvent } from "@/lib/analytics";
 
 function emptyAiBoardBrief(): AiBoardBrief {
   return {
@@ -86,14 +87,23 @@ export function useBoardCreation({
 
   const selectBoard = useCallback(
     (boardId: string) => {
+      const board = boards.find((item) => item.id === boardId);
+
       setActiveBoardId(boardId);
       setIsCreatingBoardName(false);
       setBoardNameDraft("");
       setCommand(null);
       stopEditingNote();
 
+      trackEvent("board_viewed", {
+        board_id: boardId,
+        board_name: board?.name ?? "unknown",
+        is_template: Boolean(board?.templateId),
+        template_id: board?.templateId ?? "none",
+      });
+
       requestAnimationFrame(() => {
-        focusBoard(boards.find((board) => board.id === boardId));
+        focusBoard(board);
       });
     },
     [boards, focusBoard, setActiveBoardId, setCommand, stopEditingNote],
@@ -179,6 +189,11 @@ export function useBoardCreation({
       stopEditingNote();
 
       requestAnimationFrame(() => focusBoard(board));
+      trackEvent("plan_with_ai_completed", {
+        board_id: board.id,
+        board_name: board.name,
+        widget_count: widgets.length,
+      });
       void generateAiBoardWidgets(board.id, widgets);
     },
     [focusBoard, generateAiBoardWidgets, setActiveBoardId, setBoards, setCommand, stopEditingNote],

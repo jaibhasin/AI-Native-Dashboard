@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ONBOARDING_STORAGE_KEY } from "@/app/_lib/whiteboard/constants";
+import { trackEvent } from "@/lib/analytics";
 
 export const ONBOARDING_STEP_COUNT = 3;
 // step -1 = welcome screen, 0..2 = tour steps
@@ -39,11 +40,15 @@ export function useOnboardingWalkthrough() {
     window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "completed");
     setIsActive(false);
     setStep(null);
+    trackEvent("onboarding_completed");
   }, []);
 
   const dismiss = useCallback(() => {
-    complete();
-  }, [complete]);
+    window.localStorage.setItem(ONBOARDING_STORAGE_KEY, "completed");
+    setIsActive(false);
+    setStep(null);
+    trackEvent("onboarding_skipped");
+  }, []);
 
   const next = useCallback(() => {
     setStep((current) => {
@@ -62,6 +67,7 @@ export function useOnboardingWalkthrough() {
 
   const startTour = useCallback(() => {
     setStep(0);
+    trackEvent("onboarding_started");
   }, []);
 
   return {

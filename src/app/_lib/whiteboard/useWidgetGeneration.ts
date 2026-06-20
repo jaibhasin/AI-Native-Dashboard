@@ -10,6 +10,7 @@ import {
 } from "@/app/_lib/whiteboard/constants";
 import { readWidgetStream } from "@/app/_lib/whiteboard/generation";
 import { streamErrorMessage } from "@/app/_lib/whiteboard/geometry";
+import { trackEvent } from "@/lib/analytics";
 
 type UpdateWidget = (boardId: string, id: string, updater: (widget: CanvasWidget) => CanvasWidget) => void;
 
@@ -56,8 +57,18 @@ export function useWidgetGeneration(updateWidget: UpdateWidget) {
             status: "done",
             updatedAt: now,
           }));
+          trackEvent("widget_generated", {
+            board_id: boardId,
+            from_template: true,
+            used_fallback: true,
+          });
           return;
         }
+
+        trackEvent("widget_generation_failed", {
+          board_id: boardId,
+          error: event.error.slice(0, 120),
+        });
 
         updateWidget(boardId, id, (widget) => ({
           ...widget,
@@ -73,6 +84,11 @@ export function useWidgetGeneration(updateWidget: UpdateWidget) {
         status: "done",
         updatedAt: now,
       }));
+      trackEvent("widget_generated", {
+        board_id: boardId,
+        from_template: Boolean(fallbackExampleData),
+        used_fallback: false,
+      });
     },
     [updateWidget],
   );
@@ -123,8 +139,18 @@ export function useWidgetGeneration(updateWidget: UpdateWidget) {
             status: "done",
             updatedAt: Date.now(),
           }));
+          trackEvent("widget_generated", {
+            board_id: boardId,
+            from_template: true,
+            used_fallback: true,
+          });
           return;
         }
+
+        trackEvent("widget_generation_failed", {
+          board_id: boardId,
+          error: errorText.slice(0, 120),
+        });
 
         updateWidget(boardId, id, (widget) => ({
           ...widget,
