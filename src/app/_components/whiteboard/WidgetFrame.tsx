@@ -1,7 +1,7 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { GripVertical, Maximize2, RotateCcw, Trash2 } from "lucide-react";
+import { Expand, GripVertical, Maximize2, RotateCcw, Trash2 } from "lucide-react";
 import {
   memo,
   useEffect,
@@ -49,7 +49,7 @@ function StreamingSkeleton({ widget }: { widget: CanvasWidget }) {
   );
 }
 
-const WidgetBody = memo(function WidgetBody({
+export const WidgetBody = memo(function WidgetBody({
   alignContentToTop = false,
   onContentMeasured,
   widget,
@@ -185,6 +185,7 @@ export function WidgetFrame({
   onBringToFront,
   onDelete,
   onContentMeasured,
+  onFocus,
   onRetry,
   onStartInteraction,
   scale,
@@ -194,6 +195,7 @@ export function WidgetFrame({
   onBringToFront: (id: string) => void;
   onDelete: (id: string) => void;
   onContentMeasured: (id: string, openuiSource: string, stageSize: ElementSize) => void;
+  onFocus: (id: string) => void;
   onRetry: (widget: CanvasWidget) => void;
   onStartInteraction: (event: PointerEvent<HTMLElement>, interaction: WidgetInteraction) => void;
   scale: number;
@@ -299,6 +301,19 @@ export function WidgetFrame({
                   <RotateCcw className="h-3 w-3" />
                 </button>
               ) : null}
+              <button
+                aria-label="Focus widget"
+                className="pointer-events-none grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[var(--border)] text-[var(--text-secondary)] opacity-0 transition hover:bg-[var(--control-hover)] focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
+                data-widget-control
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onFocus(widget.id);
+                }}
+                title="Focus"
+                type="button"
+              >
+                <Expand className="h-3 w-3" />
+              </button>
               <button
                 aria-label="Delete widget"
                 className="pointer-events-none grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[var(--border)] text-[var(--text-secondary)] opacity-0 transition hover:bg-[var(--control-hover)] focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"

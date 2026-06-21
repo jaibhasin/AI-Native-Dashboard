@@ -51,7 +51,10 @@ type TemplateWidgetDefinition = Pick<
   id: string;
   exampleData: ExampleWidgetData;
 };
-type TemplateNoteDefinition = Pick<CanvasNote, "body" | "color" | "height" | "title" | "width" | "x" | "y"> & {
+type TemplateNoteDefinition = Pick<
+  CanvasNote,
+  "body" | "color" | "height" | "title" | "width" | "widgetId" | "x" | "y"
+> & {
   id: string;
   authorName: string;
 };
@@ -334,7 +337,10 @@ export function notesAroundWidget(
       };
     }
 
-    return noteSized(noteId, spec.title, spec.body, spec.color, position);
+    return {
+      ...noteSized(noteId, spec.title, spec.body, spec.color, position),
+      widgetId,
+    };
   });
 }
 
@@ -815,6 +821,7 @@ export function createBoardFromTemplate(template: BoardTemplate, now = Date.now(
     notes: template.notes.map((templateNote, index) => ({
       ...templateNote,
       id: `${template.id}-${templateNote.id}`,
+      widgetId: templateNote.widgetId ? `${template.id}-${templateNote.widgetId}` : undefined,
       createdAt: now + index,
       updatedAt: now + index,
     })),

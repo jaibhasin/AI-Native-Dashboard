@@ -1,5 +1,10 @@
 import type { OpenUIError } from "@openuidev/react-lang";
-import { DEFAULT_NOTE_AUTHOR_NAME, type CanvasBoard, type CanvasWidget } from "@/lib/dashboard-schemas";
+import {
+  DEFAULT_NOTE_AUTHOR_NAME,
+  type CanvasBoard,
+  type CanvasNote,
+  type CanvasWidget,
+} from "@/lib/dashboard-schemas";
 import {
   CANVAS_CENTER_X,
   CANVAS_CENTER_Y,
@@ -266,4 +271,45 @@ export function canvasCenter() {
     x: CANVAS_CENTER_X,
     y: CANVAS_CENTER_Y,
   };
+}
+
+export function nearestWidgetId(
+  note: Pick<CanvasNote, "height" | "width" | "x" | "y">,
+  widgets: CanvasWidget[],
+) {
+  if (widgets.length === 0) {
+    return undefined;
+  }
+
+  const noteCenterX = note.x + note.width / 2;
+  const noteCenterY = note.y + note.height / 2;
+  let nearestId: string | undefined;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  for (const widget of widgets) {
+    const widgetRight = widget.x + widget.width;
+    const widgetBottom = widget.y + widget.height;
+    const inside =
+      noteCenterX >= widget.x &&
+      noteCenterX <= widgetRight &&
+      noteCenterY >= widget.y &&
+      noteCenterY <= widgetBottom;
+
+    if (inside) {
+      return widget.id;
+    }
+
+    const closestX = Math.max(widget.x, Math.min(noteCenterX, widgetRight));
+    const closestY = Math.max(widget.y, Math.min(noteCenterY, widgetBottom));
+    const dx = noteCenterX - closestX;
+    const dy = noteCenterY - closestY;
+    const distance = dx * dx + dy * dy;
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestId = widget.id;
+    }
+  }
+
+  return nearestId;
 }

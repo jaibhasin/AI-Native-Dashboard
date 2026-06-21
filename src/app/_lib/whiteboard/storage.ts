@@ -11,6 +11,7 @@ import {
   type CanvasBoard,
   type CanvasWidget,
 } from "@/lib/dashboard-schemas";
+import { nearestWidgetId } from "./geometry";
 import {
   BOARD_STORAGE_KEY,
   CANVAS_CENTER_X,
@@ -114,10 +115,15 @@ export function ensureBoardSet(boards: CanvasBoard[]) {
   const boardById = new Map<string, CanvasBoard>();
 
   boards.forEach((board) => {
+    const widgets = board.widgets.map(restoreStoredWidget);
+
     boardById.set(board.id, {
       ...board,
-      notes: board.notes ?? [],
-      widgets: board.widgets.map(restoreStoredWidget),
+      notes: (board.notes ?? []).map((note) => ({
+        ...note,
+        widgetId: note.widgetId ?? nearestWidgetId(note, widgets),
+      })),
+      widgets,
     });
   });
 

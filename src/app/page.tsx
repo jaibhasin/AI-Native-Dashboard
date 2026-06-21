@@ -22,6 +22,7 @@ import { CreateWithAIBoardModal } from "@/app/_components/whiteboard/CreateWithA
 import { NoteFrame } from "@/app/_components/whiteboard/NoteFrame";
 import { OnboardingWalkthrough } from "@/app/_components/whiteboard/OnboardingWalkthrough";
 import { OnboardingWelcome } from "@/app/_components/whiteboard/OnboardingWelcome";
+import { WidgetFocusOverlay } from "@/app/_components/whiteboard/WidgetFocusOverlay";
 import { WidgetFrame } from "@/app/_components/whiteboard/WidgetFrame";
 import {
   BOARD_STORAGE_KEY,
@@ -95,6 +96,7 @@ export default function Home() {
   const [boards, setBoards] = useState<CanvasBoard[]>(() => ensureBoardSet([createBlankBoard()]));
   const [activeBoardId, setActiveBoardId] = useState(BLANK_BOARD_ID);
   const [hasHydratedBoards, setHasHydratedBoards] = useState(false);
+  const [focusedWidgetId, setFocusedWidgetId] = useState<string | null>(null);
   const [theme, setTheme] = useThemeMode();
   const { adjustZoom, focusBoard, getVisibleCanvasCenter, handleWheel, resetBlankViewport, scale, viewportRef, zoom } =
     useCanvasViewport();
@@ -103,6 +105,14 @@ export default function Home() {
   const activeBoardIsTemplate = Boolean(activeBoard?.templateId);
   const widgets = activeBoard?.widgets ?? [];
   const notes = boardNotes(activeBoard);
+  const focusedWidgetIndex = focusedWidgetId
+    ? widgets.findIndex((widget) => widget.id === focusedWidgetId)
+    : -1;
+  const focusedWidget = focusedWidgetIndex >= 0 ? widgets[focusedWidgetIndex] : null;
+  const focusedWidgetNotes = useMemo(
+    () => (focusedWidgetId ? notes.filter((note) => note.widgetId === focusedWidgetId) : []),
+    [focusedWidgetId, notes],
+  );
   const activeBoardAccent = useMemo(() => boardAccent(activeBoard?.templateId), [activeBoard?.templateId]);
   const canvasStyle = useCanvasStyle(activeBoardAccent, scale);
   const personalBoards = boards.filter((board) => !board.templateId);
@@ -189,8 +199,48 @@ export default function Home() {
     (id: string) => {
       trackEvent("widget_deleted", { board_id: activeBoardId, widget_id: id });
       updateBoardWidgets(activeBoardId, (current) => current.filter((widget) => widget.id !== id));
+      setFocusedWidgetId((current) => (current === id ? null : current));
     },
     [activeBoardId, updateBoardWidgets],
+  );
+
+  const openWidgetFocus = useCallback((id: string, source: "navbar" | "widget" = "widget") => {
+    stopEditingNote();
+    setCommand(null);
+    setFocusedWidgetId(id);
+    trackEvent("widget_focus_opened", { board_id: activeBoardId, source, widget_id: id });
+  }, [activeBoardId, stopEditingNote]);
+
+  const openWidgetFocusFromControls = useCallback(() => {
+    const firstWidget = widgets[0];
+
+    if (!firstWidget) {
+      return;
+    }
+
+    openWidgetFocus(firstWidget.id, "navbar");
+  }, [openWidgetFocus, widgets]);
+
+  const closeWidgetFocus = useCallback(() => {
+    setFocusedWidgetId(null);
+    stopEditingNote();
+  }, [stopEditingNote]);
+
+  const focusAdjacentWidget = useCallback(
+    (direction: "next" | "prev") => {
+      if (widgets.length === 0) {
+        return;
+      }
+
+      const currentIndex = focusedWidgetId ? widgets.findIndex((widget) => widget.id === focusedWidgetId) : 0;
+      const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+      const offset = direction === "next" ? 1 : -1;
+      const nextIndex = (safeIndex + offset + widgets.length) % widgets.length;
+
+      setFocusedWidgetId(widgets[nextIndex].id);
+      stopEditingNote();
+    },
+    [focusedWidgetId, stopEditingNote, widgets],
   );
 
   const addWidgetToBoard = useCallback(
@@ -351,7 +401,7 @@ export default function Home() {
     [command],
   );
 
-  const addNoteToActiveBoard = useCallback((targetPosition?: { x: number; y: number }) => {
+  const addNoteToActiveBoard = useCallback((targetPosition?: { x: number; y: number }, widgetId?: string) => {
     if (!activeBoard) {
       return;
     }
@@ -384,13 +434,15 @@ export default function Home() {
       title: "",
       updatedAt: now,
       width: noteSize.width,
+      ...(widgetId ? { widgetId } : {}),
       ...position,
     };
 
     updateBoardNotes(activeBoard.id, (current) => [...current, note]);
     trackEvent("note_created", {
       board_id: activeBoard.id,
-      source: targetPosition ? "cursor" : "keyboard",
+      source: widgetId ? "widget_focus" : targetPosition ? "cursor" : "keyboard",
+      widget_id: widgetId ?? "none",
     });
 
     if (command) {
@@ -401,7 +453,7 @@ export default function Home() {
     setEditingNoteFocus("body");
     setNewlyCreatedNoteId(id);
 
-    if (!targetPosition) {
+    if (!targetPosition && !widgetId) {
       requestAnimationFrame(() => focusBoard({ ...activeBoard, notes: [...currentNotes, note], updatedAt: now }));
     }
   }, [
@@ -415,6 +467,27 @@ export default function Home() {
     setNewlyCreatedNoteId,
     updateBoardNotes,
   ]);
+
+  const addNoteForWidget = useCallback(
+    (widgetId: string) => {
+      const widget = widgets.find((item) => item.id === widgetId);
+
+      if (!widget || !activeBoard) {
+        return;
+      }
+
+      const widgetNotes = notes.filter((note) => note.widgetId === widgetId);
+      const noteSize = noteTextSize("", "", DEFAULT_NOTE_AUTHOR_NAME);
+      const stackOffset = widgetNotes.length * (noteSize.height + 12);
+      const position = {
+        x: widget.x + widget.width + 28,
+        y: widget.y + stackOffset,
+      };
+
+      addNoteToActiveBoard(position, widgetId);
+    },
+    [activeBoard, addNoteToActiveBoard, notes, widgets],
+  );
 
   const addNoteAtCursor = useCallback(() => {
     const cursor = cursorRef.current;
@@ -475,6 +548,21 @@ export default function Home() {
   }, [isOnboardingActive, onboardingStep, openCommandAtCenter]);
 
   useEffect(() => {
+    setFocusedWidgetId(null);
+    stopEditingNote();
+  }, [activeBoardId, stopEditingNote]);
+
+  useEffect(() => {
+    if (!focusedWidgetId) {
+      return;
+    }
+
+    if (!widgets.some((widget) => widget.id === focusedWidgetId)) {
+      setFocusedWidgetId(null);
+    }
+  }, [focusedWidgetId, widgets]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) {
         return;
@@ -487,10 +575,43 @@ export default function Home() {
           return;
         }
 
+        if (focusedWidgetId) {
+          event.preventDefault();
+          closeWidgetFocus();
+          return;
+        }
+
         if (command) {
           event.preventDefault();
           closeCommand("escape");
         }
+        return;
+      }
+
+      if (focusedWidgetId) {
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          focusAdjacentWidget("prev");
+          return;
+        }
+
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          focusAdjacentWidget("next");
+          return;
+        }
+
+        if (
+          !event.repeat &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.altKey &&
+          event.key.toLowerCase() === "n"
+        ) {
+          event.preventDefault();
+          addNoteForWidget(focusedWidgetId);
+        }
+
         return;
       }
 
@@ -517,7 +638,18 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [addNoteAtCursor, closeCommand, command, editingNoteId, openCommandAtCursor, stopEditingNote]);
+  }, [
+    addNoteAtCursor,
+    addNoteForWidget,
+    closeCommand,
+    closeWidgetFocus,
+    command,
+    editingNoteId,
+    focusAdjacentWidget,
+    focusedWidgetId,
+    openCommandAtCursor,
+    stopEditingNote,
+  ]);
 
   useEffect(() => {
     if (!commandPosition) {
@@ -731,6 +863,7 @@ export default function Home() {
                     onBringToFront={(id) => bringWidgetToFront(activeBoardId, id)}
                     onDelete={deleteWidget}
                     onContentMeasured={fitWidgetToContent}
+                    onFocus={openWidgetFocus}
                     onRetry={retryWidget}
                     onStartInteraction={startWidgetInteraction}
                     scale={scale}
@@ -803,13 +936,36 @@ export default function Home() {
         />
         <CanvasOverlays
           adjustZoom={adjustZoom}
+          canOpenWidgetFocus={widgets.length > 0}
           canZoomIn={canZoomIn}
           canZoomOut={canZoomOut}
+          isFocusModeActive={Boolean(focusedWidget)}
           nextTheme={nextTheme}
+          onOpenWidgetFocus={openWidgetFocusFromControls}
           setTheme={setTheme}
           theme={theme}
           zoom={zoom}
         />
+        {focusedWidget ? (
+          <WidgetFocusOverlay
+            accent={activeBoardAccent}
+            editingNoteFocus={editingNoteFocus}
+            editingNoteId={editingNoteId}
+            focusedIndex={focusedWidgetIndex}
+            newlyCreatedNoteId={newlyCreatedNoteId}
+            notes={focusedWidgetNotes}
+            onAddNote={() => addNoteForWidget(focusedWidget.id)}
+            onClose={closeWidgetFocus}
+            onDeleteNote={deleteNote}
+            onEditNote={editNote}
+            onNext={() => focusAdjacentWidget("next")}
+            onPrev={() => focusAdjacentWidget("prev")}
+            onStopEditingNote={stopEditingNote}
+            onUpdateNote={updateNoteFields}
+            totalWidgets={widgets.length}
+            widget={focusedWidget}
+          />
+        ) : null}
         {hasHydratedBoards && hasHydratedOnboarding && isOnboardingActive && onboardingStep === -1 ? (
           <OnboardingWelcome
             onDismiss={handleDismissOnboarding}

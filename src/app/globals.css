@@ -238,6 +238,10 @@ body {
   backdrop-filter: none;
 }
 
+.widget-focus-backdrop {
+  background: rgba(15, 23, 42, 0.42);
+}
+
 .ai-plan-modal {
   position: relative;
   border-color: rgba(148, 163, 184, 0.48);
@@ -336,6 +340,10 @@ html[data-theme="dark"] .ai-plan-tab-button:hover {
 
 html[data-theme="dark"] .ai-plan-overlay {
   background: rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="dark"] .widget-focus-backdrop {
+  background: rgba(0, 0, 0, 0.62);
 }
 
 html[data-theme="dark"] .ai-plan-modal {

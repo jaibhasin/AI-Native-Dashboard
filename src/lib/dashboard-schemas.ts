@@ -136,6 +136,7 @@ export const canvasNoteSchema = z.object({
   body: z.string(),
   authorName: z.string().default(DEFAULT_NOTE_AUTHOR_NAME),
   color: canvasNoteColorSchema,
+  widgetId: z.string().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });

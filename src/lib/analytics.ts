@@ -33,6 +33,7 @@ export type AnalyticsEvent =
   | "voice_transcription_completed"
   | "voice_transcription_failed"
   | "widget_deleted"
+  | "widget_focus_opened"
   | "widget_generated"
   | "widget_generation_failed"
   | "widget_prompt_submitted"
