@@ -1,11 +1,10 @@
 import type { BoardTemplate } from "@/lib/board-template-core";
 import {
+  buildWidgetClusterFromRect,
   exampleWidgetData,
-  founderNotePositionSpan,
-  gridPositionSpan,
-  noteSized,
+  flattenClusters,
+  founderHeroClusterPositions,
   TEMPLATE_DISCLOSURE,
-  widgetSized,
 } from "@/lib/board-template-core";
 
 const founderRunwayData = exampleWidgetData({
@@ -32,6 +31,18 @@ const founderRunwayData = exampleWidgetData({
       { label: "Jun", values: [2400] },
     ],
   },
+  insights: [
+    {
+      label: "Runway is healthy",
+      detail: "Default alive at current burn with inference COGS already embedded in net burn.",
+      tone: "positive",
+    },
+    {
+      label: "Raise timing matters",
+      detail: "Start partner conversations before margin improvements get lost in the narrative.",
+      tone: "warning",
+    },
+  ],
 });
 
 const founderArrData = exampleWidgetData({
@@ -59,6 +70,13 @@ const founderArrData = exampleWidgetData({
       { label: "Aug", values: [2140, 192, 9] },
     ],
   },
+  insights: [
+    {
+      label: "Expansion is carrying growth",
+      detail: "Expansion ARR outpaces contraction for the third consecutive quarter.",
+      tone: "positive",
+    },
+  ],
 });
 
 const founderEfficiencyData = exampleWidgetData({
@@ -79,6 +97,7 @@ const founderEfficiencyData = exampleWidgetData({
       { cells: ["Support triage", "$0.04", "2.7%", "Small model"] },
       { cells: ["Code review", "$0.22", "5.6%", "Frontier"] },
       { cells: ["Sales enrich", "$0.11", "8.9%", "Routed"] },
+      { cells: ["Billing assist", "$0.07", "3.2%", "Routed"] },
     ],
   },
 });
@@ -95,6 +114,7 @@ const founderCustomerRiskData = exampleWidgetData({
       { label: "Kite Health", value: "$184k", detail: "Renewal Sep", badge: "Medium", tone: "warning" },
       { label: "Mercury Ops", value: "$141k", detail: "Renewal Jul", badge: "High", tone: "negative" },
       { label: "BrightPath", value: "$96k", detail: "Renewal Oct", badge: "Low", tone: "positive" },
+      { label: "Vector Bank", value: "$88k", detail: "Renewal Aug", badge: "High", tone: "negative" },
     ],
   },
 });
@@ -157,6 +177,11 @@ const founderFundraisingData = exampleWidgetData({
         detail: "Seed lead intro scheduled for next week.",
         status: "active",
       },
+      {
+        label: "Data room cleanup",
+        detail: "Cap table and customer references need final pass.",
+        status: "todo",
+      },
     ],
   },
 });
@@ -174,84 +199,66 @@ const founderPrioritiesData = exampleWidgetData({
       { cells: ["Cut retry waste", "CTO", "On track", "Eval signoff"] },
       { cells: ["Launch pricing", "GTM", "At risk", "Billing copy"] },
       { cells: ["SOC 2 packet", "Ops", "Blocked", "Evidence owner"] },
+      { cells: ["Mercury renewal", "CEO", "At risk", "Exec check-in"] },
     ],
   },
 });
 
+const founderPositions = founderHeroClusterPositions();
+
+const founderClusters = [
+  buildWidgetClusterFromRect(
+    "runway",
+    "show founder runway forecast with cash remaining, net burn, inference COGS, and next financing date",
+    founderPositions.runway,
+    founderRunwayData,
+  ),
+  buildWidgetClusterFromRect(
+    "arr",
+    "show founder ARR growth, expansion, contraction, and net retention",
+    founderPositions.arr,
+    founderArrData,
+  ),
+  buildWidgetClusterFromRect(
+    "efficiency",
+    "show founder token efficiency and inference cost per workflow with retry waste breakdown",
+    founderPositions.efficiency,
+    founderEfficiencyData,
+  ),
+  buildWidgetClusterFromRect(
+    "customer-risk",
+    "show founder top customer concentration and renewal risk",
+    founderPositions.customerRisk,
+    founderCustomerRiskData,
+  ),
+  buildWidgetClusterFromRect(
+    "activation",
+    "show founder PLG activation funnel from signup to paid conversion",
+    founderPositions.activation,
+    founderActivationData,
+  ),
+  buildWidgetClusterFromRect(
+    "gross-margin",
+    "show founder gross margin impact from inference COGS and infrastructure costs",
+    founderPositions.grossMargin,
+    founderGrossMarginData,
+  ),
+  buildWidgetClusterFromRect(
+    "fundraising",
+    "show founder fundraising readiness milestones and diligence gaps",
+    founderPositions.fundraising,
+    founderFundraisingData,
+  ),
+  buildWidgetClusterFromRect(
+    "priorities",
+    "show founder weekly priorities with blockers and owners",
+    founderPositions.priorities,
+    founderPrioritiesData,
+  ),
+];
+
 export const founderBoardTemplate: BoardTemplate = {
   id: "founder",
   name: "Founder",
-  notes: [
-    noteSized(
-      "brief",
-      "This week",
-      "Runway is healthy at 14.8 months. Tokenmaxx model routing before the next hire — inference COGS down 11% MoM while ARR climbs.",
-      "blue",
-      { ...founderNotePositionSpan(0, 2, 1), height: 120 },
-    ),
-    noteSized(
-      "watch",
-      "Risk to watch",
-      "Mercury Ops renews in July with High risk. Gross margin is the quiet constraint — routing low-risk workflows compounds faster than another price tweak.",
-      "amber",
-      { ...founderNotePositionSpan(2, 1, 1), height: 120 },
-    ),
-    noteSized(
-      "next-move",
-      "Next move",
-      "Assign SOC 2 evidence owner before partner calls. Close the research-agent eval gap and review fundraising readiness once blockers have owners.",
-      "green",
-      { ...founderNotePositionSpan(0, 3, 0), height: 120 },
-    ),
-  ],
-  widgets: [
-    widgetSized(
-      "runway",
-      "show founder runway forecast with cash remaining, net burn, inference COGS, and next financing date",
-      gridPositionSpan(0, 0, 2, 1),
-      founderRunwayData,
-    ),
-    widgetSized(
-      "arr",
-      "show founder ARR growth, expansion, contraction, and net retention",
-      gridPositionSpan(2, 0, 1, 1),
-      founderArrData,
-    ),
-    widgetSized(
-      "efficiency",
-      "show founder token efficiency and inference cost per workflow with retry waste breakdown",
-      gridPositionSpan(0, 1),
-      founderEfficiencyData,
-    ),
-    widgetSized(
-      "customer-risk",
-      "show founder top customer concentration and renewal risk",
-      gridPositionSpan(1, 1),
-      founderCustomerRiskData,
-    ),
-    widgetSized(
-      "activation",
-      "show founder PLG activation funnel from signup to paid conversion",
-      gridPositionSpan(2, 1),
-      founderActivationData,
-    ),
-    widgetSized(
-      "gross-margin",
-      "show founder gross margin impact from inference COGS and infrastructure costs",
-      gridPositionSpan(0, 2),
-      founderGrossMarginData,
-    ),
-    widgetSized(
-      "fundraising",
-      "show founder fundraising readiness milestones and diligence gaps",
-      gridPositionSpan(1, 2),
-      founderFundraisingData,
-    ),
-    widgetSized(
-      "priorities",
-      "show founder weekly priorities with blockers and owners",
-      gridPositionSpan(2, 2),
-      founderPrioritiesData,
-    ),
-  ],
+  ...flattenClusters(founderClusters),
 };

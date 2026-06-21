@@ -1,5 +1,10 @@
 import type { BoardTemplate } from "@/lib/board-template-core";
-import { exampleWidgetData, gridPosition, note, notePosition, TEMPLATE_DISCLOSURE, widget } from "@/lib/board-template-core";
+import {
+  buildWidgetCluster,
+  exampleWidgetData,
+  flattenClusters,
+  TEMPLATE_DISCLOSURE,
+} from "@/lib/board-template-core";
 
 const engineeringVelocityData = exampleWidgetData({
   title: "Engineering velocity",
@@ -22,6 +27,13 @@ const engineeringVelocityData = exampleWidgetData({
       { label: "S6", values: [86, 4] },
     ],
   },
+  insights: [
+    {
+      label: "Throughput is compounding",
+      detail: "S6 merged 86 PRs while escaped bugs fell to 4 — the best sprint in the last two quarters.",
+      tone: "positive",
+    },
+  ],
 });
 
 const engineeringIncidentsData = exampleWidgetData({
@@ -32,6 +44,7 @@ const engineeringIncidentsData = exampleWidgetData({
   metrics: [
     { label: "MTTR", value: "42m", delta: "-11m WoW", tone: "positive" },
     { label: "P0/P1 this week", value: "2", delta: "Down from 4", tone: "positive" },
+    { label: "Repeat incidents", value: "1", delta: "Same root cause", tone: "warning" },
   ],
   timeSeries: {
     title: "Incidents by week",
@@ -56,12 +69,13 @@ const engineeringModelData = exampleWidgetData({
   disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Agent workflow health",
-    columns: ["Workflow", "P95 latency", "Retry rate", "Cost/run"],
+    columns: ["Workflow", "P95 latency", "Retry rate", "Cost/run", "Route tier"],
     rows: [
-      { cells: ["Research agent", "7.8s", "4.1%", "$0.18"] },
-      { cells: ["Support triage", "3.2s", "2.7%", "$0.04"] },
-      { cells: ["Code review", "9.4s", "5.6%", "$0.22"] },
-      { cells: ["Sales enrich", "5.1s", "8.9%", "$0.11"] },
+      { cells: ["Research agent", "7.8s", "4.1%", "$0.18", "Frontier"] },
+      { cells: ["Support triage", "3.2s", "2.7%", "$0.04", "Small model"] },
+      { cells: ["Code review", "9.4s", "5.6%", "$0.22", "Frontier"] },
+      { cells: ["Sales enrich", "5.1s", "8.9%", "$0.11", "Routed"] },
+      { cells: ["Billing assist", "4.6s", "3.2%", "$0.07", "Routed"] },
     ],
   },
 });
@@ -88,6 +102,11 @@ const engineeringQualityData = exampleWidgetData({
       detail: "No migration failures or schema drift in staging canary checks.",
       tone: "positive",
     },
+    {
+      label: "Canary coverage improved",
+      detail: "Staging now mirrors 94% of production traffic shapes before release.",
+      tone: "positive",
+    },
   ],
 });
 
@@ -111,12 +130,13 @@ const engineeringPrReviewData = exampleWidgetData({
   disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Slow review queues",
-    columns: ["Repo", "Median wait", "Reviewer", "Backlog"],
+    columns: ["Repo", "Median wait", "Reviewer", "Backlog", "Risk"],
     rows: [
-      { cells: ["web-app", "8.2h", "Maya", "12 PRs"] },
-      { cells: ["agents", "11.4h", "Ravi", "9 PRs"] },
-      { cells: ["billing", "6.1h", "Nora", "5 PRs"] },
-      { cells: ["infra", "14.8h", "Eli", "7 PRs"] },
+      { cells: ["web-app", "8.2h", "Maya", "12 PRs", "High"] },
+      { cells: ["agents", "11.4h", "Ravi", "9 PRs", "Medium"] },
+      { cells: ["billing", "6.1h", "Nora", "5 PRs", "Low"] },
+      { cells: ["infra", "14.8h", "Eli", "7 PRs", "High"] },
+      { cells: ["analytics", "9.6h", "Sam", "6 PRs", "Medium"] },
     ],
   },
 });
@@ -138,6 +158,7 @@ const engineeringTestsData = exampleWidgetData({
       { label: "Web", values: [76, 9] },
       { label: "Agents", values: [71, 11] },
       { label: "Billing", values: [83, 4] },
+      { label: "Mobile", values: [69, 6] },
     ],
   },
 });
@@ -149,12 +170,13 @@ const engineeringAgentEvalData = exampleWidgetData({
   disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Eval matrix",
-    columns: ["Workflow", "Coverage", "Pass rate", "Gap"],
+    columns: ["Workflow", "Coverage", "Pass rate", "Gap", "Owner"],
     rows: [
-      { cells: ["Support triage", "91%", "94%", "Refund edge cases"] },
-      { cells: ["Code review", "76%", "89%", "Security findings"] },
-      { cells: ["Research", "68%", "92%", "Source grounding"] },
-      { cells: ["Sales email", "83%", "88%", "Tone drift"] },
+      { cells: ["Support triage", "91%", "94%", "Refund edge cases", "Mina"] },
+      { cells: ["Code review", "76%", "89%", "Security findings", "Ravi"] },
+      { cells: ["Research", "68%", "92%", "Source grounding", "Dev"] },
+      { cells: ["Sales email", "83%", "88%", "Tone drift", "Ava"] },
+      { cells: ["Billing assist", "79%", "90%", "Tax edge cases", "Nora"] },
     ],
   },
 });
@@ -176,85 +198,62 @@ const engineeringInfraData = exampleWidgetData({
       { label: "DB", values: [9, 81] },
       { label: "Workers", values: [12, 64] },
       { label: "Search", values: [7, 58] },
+      { label: "Cache", values: [5, 49] },
     ],
   },
 });
 
+const engineeringClusters = [
+  buildWidgetCluster("velocity", "show engineering velocity across recent sprints", 0, 0, engineeringVelocityData),
+  buildWidgetCluster("incidents", "show engineering incident load by severity and MTTR", 1, 0, engineeringIncidentsData),
+  buildWidgetCluster(
+    "models",
+    "show engineering P95 latency, model routing, retries, and cost per agent run by workflow",
+    2,
+    0,
+    engineeringModelData,
+  ),
+  buildWidgetCluster(
+    "quality",
+    "show engineering product eval pass rate, release readiness, and rollback risk",
+    0,
+    1,
+    engineeringQualityData,
+  ),
+  buildWidgetCluster(
+    "deployments",
+    "show engineering deployment health with failed builds and lead time",
+    1,
+    1,
+    engineeringDeploymentData,
+  ),
+  buildWidgetCluster(
+    "pr-review",
+    "show engineering PR review bottlenecks by repo and reviewer",
+    2,
+    1,
+    engineeringPrReviewData,
+    [{ role: "action", title: "Unblock Maya", body: "Pair Eli on infra reviews before the Friday deploy window." }],
+  ),
+  buildWidgetCluster("tests", "show engineering test coverage and flaky test hotspots", 0, 2, engineeringTestsData),
+  buildWidgetCluster(
+    "agent-evals",
+    "show engineering product eval coverage by critical agent workflow",
+    1,
+    2,
+    engineeringAgentEvalData,
+  ),
+  buildWidgetCluster(
+    "infra",
+    "show engineering inference spend and infrastructure saturation risks by service",
+    2,
+    2,
+    engineeringInfraData,
+  ),
+];
+
 export const engineeringBoardTemplate: BoardTemplate = {
   id: "engineering",
   name: "Engineering",
-  notes: [
-    note(
-      "brief",
-      "This week",
-      "Balance shipping speed with product eval coverage and inference cost. S6 merged 86 PRs with escaped bugs down to 4.",
-      "blue",
-      notePosition(0),
-    ),
-    note(
-      "watch",
-      "Risk to watch",
-      "Maya has 12 PRs waiting on web-app and Web surface shows 9 flaky tests — unblock reviewers before adding release process.",
-      "amber",
-      notePosition(1),
-    ),
-    note(
-      "next-move",
-      "Next move",
-      "Close the research-agent eval gap (68% coverage) before the next deployment window. Product evals are taste made executable here.",
-      "green",
-      notePosition(2),
-    ),
-  ],
-  widgets: [
-    widget("velocity", "show engineering velocity across recent sprints", gridPosition(0, 0), engineeringVelocityData),
-    widget(
-      "incidents",
-      "show engineering incident load by severity and MTTR",
-      gridPosition(1, 0),
-      engineeringIncidentsData,
-    ),
-    widget(
-      "models",
-      "show engineering P95 latency, model routing, retries, and cost per agent run by workflow",
-      gridPosition(2, 0),
-      engineeringModelData,
-    ),
-    widget(
-      "quality",
-      "show engineering product eval pass rate, release readiness, and rollback risk",
-      gridPosition(0, 1),
-      engineeringQualityData,
-    ),
-    widget(
-      "deployments",
-      "show engineering deployment health with failed builds and lead time",
-      gridPosition(1, 1),
-      engineeringDeploymentData,
-    ),
-    widget(
-      "pr-review",
-      "show engineering PR review bottlenecks by repo and reviewer",
-      gridPosition(2, 1),
-      engineeringPrReviewData,
-    ),
-    widget(
-      "tests",
-      "show engineering test coverage and flaky test hotspots",
-      gridPosition(0, 2),
-      engineeringTestsData,
-    ),
-    widget(
-      "agent-evals",
-      "show engineering product eval coverage by critical agent workflow",
-      gridPosition(1, 2),
-      engineeringAgentEvalData,
-    ),
-    widget(
-      "infra",
-      "show engineering inference spend and infrastructure saturation risks by service",
-      gridPosition(2, 2),
-      engineeringInfraData,
-    ),
-  ],
+  ...flattenClusters(engineeringClusters),
 };

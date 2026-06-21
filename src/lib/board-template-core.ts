@@ -18,17 +18,23 @@ import type {
   TableData,
 } from "@/lib/dashboard-schemas";
 import { TEMPLATE_AUTHOR_NAME } from "@/lib/dashboard-schemas";
+import { planWidgetAnnotations, type WidgetAnnotationSupplement } from "@/lib/board-template-annotations";
 
 export const BLANK_BOARD_ID = "blank";
 // Increment when prebuilt template content/layout changes. On load, every board in
 // BOARD_TEMPLATES (Founder, Engineering, Sales, Ops) is replaced if its stored
 // templateVersion does not match — personal boards are untouched.
-export const BOARD_TEMPLATE_VERSION = 10;
+export const BOARD_TEMPLATE_VERSION = 12;
 export const TEMPLATE_DISCLOSURE = "AI-generated preview data.";
 
 const TEMPLATE_WIDGET_WIDTH = 440;
 const TEMPLATE_WIDGET_HEIGHT = 320;
 const TEMPLATE_NOTE_HEIGHT = 120;
+const TEMPLATE_CLUSTER_NOTE_WIDTH = 220;
+const TEMPLATE_CLUSTER_NOTE_HEIGHT = 90;
+const TEMPLATE_CLUSTER_TOP_NOTE_WIDTH = 360;
+const TEMPLATE_CLUSTER_PADDING = 24;
+const TEMPLATE_CLUSTER_GAP = 48;
 export const FOUNDER_HERO_ROW_HEIGHT = 360;
 const TEMPLATE_CANVAS_CENTER_X = 100000;
 const TEMPLATE_CANVAS_CENTER_Y = 100000;
@@ -55,6 +61,22 @@ export type BoardTemplate = {
   name: string;
   notes: TemplateNoteDefinition[];
   widgets: TemplateWidgetDefinition[];
+};
+
+export type { WidgetAnnotationSupplement } from "@/lib/board-template-annotations";
+
+export type WidgetNotePlacement = "top" | "left" | "right" | "bottom";
+
+export type WidgetNoteSpec = {
+  body: string;
+  color: CanvasNote["color"];
+  placement: WidgetNotePlacement;
+  title: string;
+};
+
+export type WidgetCluster = {
+  notes: TemplateNoteDefinition[];
+  widget: TemplateWidgetDefinition;
 };
 
 type ExampleWidgetDataInput = {
@@ -193,6 +215,194 @@ export function founderNotePositionSpan(
     x,
     y: noteYAboveGrid(totalWidgetHeight, noteRowFromWidgets),
     width,
+  };
+}
+
+function clusterCellSize(widgetWidth = TEMPLATE_WIDGET_WIDTH, widgetHeight = TEMPLATE_WIDGET_HEIGHT) {
+  return {
+    height:
+      TEMPLATE_CLUSTER_NOTE_HEIGHT +
+      TEMPLATE_CLUSTER_PADDING +
+      widgetHeight +
+      TEMPLATE_CLUSTER_PADDING +
+      TEMPLATE_CLUSTER_NOTE_HEIGHT,
+    width:
+      TEMPLATE_CLUSTER_NOTE_WIDTH +
+      TEMPLATE_CLUSTER_PADDING +
+      widgetWidth +
+      TEMPLATE_CLUSTER_PADDING +
+      TEMPLATE_CLUSTER_NOTE_WIDTH,
+  };
+}
+
+function clusterGridOrigin(
+  cols: number,
+  rows: number,
+  cellWidth: number,
+  cellHeight: number,
+  rowHeights?: number[],
+) {
+  const totalWidth = cols * cellWidth + Math.max(0, cols - 1) * TEMPLATE_CLUSTER_GAP;
+  const totalHeight = rowHeights
+    ? rowHeights.reduce((sum, height, index) => sum + height + (index < rowHeights.length - 1 ? TEMPLATE_CLUSTER_GAP : 0), 0)
+    : rows * cellHeight + Math.max(0, rows - 1) * TEMPLATE_CLUSTER_GAP;
+
+  return {
+    left: TEMPLATE_CANVAS_CENTER_X - totalWidth / 2,
+    top: TEMPLATE_CANVAS_CENTER_Y - totalHeight / 2,
+    totalHeight,
+    totalWidth,
+  };
+}
+
+export function widgetRectInCluster(
+  clusterOrigin: { x: number; y: number },
+  widgetWidth = TEMPLATE_WIDGET_WIDTH,
+  widgetHeight = TEMPLATE_WIDGET_HEIGHT,
+): GridSpanPosition {
+  return {
+    height: widgetHeight,
+    width: widgetWidth,
+    x: clusterOrigin.x + TEMPLATE_CLUSTER_NOTE_WIDTH + TEMPLATE_CLUSTER_PADDING,
+    y: clusterOrigin.y + TEMPLATE_CLUSTER_NOTE_HEIGHT + TEMPLATE_CLUSTER_PADDING,
+  };
+}
+
+export function widgetClusterPosition(
+  column: number,
+  row: number,
+  cols = 3,
+  rows = 3,
+  widgetWidth = TEMPLATE_WIDGET_WIDTH,
+  widgetHeight = TEMPLATE_WIDGET_HEIGHT,
+) {
+  const cell = clusterCellSize(widgetWidth, widgetHeight);
+  const origin = clusterGridOrigin(cols, rows, cell.width, cell.height);
+
+  return widgetRectInCluster(
+    {
+      x: origin.left + column * (cell.width + TEMPLATE_CLUSTER_GAP),
+      y: origin.top + row * (cell.height + TEMPLATE_CLUSTER_GAP),
+    },
+    widgetWidth,
+    widgetHeight,
+  );
+}
+
+export function notesAroundWidget(
+  widgetId: string,
+  widgetRect: GridSpanPosition,
+  specs: WidgetNoteSpec[],
+): TemplateNoteDefinition[] {
+  return specs.map((spec) => {
+    const noteId = `${widgetId}-${spec.placement}`;
+    let position = { height: TEMPLATE_CLUSTER_NOTE_HEIGHT, width: TEMPLATE_CLUSTER_NOTE_WIDTH, x: widgetRect.x, y: widgetRect.y };
+
+    if (spec.placement === "top") {
+      position = {
+        height: TEMPLATE_CLUSTER_NOTE_HEIGHT,
+        width: Math.min(TEMPLATE_CLUSTER_TOP_NOTE_WIDTH, widgetRect.width),
+        x: Math.round(widgetRect.x + (widgetRect.width - Math.min(TEMPLATE_CLUSTER_TOP_NOTE_WIDTH, widgetRect.width)) / 2),
+        y: Math.round(widgetRect.y - TEMPLATE_CLUSTER_PADDING - TEMPLATE_CLUSTER_NOTE_HEIGHT),
+      };
+    }
+
+    if (spec.placement === "bottom") {
+      position = {
+        height: TEMPLATE_CLUSTER_NOTE_HEIGHT,
+        width: Math.min(TEMPLATE_CLUSTER_TOP_NOTE_WIDTH, widgetRect.width),
+        x: Math.round(widgetRect.x + (widgetRect.width - Math.min(TEMPLATE_CLUSTER_TOP_NOTE_WIDTH, widgetRect.width)) / 2),
+        y: Math.round(widgetRect.y + widgetRect.height + TEMPLATE_CLUSTER_PADDING),
+      };
+    }
+
+    if (spec.placement === "left") {
+      position = {
+        height: TEMPLATE_CLUSTER_NOTE_HEIGHT,
+        width: TEMPLATE_CLUSTER_NOTE_WIDTH,
+        x: Math.round(widgetRect.x - TEMPLATE_CLUSTER_PADDING - TEMPLATE_CLUSTER_NOTE_WIDTH),
+        y: Math.round(widgetRect.y + (widgetRect.height - TEMPLATE_CLUSTER_NOTE_HEIGHT) / 2),
+      };
+    }
+
+    if (spec.placement === "right") {
+      position = {
+        height: TEMPLATE_CLUSTER_NOTE_HEIGHT,
+        width: TEMPLATE_CLUSTER_NOTE_WIDTH,
+        x: Math.round(widgetRect.x + widgetRect.width + TEMPLATE_CLUSTER_PADDING),
+        y: Math.round(widgetRect.y + (widgetRect.height - TEMPLATE_CLUSTER_NOTE_HEIGHT) / 2),
+      };
+    }
+
+    return noteSized(noteId, spec.title, spec.body, spec.color, position);
+  });
+}
+
+export function buildWidgetCluster(
+  id: string,
+  prompt: string,
+  column: number,
+  row: number,
+  exampleData: ExampleWidgetData,
+  supplements?: WidgetAnnotationSupplement[],
+  grid?: { cols?: number; rows?: number; widgetHeight?: number; widgetWidth?: number },
+): WidgetCluster {
+  const widgetRect = widgetClusterPosition(
+    column,
+    row,
+    grid?.cols ?? 3,
+    grid?.rows ?? 3,
+    grid?.widgetWidth ?? TEMPLATE_WIDGET_WIDTH,
+    grid?.widgetHeight ?? TEMPLATE_WIDGET_HEIGHT,
+  );
+
+  return buildWidgetClusterFromRect(id, prompt, widgetRect, exampleData, supplements);
+}
+
+export function buildWidgetClusterFromRect(
+  id: string,
+  prompt: string,
+  widgetRect: GridSpanPosition,
+  exampleData: ExampleWidgetData,
+  supplements?: WidgetAnnotationSupplement[],
+): WidgetCluster {
+  const noteSpecs = planWidgetAnnotations(prompt, exampleData, supplements);
+
+  return {
+    notes: notesAroundWidget(id, widgetRect, noteSpecs),
+    widget: widgetSized(id, prompt, widgetRect, exampleData),
+  };
+}
+
+export function flattenClusters(clusters: WidgetCluster[]) {
+  return {
+    notes: clusters.flatMap((cluster) => cluster.notes),
+    widgets: clusters.map((cluster) => cluster.widget),
+  };
+}
+
+export function founderHeroClusterPositions() {
+  const runwayWidth = TEMPLATE_WIDGET_WIDTH * 2 + TEMPLATE_GAP;
+  const runwayCell = clusterCellSize(runwayWidth, FOUNDER_HERO_ROW_HEIGHT);
+  const arrCell = clusterCellSize(TEMPLATE_WIDGET_WIDTH, FOUNDER_HERO_ROW_HEIGHT);
+  const standardCell = clusterCellSize();
+  const row0Width = runwayCell.width + TEMPLATE_CLUSTER_GAP + arrCell.width;
+  const row0Left = TEMPLATE_CANVAS_CENTER_X - row0Width / 2;
+  const row0Top = TEMPLATE_CANVAS_CENTER_Y - (runwayCell.height + TEMPLATE_CLUSTER_GAP + standardCell.height * 2 + TEMPLATE_CLUSTER_GAP) / 2;
+  const row1Top = row0Top + runwayCell.height + TEMPLATE_CLUSTER_GAP;
+  const row2Top = row1Top + standardCell.height + TEMPLATE_CLUSTER_GAP;
+  const row1Width = standardCell.width * 3 + TEMPLATE_CLUSTER_GAP * 2;
+  const row1Left = TEMPLATE_CANVAS_CENTER_X - row1Width / 2;
+
+  return {
+    arr: widgetRectInCluster({ x: row0Left + runwayCell.width + TEMPLATE_CLUSTER_GAP, y: row0Top }, TEMPLATE_WIDGET_WIDTH, FOUNDER_HERO_ROW_HEIGHT),
+    efficiency: widgetRectInCluster({ x: row1Left, y: row1Top }),
+    customerRisk: widgetRectInCluster({ x: row1Left + standardCell.width + TEMPLATE_CLUSTER_GAP, y: row1Top }),
+    activation: widgetRectInCluster({ x: row1Left + (standardCell.width + TEMPLATE_CLUSTER_GAP) * 2, y: row1Top }),
+    grossMargin: widgetRectInCluster({ x: row1Left, y: row2Top }),
+    fundraising: widgetRectInCluster({ x: row1Left + standardCell.width + TEMPLATE_CLUSTER_GAP, y: row2Top }),
+    priorities: widgetRectInCluster({ x: row1Left + (standardCell.width + TEMPLATE_CLUSTER_GAP) * 2, y: row2Top }),
+    runway: widgetRectInCluster({ x: row0Left, y: row0Top }, runwayWidth, FOUNDER_HERO_ROW_HEIGHT),
   };
 }
 

@@ -1,5 +1,10 @@
 import type { BoardTemplate } from "@/lib/board-template-core";
-import { exampleWidgetData, gridPosition, note, notePosition, TEMPLATE_DISCLOSURE, widget } from "@/lib/board-template-core";
+import {
+  buildWidgetCluster,
+  exampleWidgetData,
+  flattenClusters,
+  TEMPLATE_DISCLOSURE,
+} from "@/lib/board-template-core";
 
 const opsSupportData = exampleWidgetData({
   title: "Support load",
@@ -31,12 +36,13 @@ const opsHiringData = exampleWidgetData({
   disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Ramp by role",
-    columns: ["Role", "Hired", "Median ramp", "Blocker"],
+    columns: ["Role", "Hired", "Median ramp", "Blocker", "Owner"],
     rows: [
-      { cells: ["Support", "2", "18d", "Playbook gaps"] },
-      { cells: ["Sales", "1", "24d", "CRM hygiene"] },
-      { cells: ["Engineering", "3", "31d", "Agent eval setup"] },
-      { cells: ["Ops", "1", "14d", "None"] },
+      { cells: ["Support", "2", "18d", "Playbook gaps", "Ops"] },
+      { cells: ["Sales", "1", "24d", "CRM hygiene", "RevOps"] },
+      { cells: ["Engineering", "3", "31d", "Agent eval setup", "CTO"] },
+      { cells: ["Ops", "1", "14d", "None", "Ops"] },
+      { cells: ["Design", "1", "21d", "Tooling access", "Ops"] },
     ],
   },
 });
@@ -48,12 +54,13 @@ const opsVendorData = exampleWidgetData({
   disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Top renewals",
-    columns: ["Vendor", "Monthly", "Renewal", "Action"],
+    columns: ["Vendor", "Monthly", "Renewal", "Action", "Owner"],
     rows: [
-      { cells: ["CRM", "$4.8k", "Jul 12", "Right-size seats"] },
-      { cells: ["Data warehouse", "$6.1k", "Jul 28", "Commit discount"] },
-      { cells: ["Support suite", "$3.4k", "Aug 04", "Review automations"] },
-      { cells: ["Analytics", "$2.2k", "Aug 19", "Remove duplicates"] },
+      { cells: ["CRM", "$4.8k", "Jul 12", "Right-size seats", "RevOps"] },
+      { cells: ["Data warehouse", "$6.1k", "Jul 28", "Commit discount", "Finance"] },
+      { cells: ["Support suite", "$3.4k", "Aug 04", "Review automations", "Support"] },
+      { cells: ["Analytics", "$2.2k", "Aug 19", "Remove duplicates", "Ops"] },
+      { cells: ["Security", "$1.9k", "Aug 26", "Renew as-is", "Ops"] },
     ],
   },
 });
@@ -79,6 +86,11 @@ const opsBottleneckData = exampleWidgetData({
       detail: "Five recurring vendors still route to founders for manual approval.",
       tone: "warning",
     },
+    {
+      label: "Access delays repeat",
+      detail: "Admin access is the common blocker across onboarding and SLA misses.",
+      tone: "negative",
+    },
   ],
 });
 
@@ -89,12 +101,13 @@ const opsOnboardingData = exampleWidgetData({
   disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Onboarding health",
-    columns: ["Stage", "Accounts", "Median age", "Blocker"],
+    columns: ["Stage", "Accounts", "Median age", "Blocker", "Owner"],
     rows: [
-      { cells: ["Kickoff", "18", "2d", "None"] },
-      { cells: ["Data connect", "12", "6d", "Admin access"] },
-      { cells: ["First board", "9", "4d", "Metric mapping"] },
-      { cells: ["Rollout", "5", "11d", "Champion time"] },
+      { cells: ["Kickoff", "18", "2d", "None", "CS"] },
+      { cells: ["Data connect", "12", "6d", "Admin access", "CS"] },
+      { cells: ["First board", "9", "4d", "Metric mapping", "CS"] },
+      { cells: ["Rollout", "5", "11d", "Champion time", "CS"] },
+      { cells: ["Expansion", "3", "8d", "Security review", "Sales"] },
     ],
   },
 });
@@ -129,6 +142,7 @@ const opsComplianceData = exampleWidgetData({
       { label: "W2", values: [11, 8] },
       { label: "W3", values: [7, 10] },
       { label: "W4", values: [5, 12] },
+      { label: "W5", values: [4, 13] },
     ],
   },
 });
@@ -140,12 +154,13 @@ const opsSaasUtilizationData = exampleWidgetData({
   disclosure: TEMPLATE_DISCLOSURE,
   table: {
     title: "Seat utilization",
-    columns: ["Tool", "Paid seats", "Active", "Action"],
+    columns: ["Tool", "Paid seats", "Active", "Action", "Savings"],
     rows: [
-      { cells: ["CRM", "84", "61", "Cut 12 seats"] },
-      { cells: ["Support", "38", "34", "Keep"] },
-      { cells: ["Analytics", "52", "23", "Consolidate"] },
-      { cells: ["Docs", "112", "97", "Archive guests"] },
+      { cells: ["CRM", "84", "61", "Cut 12 seats", "$1.4k/mo"] },
+      { cells: ["Support", "38", "34", "Keep", "$0"] },
+      { cells: ["Analytics", "52", "23", "Consolidate", "$2.1k/mo"] },
+      { cells: ["Docs", "112", "97", "Archive guests", "$0.8k/mo"] },
+      { cells: ["Design", "28", "19", "Review licenses", "$0.6k/mo"] },
     ],
   },
 });
@@ -163,71 +178,56 @@ const opsSlaData = exampleWidgetData({
   ],
 });
 
+const opsClusters = [
+  buildWidgetCluster("support", "show ops support load and AI deflection trend", 0, 0, opsSupportData),
+  buildWidgetCluster(
+    "hiring",
+    "show ops hiring pipeline and onboarding ramp time-to-productivity by role",
+    1,
+    0,
+    opsHiringData,
+  ),
+  buildWidgetCluster("vendors", "show ops vendor spend, renewals, and unused seats", 2, 0, opsVendorData),
+  buildWidgetCluster(
+    "bottlenecks",
+    "show ops process bottlenecks and owners across support, sales, and finance",
+    0,
+    1,
+    opsBottleneckData,
+  ),
+  buildWidgetCluster(
+    "onboarding",
+    "show ops customer onboarding health and time-to-value blockers",
+    1,
+    1,
+    opsOnboardingData,
+  ),
+  buildWidgetCluster(
+    "invoices",
+    "show ops invoice approvals, overdue payments, and cash timing",
+    2,
+    1,
+    opsInvoiceData,
+  ),
+  buildWidgetCluster(
+    "compliance",
+    "show ops compliance questionnaire throughput and aging",
+    0,
+    2,
+    opsComplianceData,
+  ),
+  buildWidgetCluster(
+    "saas-utilization",
+    "show ops SaaS seat utilization and consolidation opportunities",
+    1,
+    2,
+    opsSaasUtilizationData,
+  ),
+  buildWidgetCluster("sla", "show ops weekly SLA scorecard with misses and root causes", 2, 2, opsSlaData),
+];
+
 export const opsBoardTemplate: BoardTemplate = {
   id: "ops",
   name: "Ops",
-  notes: [
-    note(
-      "brief",
-      "This week",
-      "AI deflection hit 37% Fri while tickets fell to 38 created. Track support, onboarding, vendors, and compliance as one rhythm.",
-      "blue",
-      notePosition(0),
-    ),
-    note(
-      "watch",
-      "Risk to watch",
-      "Admin access delays show up in onboarding (12 accounts at data connect), compliance queue, and 11 SLA misses this week.",
-      "amber",
-      notePosition(1),
-    ),
-    note(
-      "next-move",
-      "Next move",
-      "Consolidate 12 unused CRM seats and Analytics overlap before Jul renewals. Assign one security-intake owner for questionnaire backlog.",
-      "green",
-      notePosition(2),
-    ),
-  ],
-  widgets: [
-    widget("support", "show ops support load and AI deflection trend", gridPosition(0, 0), opsSupportData),
-    widget(
-      "hiring",
-      "show ops hiring pipeline and onboarding ramp time-to-productivity by role",
-      gridPosition(1, 0),
-      opsHiringData,
-    ),
-    widget("vendors", "show ops vendor spend, renewals, and unused seats", gridPosition(2, 0), opsVendorData),
-    widget(
-      "bottlenecks",
-      "show ops process bottlenecks and owners across support, sales, and finance",
-      gridPosition(0, 1),
-      opsBottleneckData,
-    ),
-    widget(
-      "onboarding",
-      "show ops customer onboarding health and time-to-value blockers",
-      gridPosition(1, 1),
-      opsOnboardingData,
-    ),
-    widget(
-      "invoices",
-      "show ops invoice approvals, overdue payments, and cash timing",
-      gridPosition(2, 1),
-      opsInvoiceData,
-    ),
-    widget(
-      "compliance",
-      "show ops compliance questionnaire throughput and aging",
-      gridPosition(0, 2),
-      opsComplianceData,
-    ),
-    widget(
-      "saas-utilization",
-      "show ops SaaS seat utilization and consolidation opportunities",
-      gridPosition(1, 2),
-      opsSaasUtilizationData,
-    ),
-    widget("sla", "show ops weekly SLA scorecard with misses and root causes", gridPosition(2, 2), opsSlaData),
-  ],
+  ...flattenClusters(opsClusters),
 };
