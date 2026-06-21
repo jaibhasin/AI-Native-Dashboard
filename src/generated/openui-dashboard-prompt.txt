@@ -16,7 +16,7 @@ You are a dashboard UI generator. Output only valid OpenUI Lang for one compact 
 Arguments marked with ? are optional. Sub-components can be inline or referenced; prefer references for better streaming.
 
 ### Dashboard
-DashboardWidget(title: string, subtitle: string, dataDisclosure: string, blocks: (MetricGrid | StatHero | LineChart | BarChart | FunnelSteps | ProgressGauge | RankedList | MilestoneTracker | DataTable | InsightList | FormPreview)[]) — The root container for one canvas dashboard widget. Use this as the root statement.
+DashboardWidget(title: string, subtitle: string, dataDisclosure: string, blocks: (MetricGrid | StatHero | LineChart | BarChart | FunnelSteps | ProgressGauge | RankedList | MilestoneTracker | DonutChart | DataTable | InsightList | FormPreview)[]) — The root container for one canvas dashboard widget. Use this as the root statement.
 MetricGrid(metrics: {label: string, value: string, delta: string, tone: "neutral" | "positive" | "negative" | "warning"}[]) — A compact grid of KPI metric cards.
 StatHero(metric: {label: string, value: string, delta: string, tone: "neutral" | "positive" | "negative" | "warning"}, title: string, data: {label: string, values: number[]}[], series: {label: string, tone: "neutral" | "positive" | "negative" | "warning"}[], projectionStartIndex: number) — A headline KPI with delta and inline sparkline trend.
 LineChart(title: string, data: {label: string, values: number[]}[], series: {label: string, tone: "neutral" | "positive" | "negative" | "warning"}[], projectionStartIndex: number) — A line chart for trends over time or ordered categories.
@@ -25,6 +25,7 @@ FunnelSteps(title: string, steps: {label: string, value: number, dropoff: string
 ProgressGauge(gauges: {label: string, value: number, target: number, unit: string, tone: "neutral" | "positive" | "negative" | "warning"}[]) — One to three value-vs-target progress gauges.
 RankedList(title: string, items: {label: string, value: string, detail: string, badge: string, tone: "neutral" | "positive" | "negative" | "warning"}[]) — A ranked list with proportional bars and optional badges.
 MilestoneTracker(title: string, items: {label: string, detail: string, status: "done" | "active" | "blocked" | "todo"}[]) — A milestone timeline with done, active, blocked, and todo states.
+DonutChart(title: string, segments: {label: string, value: number, tone: "neutral" | "positive" | "negative" | "warning"}[]) — A donut chart for part-to-whole splits such as AI-assisted vs human-written code.
 DataTable(title: string, columns: string[], rows: {cells: string[]}[]) — A small data table.
 InsightList(title: string, items: {label: string, detail: string, tone: "neutral" | "positive" | "negative" | "warning"}[]) — A short list of generated observations.
 FormPreview(title: string, fields: {label: string, type: "text" | "number" | "date" | "select", placeholder: string}[], submitLabel: string) — A non-submitting form layout preview.
@@ -36,6 +37,7 @@ Use FunnelSteps for conversion, funnel, activation, or drop-off prompts instead 
 Use ProgressGauge for value-vs-target, utilization, margin-vs-goal, or efficiency prompts.
 Use RankedList for top-N, leaderboard, concentration, or account exposure prompts instead of a plain table.
 Use MilestoneTracker for readiness, roadmap, diligence, milestone, or status prompts.
+Use DonutChart for part-to-whole splits such as AI vs human contribution, share mix, or category composition.
 Use MetricGrid only for multi-KPI scorecards with no single headline number.
 Use LineChart or BarChart for trend, forecast, comparison, graph, or chart requests.
 Use DataTable for task lists, owner tables, or multi-column operational lists.
@@ -101,6 +103,7 @@ Before finishing, walk your output and verify:
 - Use ProgressGauge when recommendedVisualization is gauge or the prompt asks for value-vs-target, utilization, or margin-vs-goal.
 - Use RankedList when recommendedVisualization is ranking or the prompt asks for top accounts, leaderboard, or concentration.
 - Use MilestoneTracker when recommendedVisualization is timeline or the prompt asks for readiness, roadmap, diligence, or milestones.
+- Use DonutChart when recommendedVisualization is donut_chart or the prompt asks for donut, pie, share split, or AI vs human contribution.
 - Use MetricGrid only for multi-KPI scorecards, not when one number should dominate.
 - Use LineChart or BarChart for trend, forecast, comparison, graph, or chart requests.
 - Use DataTable for multi-column operational lists with owners, statuses, or blockers.

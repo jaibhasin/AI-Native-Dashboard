@@ -124,6 +124,21 @@ export const milestonesSchema = z
   })
   .describe("Milestone or readiness timeline.");
 
+export const donutSegmentSchema = z
+  .object({
+    label: z.string().describe("Segment label."),
+    value: z.number().describe("Segment value or percentage."),
+    tone: toneSchema,
+  })
+  .describe("One donut chart segment.");
+
+export const donutSchema = z
+  .object({
+    title: z.string().describe("Donut chart title. Use empty string if absent."),
+    segments: z.array(donutSegmentSchema).describe("Ordered donut segments."),
+  })
+  .describe("Donut or pie chart data.");
+
 export const canvasNoteColorSchema = z.enum(["blue", "green", "amber", "rose"]);
 
 export const canvasNoteSchema = z.object({
@@ -161,6 +176,7 @@ export const exampleWidgetDataSchema = z.object({
       "gauge",
       "ranking",
       "timeline",
+      "donut_chart",
     ])
     .describe("Best visualization for the prompt."),
   metrics: z.array(metricSchema).describe("KPI values relevant to the prompt."),
@@ -181,6 +197,7 @@ export const exampleWidgetDataSchema = z.object({
   gauges: z.array(gaugeSchema).default([]).describe("Progress gauges for value-vs-target views."),
   ranking: rankingSchema.default({ title: "", items: [] }).describe("Ranked list or leaderboard data."),
   milestones: milestonesSchema.default({ title: "", items: [] }).describe("Milestone or readiness timeline."),
+  donut: donutSchema.default({ title: "", segments: [] }).describe("Donut or pie chart segments."),
 });
 
 export type Tone = z.infer<typeof toneSchema>;
@@ -198,6 +215,8 @@ export type RankingData = z.infer<typeof rankingSchema>;
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
 export type MilestoneItemData = z.infer<typeof milestoneItemSchema>;
 export type MilestonesData = z.infer<typeof milestonesSchema>;
+export type DonutSegmentData = z.infer<typeof donutSegmentSchema>;
+export type DonutData = z.infer<typeof donutSchema>;
 export type CanvasNoteColor = z.infer<typeof canvasNoteColorSchema>;
 export type CanvasNote = z.infer<typeof canvasNoteSchema>;
 export type ExampleWidgetData = z.infer<typeof exampleWidgetDataSchema>;

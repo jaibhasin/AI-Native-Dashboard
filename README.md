@@ -218,6 +218,12 @@ pnpm generate:openui-prompt
 
 Regenerates `src/generated/openui-dashboard-prompt.txt` from `src/openui/dashboard-prompt-library.ts`.
 
+```bash
+pnpm generate:engineering-board
+```
+
+Regenerates the Engineering prebuilt board at `src/generated/board-templates/engineering.generated.json` using OpenRouter (`OPENROUTER_API_KEY`, default model `anthropic/claude-sonnet-4.6`). Run this after editing `src/lib/board-template-engineering.spec.ts` or bumping `BOARD_TEMPLATE_VERSION`, then commit the generated JSON.
+
 ## Project Structure
 
 ```text
@@ -226,7 +232,9 @@ src/app/api/generate-board/route.ts    Provider-backed AI whiteboard planning en
 src/app/api/generate-widget/route.ts   Provider-backed widget generation endpoint
 src/app/_components/whiteboard/        Canvas, board tab, note, widget, and modal components
 src/app/_lib/whiteboard/               Canvas state, storage, generation, and geometry helpers
-src/lib/board-template-*.ts            Prebuilt whiteboard template definitions
+src/lib/board-template-engineering.spec.ts Engineering widget prompts for build-time generation
+src/lib/board-template-engineering.ts     Loads generated Engineering board JSON
+src/generated/board-templates/            Versioned LLM-generated prebuilt board cache
 src/lib/ai-board-schemas.ts            Zod schemas for AI whiteboard planning
 src/lib/dashboard-schemas.ts           Zod schemas and shared widget data types
 src/lib/widget-stream.ts               NDJSON stream event types

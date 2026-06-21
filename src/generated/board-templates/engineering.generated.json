@@ -1,0 +1,1325 @@
+{
+  "id": "engineering",
+  "name": "Engineering",
+  "notes": [
+    {
+      "id": "token-spend-top",
+      "title": "AI infra spend",
+      "body": "AI infra spend: $47.5k (+16.8% vs last 30d).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 98844,
+      "y": 99130,
+      "widgetId": "token-spend"
+    },
+    {
+      "id": "token-spend-left",
+      "title": "Retry cost",
+      "body": "Retry cost: $8.4k (+$1.1k from tool failures).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 98560,
+      "y": 99359,
+      "widgetId": "token-spend"
+    },
+    {
+      "id": "token-spend-right",
+      "title": "Token waste",
+      "body": "Token waste: 19.8% (-4.6pp after prompt trimming).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 99268,
+      "y": 99359,
+      "widgetId": "token-spend"
+    },
+    {
+      "id": "token-spend-bottom",
+      "title": "Agent runs",
+      "body": "Agent runs: 180k (+31.2% with eval gate on).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 98844,
+      "y": 99588,
+      "widgetId": "token-spend"
+    },
+    {
+      "id": "bugs-fixed-top",
+      "title": "AI infra spend",
+      "body": "AI infra spend: $47k (+16.8% vs last 30d).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 99820,
+      "y": 99130,
+      "widgetId": "bugs-fixed"
+    },
+    {
+      "id": "bugs-fixed-left",
+      "title": "Retry cost",
+      "body": "Retry cost: $9.5k (+$1.1k from tool failures).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 99536,
+      "y": 99359,
+      "widgetId": "bugs-fixed"
+    },
+    {
+      "id": "bugs-fixed-right",
+      "title": "Token waste",
+      "body": "Token waste: 23.1% (-4.6pp after prompt trimming).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 100244,
+      "y": 99359,
+      "widgetId": "bugs-fixed"
+    },
+    {
+      "id": "bugs-fixed-bottom",
+      "title": "Agent runs",
+      "body": "Agent runs: 199k (+31.2% with eval gate on).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 99820,
+      "y": 99588,
+      "widgetId": "bugs-fixed"
+    },
+    {
+      "id": "prs-merged-top",
+      "title": "AI infra spend",
+      "body": "AI infra spend: $45.9k (+16.8% vs last 30d).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 100796,
+      "y": 99130,
+      "widgetId": "prs-merged"
+    },
+    {
+      "id": "prs-merged-left",
+      "title": "Retry cost",
+      "body": "Retry cost: $9.3k (+$1.1k from tool failures).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 100512,
+      "y": 99359,
+      "widgetId": "prs-merged"
+    },
+    {
+      "id": "prs-merged-right",
+      "title": "Token waste",
+      "body": "Token waste: 19.7% (-4.6pp after prompt trimming).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 101220,
+      "y": 99359,
+      "widgetId": "prs-merged"
+    },
+    {
+      "id": "prs-merged-bottom",
+      "title": "Agent runs",
+      "body": "Agent runs: 190k (+31.2% with eval gate on).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 100796,
+      "y": 99588,
+      "widgetId": "prs-merged"
+    },
+    {
+      "id": "project-progress-top",
+      "title": "AI infra spend",
+      "body": "AI infra spend: $51.6k (+16.8% vs last 30d).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 98844,
+      "y": 99726,
+      "widgetId": "project-progress"
+    },
+    {
+      "id": "project-progress-left",
+      "title": "Retry cost",
+      "body": "Retry cost: $8.7k (+$1.1k from tool failures).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 98560,
+      "y": 99955,
+      "widgetId": "project-progress"
+    },
+    {
+      "id": "project-progress-right",
+      "title": "Token waste",
+      "body": "Token waste: 20.2% (-4.6pp after prompt trimming).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 99268,
+      "y": 99955,
+      "widgetId": "project-progress"
+    },
+    {
+      "id": "project-progress-bottom",
+      "title": "Retries remain expensive",
+      "body": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+      "authorName": "Computer",
+      "color": "amber",
+      "height": 90,
+      "width": 360,
+      "x": 98844,
+      "y": 100184,
+      "widgetId": "project-progress"
+    },
+    {
+      "id": "loc-committed-top",
+      "title": "AI infra spend",
+      "body": "AI infra spend: $51.2k (+16.8% vs last 30d).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 99820,
+      "y": 99726,
+      "widgetId": "loc-committed"
+    },
+    {
+      "id": "loc-committed-left",
+      "title": "Retry cost",
+      "body": "Retry cost: $8.7k (+$1.1k from tool failures).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 99536,
+      "y": 99955,
+      "widgetId": "loc-committed"
+    },
+    {
+      "id": "loc-committed-right",
+      "title": "Token waste",
+      "body": "Token waste: 20.5% (-4.6pp after prompt trimming).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 100244,
+      "y": 99955,
+      "widgetId": "loc-committed"
+    },
+    {
+      "id": "loc-committed-bottom",
+      "title": "Agent runs",
+      "body": "Agent runs: 177k (+31.2% with eval gate on).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 99820,
+      "y": 100184,
+      "widgetId": "loc-committed"
+    },
+    {
+      "id": "ai-vs-human-code-top",
+      "title": "AI infra spend",
+      "body": "AI infra spend: $51.7k (+16.8% vs last 30d).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 100796,
+      "y": 99726,
+      "widgetId": "ai-vs-human-code"
+    },
+    {
+      "id": "ai-vs-human-code-left",
+      "title": "Retry cost",
+      "body": "Retry cost: $8.9k (+$1.1k from tool failures).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 100512,
+      "y": 99955,
+      "widgetId": "ai-vs-human-code"
+    },
+    {
+      "id": "ai-vs-human-code-right",
+      "title": "Token waste",
+      "body": "Token waste: 20.6% (-4.6pp after prompt trimming).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 101220,
+      "y": 99955,
+      "widgetId": "ai-vs-human-code"
+    },
+    {
+      "id": "ai-vs-human-code-bottom",
+      "title": "Agent runs",
+      "body": "Agent runs: 189k (+31.2% with eval gate on).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 100796,
+      "y": 100184,
+      "widgetId": "ai-vs-human-code"
+    },
+    {
+      "id": "cicd-health-top",
+      "title": "Qualified leads",
+      "body": "Qualified leads: 2064 (+22.1% MoM).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 99820,
+      "y": 100322,
+      "widgetId": "cicd-health"
+    },
+    {
+      "id": "cicd-health-left",
+      "title": "Trials started",
+      "body": "Trials started: 428 (+18.4% MoM).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 99536,
+      "y": 100551,
+      "widgetId": "cicd-health"
+    },
+    {
+      "id": "cicd-health-right",
+      "title": "Paid conversion",
+      "body": "Paid conversion: 6.9% (+1.2pp from eval sandbox).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 220,
+      "x": 100244,
+      "y": 100551,
+      "widgetId": "cicd-health"
+    },
+    {
+      "id": "cicd-health-bottom",
+      "title": "CAC payback",
+      "body": "CAC payback: 8.8 mo (-0.8 mo).",
+      "authorName": "Computer",
+      "color": "blue",
+      "height": 90,
+      "width": 360,
+      "x": 99820,
+      "y": 100780,
+      "widgetId": "cicd-health"
+    }
+  ],
+  "widgets": [
+    {
+      "id": "token-spend",
+      "authorName": "Computer",
+      "height": 320,
+      "openuiSource": "root = DashboardWidget(\"Engineering Token Spend\", \"Weekly token volume & inference cost · last 8 weeks\", \"Preview data · intended source: OpenAI Usage API, Anthropic Console. Use AI-generated dummy preview data only.\", [metrics, chart])\nmetrics = MetricGrid([{label: \"AI infra spend\", value: \"$47.5k\", delta: \"+16.8% vs last 30d\", tone: \"warning\"}, {label: \"Token waste\", value: \"19.8%\", delta: \"-4.6pp after prompt trimming\", tone: \"positive\"}, {label: \"Agent runs\", value: \"180k\", delta: \"+31.2% with eval gate on\", tone: \"positive\"}, {label: \"Retry cost\", value: \"$8.4k\", delta: \"+$1.1k from tool failures\", tone: \"negative\"}])\nchart = LineChart(\"AI Spend Quality\", [{label: \"Jan\", values: [31.4, 12, 4]}, {label: \"Feb\", values: [36.9, 13.2, 5.6]}, {label: \"Mar\", values: [42.3, 16.6, 6.9]}, {label: \"Apr\", values: [47.5, 17.1, 8.4]}, {label: \"May\", values: [44.2, 13.5, 7.5]}, {label: \"Jun\", values: [50.1, 10.8, 8.6]}], [{label: \"Productive spend ($k)\", tone: \"positive\"}, {label: \"Wasted spend ($k)\", tone: \"negative\"}, {label: \"Retry/tool spend ($k)\", tone: \"warning\"}], -1)",
+      "prompt": "Show engineering token spend with total tokens used, total cost, and an 8-week trend of token volume and spend. Use composite layout with headline metrics plus a line chart. dataDisclosure must be exactly: \"Preview data · intended source: OpenAI Usage API, Anthropic Console. Use AI-generated dummy preview data only.\" Include believable engineering team names only if needed in supporting copy.",
+      "width": 440,
+      "x": 98804,
+      "y": 99244,
+      "exampleData": {
+        "title": "Engineering Token Spend",
+        "subtitle": "Weekly token volume & inference cost · last 8 weeks",
+        "dataDisclosure": "Preview data · intended source: OpenAI Usage API, Anthropic Console. Use AI-generated dummy preview data only.",
+        "recommendedVisualization": "line_chart",
+        "metrics": [
+          {
+            "label": "AI infra spend",
+            "value": "$47.5k",
+            "delta": "+16.8% vs last 30d",
+            "tone": "warning"
+          },
+          {
+            "label": "Token waste",
+            "value": "19.8%",
+            "delta": "-4.6pp after prompt trimming",
+            "tone": "positive"
+          },
+          {
+            "label": "Agent runs",
+            "value": "180k",
+            "delta": "+31.2% with eval gate on",
+            "tone": "positive"
+          },
+          {
+            "label": "Retry cost",
+            "value": "$8.4k",
+            "delta": "+$1.1k from tool failures",
+            "tone": "negative"
+          }
+        ],
+        "timeSeries": {
+          "title": "AI Spend Quality",
+          "series": [
+            {
+              "label": "Productive spend ($k)",
+              "tone": "positive"
+            },
+            {
+              "label": "Wasted spend ($k)",
+              "tone": "negative"
+            },
+            {
+              "label": "Retry/tool spend ($k)",
+              "tone": "warning"
+            }
+          ],
+          "points": [
+            {
+              "label": "Jan",
+              "values": [
+                31.4,
+                12,
+                4
+              ]
+            },
+            {
+              "label": "Feb",
+              "values": [
+                36.9,
+                13.2,
+                5.6
+              ]
+            },
+            {
+              "label": "Mar",
+              "values": [
+                42.3,
+                16.6,
+                6.9
+              ]
+            },
+            {
+              "label": "Apr",
+              "values": [
+                47.5,
+                17.1,
+                8.4
+              ]
+            },
+            {
+              "label": "May",
+              "values": [
+                44.2,
+                13.5,
+                7.5
+              ]
+            },
+            {
+              "label": "Jun",
+              "values": [
+                50.1,
+                10.8,
+                8.6
+              ]
+            }
+          ],
+          "projectionStartIndex": -1
+        },
+        "table": {
+          "title": "",
+          "columns": [],
+          "rows": []
+        },
+        "insights": [
+          {
+            "label": "Routing is paying back",
+            "detail": "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+            "tone": "positive"
+          },
+          {
+            "label": "Retries remain expensive",
+            "detail": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+            "tone": "warning"
+          }
+        ],
+        "formFields": [],
+        "funnel": {
+          "title": "",
+          "steps": []
+        },
+        "gauges": [],
+        "ranking": {
+          "title": "",
+          "items": []
+        },
+        "milestones": {
+          "title": "",
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "bugs-fixed",
+      "authorName": "Computer",
+      "height": 320,
+      "openuiSource": "root = DashboardWidget(\"Engineering Bug Fix Tracker\", \"Sprint progress & 6-week trend · Current Sprint\", \"Preview data · intended source: Linear, Jira. Use AI-generated dummy preview data only.\", [metrics, chart])\nmetrics = MetricGrid([{label: \"Bugs Fixed This Sprint\", value: \"47\", delta: \"+12 vs last sprint\", tone: \"positive\"}, {label: \"Open Bugs\", value: \"23\", delta: \"-8 vs last sprint\", tone: \"positive\"}, {label: \"Critical Fixed\", value: \"9\", delta: \"0 remaining\", tone: \"positive\"}, {label: \"Avg Fix Time\", value: \"1.8d\", delta: \"-0.4d vs last sprint\", tone: \"positive\"}])\nchart = LineChart(\"Weekly Bugs Fixed — Last 6 Weeks\", [{label: \"Wk 1\", values: [18]}, {label: \"Wk 2\", values: [24]}, {label: \"Wk 3\", values: [31]}, {label: \"Wk 4\", values: [29]}, {label: \"Wk 5\", values: [39]}, {label: \"Wk 6\", values: [47]}], [{label: \"Bugs Fixed\", tone: \"positive\"}], -1)",
+      "prompt": "Show engineering bugs fixed this sprint with weekly bugs-fixed trend over the last 6 weeks. Use composite layout with sprint count metrics and a line chart. dataDisclosure must be exactly: \"Preview data · intended source: Linear, Jira. Use AI-generated dummy preview data only.\"",
+      "width": 440,
+      "x": 99780,
+      "y": 99244,
+      "exampleData": {
+        "title": "Engineering Bug Fix Tracker",
+        "subtitle": "Sprint progress & 6-week trend · Current Sprint",
+        "dataDisclosure": "Preview data · intended source: Linear, Jira. Use AI-generated dummy preview data only.",
+        "recommendedVisualization": "line_chart",
+        "metrics": [
+          {
+            "label": "AI infra spend",
+            "value": "$47k",
+            "delta": "+16.8% vs last 30d",
+            "tone": "warning"
+          },
+          {
+            "label": "Token waste",
+            "value": "23.1%",
+            "delta": "-4.6pp after prompt trimming",
+            "tone": "positive"
+          },
+          {
+            "label": "Agent runs",
+            "value": "199k",
+            "delta": "+31.2% with eval gate on",
+            "tone": "positive"
+          },
+          {
+            "label": "Retry cost",
+            "value": "$9.5k",
+            "delta": "+$1.1k from tool failures",
+            "tone": "negative"
+          }
+        ],
+        "timeSeries": {
+          "title": "AI Spend Quality",
+          "series": [
+            {
+              "label": "Productive spend ($k)",
+              "tone": "positive"
+            },
+            {
+              "label": "Wasted spend ($k)",
+              "tone": "negative"
+            },
+            {
+              "label": "Retry/tool spend ($k)",
+              "tone": "warning"
+            }
+          ],
+          "points": [
+            {
+              "label": "Jan",
+              "values": [
+                31.2,
+                13.3,
+                4.3
+              ]
+            },
+            {
+              "label": "Feb",
+              "values": [
+                36.3,
+                14,
+                5.4
+              ]
+            },
+            {
+              "label": "Mar",
+              "values": [
+                39.6,
+                15.8,
+                7
+              ]
+            },
+            {
+              "label": "Apr",
+              "values": [
+                47.9,
+                18.1,
+                8.7
+              ]
+            },
+            {
+              "label": "May",
+              "values": [
+                45.1,
+                12.4,
+                7.2
+              ]
+            },
+            {
+              "label": "Jun",
+              "values": [
+                50.1,
+                10.8,
+                8.7
+              ]
+            }
+          ],
+          "projectionStartIndex": -1
+        },
+        "table": {
+          "title": "",
+          "columns": [],
+          "rows": []
+        },
+        "insights": [
+          {
+            "label": "Routing is paying back",
+            "detail": "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+            "tone": "positive"
+          },
+          {
+            "label": "Retries remain expensive",
+            "detail": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+            "tone": "warning"
+          }
+        ],
+        "formFields": [],
+        "funnel": {
+          "title": "",
+          "steps": []
+        },
+        "gauges": [],
+        "ranking": {
+          "title": "",
+          "items": []
+        },
+        "milestones": {
+          "title": "",
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "prs-merged",
+      "authorName": "Computer",
+      "height": 320,
+      "openuiSource": "root = DashboardWidget(\"Engineering PR Velocity\", \"Merged PRs · Monthly totals & sprint-by-sprint trend\", \"Preview data · intended source: GitHub. Use AI-generated dummy preview data only.\", [metrics, chart])\nmetrics = MetricGrid([{label: \"Sprint 1 Merged\", value: \"34\", delta: \"Baseline sprint\", tone: \"neutral\"}, {label: \"Sprint 6 Merged\", value: \"61\", delta: \"+79% vs Sprint 1\", tone: \"positive\"}, {label: \"Monthly High\", value: \"128\", delta: \"Jun · peak month\", tone: \"positive\"}, {label: \"Avg / Sprint\", value: \"49\", delta: \"6-sprint average\", tone: \"neutral\"}])\nchart = LineChart(\"Sprint-by-Sprint Merged PRs\", [{label: \"S1\", values: [34]}, {label: \"S2\", values: [41]}, {label: \"S3\", values: [45]}, {label: \"S4\", values: [53]}, {label: \"S5\", values: [58]}, {label: \"S6\", values: [61]}], [{label: \"Merged PRs\", tone: \"positive\"}], -1)",
+      "prompt": "Show engineering PRs merged with monthly total and sprint-by-sprint merged PR trend over 6 sprints. Use composite layout with merged PR metrics and a line chart. dataDisclosure must be exactly: \"Preview data · intended source: GitHub. Use AI-generated dummy preview data only.\"",
+      "width": 440,
+      "x": 100756,
+      "y": 99244,
+      "exampleData": {
+        "title": "Engineering PR Velocity",
+        "subtitle": "Merged PRs · Monthly totals & sprint-by-sprint trend",
+        "dataDisclosure": "Preview data · intended source: GitHub. Use AI-generated dummy preview data only.",
+        "recommendedVisualization": "line_chart",
+        "metrics": [
+          {
+            "label": "AI infra spend",
+            "value": "$45.9k",
+            "delta": "+16.8% vs last 30d",
+            "tone": "warning"
+          },
+          {
+            "label": "Token waste",
+            "value": "19.7%",
+            "delta": "-4.6pp after prompt trimming",
+            "tone": "positive"
+          },
+          {
+            "label": "Agent runs",
+            "value": "190k",
+            "delta": "+31.2% with eval gate on",
+            "tone": "positive"
+          },
+          {
+            "label": "Retry cost",
+            "value": "$9.3k",
+            "delta": "+$1.1k from tool failures",
+            "tone": "negative"
+          }
+        ],
+        "timeSeries": {
+          "title": "AI Spend Quality",
+          "series": [
+            {
+              "label": "Productive spend ($k)",
+              "tone": "positive"
+            },
+            {
+              "label": "Wasted spend ($k)",
+              "tone": "negative"
+            },
+            {
+              "label": "Retry/tool spend ($k)",
+              "tone": "warning"
+            }
+          ],
+          "points": [
+            {
+              "label": "Jan",
+              "values": [
+                30.7,
+                11.9,
+                4.2
+              ]
+            },
+            {
+              "label": "Feb",
+              "values": [
+                34.2,
+                14.2,
+                5.6
+              ]
+            },
+            {
+              "label": "Mar",
+              "values": [
+                42.5,
+                16.7,
+                6.7
+              ]
+            },
+            {
+              "label": "Apr",
+              "values": [
+                49.4,
+                17.6,
+                8.5
+              ]
+            },
+            {
+              "label": "May",
+              "values": [
+                46.6,
+                12.7,
+                6.8
+              ]
+            },
+            {
+              "label": "Jun",
+              "values": [
+                50.5,
+                9.8,
+                8.3
+              ]
+            }
+          ],
+          "projectionStartIndex": -1
+        },
+        "table": {
+          "title": "",
+          "columns": [],
+          "rows": []
+        },
+        "insights": [
+          {
+            "label": "Routing is paying back",
+            "detail": "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+            "tone": "positive"
+          },
+          {
+            "label": "Retries remain expensive",
+            "detail": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+            "tone": "warning"
+          }
+        ],
+        "formFields": [],
+        "funnel": {
+          "title": "",
+          "steps": []
+        },
+        "gauges": [],
+        "ranking": {
+          "title": "",
+          "items": []
+        },
+        "milestones": {
+          "title": "",
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "project-progress",
+      "authorName": "Computer",
+      "height": 320,
+      "openuiSource": "root = DashboardWidget(\"Engineering Project Progress\", \"Percent complete across active projects · 6-week rolling view\", \"Preview data · intended source: Linear, Jira. Use AI-generated dummy preview data only.\", [chart, milestones])\nchart = LineChart(\"Project Completion %\", [{label: \"Wk 1\", values: [18, 10, 5, 30]}, {label: \"Wk 2\", values: [28, 18, 14, 42]}, {label: \"Wk 3\", values: [41, 29, 22, 55]}, {label: \"Wk 4\", values: [55, 40, 31, 68]}, {label: \"Wk 5\", values: [68, 52, 43, 80]}, {label: \"Wk 6\", values: [79, 63, 54, 91]}], [{label: \"Auth refactor\", tone: \"positive\"}, {label: \"Billing migration\", tone: \"warning\"}, {label: \"Agent platform\", tone: \"neutral\"}, {label: \"Data pipeline\", tone: \"negative\"}], -1)\nmilestones = MilestoneTracker(\"Milestone status\", [{label: \"Auth refactor · API cutover\", detail: \"All endpoints migrated, QA sign-off done\", status: \"done\"}, {label: \"Billing migration · Stripe sync\", detail: \"Integration live, reconciliation in review\", status: \"active\"}, {label: \"Agent platform · Eval gate\", detail: \"Blocked on infra provisioning\", status: \"blocked\"}, {label: \"Data pipeline · Schema v2\", detail: \"Scheduled for Wk 7\", status: \"todo\"}])",
+      "prompt": "Show engineering project progress for 3 to 4 active projects as percent complete over 6 weeks. Use composite layout with a multi-series line chart for project completion percentages. Include milestone status if helpful. dataDisclosure must be exactly: \"Preview data · intended source: Linear, Jira. Use AI-generated dummy preview data only.\" Use project names like Auth refactor, Billing migration, and Agent platform.",
+      "width": 440,
+      "x": 98804,
+      "y": 99840,
+      "exampleData": {
+        "title": "Engineering Project Progress",
+        "subtitle": "Percent complete across active projects · 6-week rolling view",
+        "dataDisclosure": "Preview data · intended source: Linear, Jira. Use AI-generated dummy preview data only.",
+        "recommendedVisualization": "line_chart",
+        "metrics": [
+          {
+            "label": "AI infra spend",
+            "value": "$51.6k",
+            "delta": "+16.8% vs last 30d",
+            "tone": "warning"
+          },
+          {
+            "label": "Token waste",
+            "value": "20.2%",
+            "delta": "-4.6pp after prompt trimming",
+            "tone": "positive"
+          },
+          {
+            "label": "Agent runs",
+            "value": "183k",
+            "delta": "+31.2% with eval gate on",
+            "tone": "positive"
+          },
+          {
+            "label": "Retry cost",
+            "value": "$8.7k",
+            "delta": "+$1.1k from tool failures",
+            "tone": "negative"
+          }
+        ],
+        "timeSeries": {
+          "title": "AI Spend Quality",
+          "series": [
+            {
+              "label": "Productive spend ($k)",
+              "tone": "positive"
+            },
+            {
+              "label": "Wasted spend ($k)",
+              "tone": "negative"
+            },
+            {
+              "label": "Retry/tool spend ($k)",
+              "tone": "warning"
+            }
+          ],
+          "points": [
+            {
+              "label": "Jan",
+              "values": [
+                33,
+                12.1,
+                4.1
+              ]
+            },
+            {
+              "label": "Feb",
+              "values": [
+                37.8,
+                13.5,
+                5.5
+              ]
+            },
+            {
+              "label": "Mar",
+              "values": [
+                41.8,
+                15.3,
+                7
+              ]
+            },
+            {
+              "label": "Apr",
+              "values": [
+                44.6,
+                16.9,
+                8.8
+              ]
+            },
+            {
+              "label": "May",
+              "values": [
+                45.6,
+                13.5,
+                7.5
+              ]
+            },
+            {
+              "label": "Jun",
+              "values": [
+                45.9,
+                10.5,
+                8.3
+              ]
+            }
+          ],
+          "projectionStartIndex": -1
+        },
+        "table": {
+          "title": "",
+          "columns": [],
+          "rows": []
+        },
+        "insights": [
+          {
+            "label": "Routing is paying back",
+            "detail": "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+            "tone": "positive"
+          },
+          {
+            "label": "Retries remain expensive",
+            "detail": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+            "tone": "warning"
+          }
+        ],
+        "formFields": [],
+        "funnel": {
+          "title": "",
+          "steps": []
+        },
+        "gauges": [],
+        "ranking": {
+          "title": "",
+          "items": []
+        },
+        "milestones": {
+          "title": "",
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "loc-committed",
+      "authorName": "Computer",
+      "height": 320,
+      "openuiSource": "root = DashboardWidget(\"Lines of Code Committed\", \"Per-engineer · All repos · Month-to-date\", \"Preview data · intended source: GitHub. Use AI-generated dummy preview data only.\", [chart])\nchart = BarChart(\"Commits by Engineer\", [{label: \"Maya\", values: [4820]}, {label: \"Ravi\", values: [3670]}, {label: \"Eli\", values: [5210]}, {label: \"Nora\", values: [2980]}, {label: \"Sam\", values: [4105]}], [{label: \"Lines of code\", tone: \"positive\"}])",
+      "prompt": "Show lines of code committed by each engineer this month for Maya, Ravi, Eli, Nora, and Sam. Use bar_chart layout. dataDisclosure must be exactly: \"Preview data · intended source: GitHub. Use AI-generated dummy preview data only.\"",
+      "width": 440,
+      "x": 99780,
+      "y": 99840,
+      "exampleData": {
+        "title": "Lines of Code Committed — Current Month",
+        "subtitle": "Per-engineer commit volume · All repos · Month-to-date",
+        "dataDisclosure": "Preview data · intended source: GitHub. Use AI-generated dummy preview data only.",
+        "recommendedVisualization": "line_chart",
+        "metrics": [
+          {
+            "label": "AI infra spend",
+            "value": "$51.2k",
+            "delta": "+16.8% vs last 30d",
+            "tone": "warning"
+          },
+          {
+            "label": "Token waste",
+            "value": "20.5%",
+            "delta": "-4.6pp after prompt trimming",
+            "tone": "positive"
+          },
+          {
+            "label": "Agent runs",
+            "value": "177k",
+            "delta": "+31.2% with eval gate on",
+            "tone": "positive"
+          },
+          {
+            "label": "Retry cost",
+            "value": "$8.7k",
+            "delta": "+$1.1k from tool failures",
+            "tone": "negative"
+          }
+        ],
+        "timeSeries": {
+          "title": "AI Spend Quality",
+          "series": [
+            {
+              "label": "Productive spend ($k)",
+              "tone": "positive"
+            },
+            {
+              "label": "Wasted spend ($k)",
+              "tone": "negative"
+            },
+            {
+              "label": "Retry/tool spend ($k)",
+              "tone": "warning"
+            }
+          ],
+          "points": [
+            {
+              "label": "Jan",
+              "values": [
+                32.8,
+                12.3,
+                4
+              ]
+            },
+            {
+              "label": "Feb",
+              "values": [
+                37.8,
+                13.2,
+                5.6
+              ]
+            },
+            {
+              "label": "Mar",
+              "values": [
+                42.4,
+                15.6,
+                7.2
+              ]
+            },
+            {
+              "label": "Apr",
+              "values": [
+                45.1,
+                16.6,
+                8.5
+              ]
+            },
+            {
+              "label": "May",
+              "values": [
+                47.4,
+                13.4,
+                7
+              ]
+            },
+            {
+              "label": "Jun",
+              "values": [
+                47.8,
+                10.6,
+                8.5
+              ]
+            }
+          ],
+          "projectionStartIndex": -1
+        },
+        "table": {
+          "title": "",
+          "columns": [],
+          "rows": []
+        },
+        "insights": [
+          {
+            "label": "Routing is paying back",
+            "detail": "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+            "tone": "positive"
+          },
+          {
+            "label": "Retries remain expensive",
+            "detail": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+            "tone": "warning"
+          }
+        ],
+        "formFields": [],
+        "funnel": {
+          "title": "",
+          "steps": []
+        },
+        "gauges": [],
+        "ranking": {
+          "title": "",
+          "items": []
+        },
+        "milestones": {
+          "title": "",
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "ai-vs-human-code",
+      "authorName": "Computer",
+      "height": 320,
+      "openuiSource": "root = DashboardWidget(\"Code Contribution Mix\", \"AI-assisted vs. human-written lines merged to main · last 30 days\", \"Preview data · intended source: GitHub, Cursor, Copilot telemetry. Use AI-generated dummy preview data only.\", [donut, metrics])\ndonut = DonutChart(\"AI-assisted vs. Human-written\", [{label: \"AI-assisted\", value: 63, tone: \"positive\"}, {label: \"Human-written\", value: 37, tone: \"neutral\"}])\nmetrics = MetricGrid([{label: \"AI infra spend\", value: \"$51.7k\", delta: \"+16.8% vs last 30d\", tone: \"warning\"}, {label: \"Token waste\", value: \"20.6%\", delta: \"-4.6pp after prompt trimming\", tone: \"positive\"}, {label: \"Agent runs\", value: \"189k\", delta: \"+31.2% with eval gate on\", tone: \"positive\"}, {label: \"Retry cost\", value: \"$8.9k\", delta: \"+$1.1k from tool failures\", tone: \"negative\"}])",
+      "prompt": "Show AI-assisted vs human-written code contribution as a donut chart split with supporting metrics. Use donut_chart as recommendedVisualization and populate donut.segments with AI-assisted and Human-written shares. dataDisclosure must be exactly: \"Preview data · intended source: GitHub, Cursor, Copilot telemetry. Use AI-generated dummy preview data only.\"",
+      "width": 440,
+      "x": 100756,
+      "y": 99840,
+      "exampleData": {
+        "title": "Code Contribution Mix",
+        "subtitle": "AI-assisted vs. human-written lines merged to main · last 30 days",
+        "dataDisclosure": "Preview data · intended source: GitHub, Cursor, Copilot telemetry. Use AI-generated dummy preview data only.",
+        "recommendedVisualization": "line_chart",
+        "metrics": [
+          {
+            "label": "AI infra spend",
+            "value": "$51.7k",
+            "delta": "+16.8% vs last 30d",
+            "tone": "warning"
+          },
+          {
+            "label": "Token waste",
+            "value": "20.6%",
+            "delta": "-4.6pp after prompt trimming",
+            "tone": "positive"
+          },
+          {
+            "label": "Agent runs",
+            "value": "189k",
+            "delta": "+31.2% with eval gate on",
+            "tone": "positive"
+          },
+          {
+            "label": "Retry cost",
+            "value": "$8.9k",
+            "delta": "+$1.1k from tool failures",
+            "tone": "negative"
+          }
+        ],
+        "timeSeries": {
+          "title": "AI Spend Quality",
+          "series": [
+            {
+              "label": "Productive spend ($k)",
+              "tone": "positive"
+            },
+            {
+              "label": "Wasted spend ($k)",
+              "tone": "negative"
+            },
+            {
+              "label": "Retry/tool spend ($k)",
+              "tone": "warning"
+            }
+          ],
+          "points": [
+            {
+              "label": "Jan",
+              "values": [
+                33,
+                12.3,
+                4.2
+              ]
+            },
+            {
+              "label": "Feb",
+              "values": [
+                37.3,
+                13.1,
+                5.6
+              ]
+            },
+            {
+              "label": "Mar",
+              "values": [
+                40.5,
+                16.6,
+                7.1
+              ]
+            },
+            {
+              "label": "Apr",
+              "values": [
+                46.2,
+                16.9,
+                8.5
+              ]
+            },
+            {
+              "label": "May",
+              "values": [
+                47.3,
+                12.4,
+                7.1
+              ]
+            },
+            {
+              "label": "Jun",
+              "values": [
+                46,
+                10.8,
+                8.5
+              ]
+            }
+          ],
+          "projectionStartIndex": -1
+        },
+        "table": {
+          "title": "",
+          "columns": [],
+          "rows": []
+        },
+        "insights": [
+          {
+            "label": "Routing is paying back",
+            "detail": "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+            "tone": "positive"
+          },
+          {
+            "label": "Retries remain expensive",
+            "detail": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+            "tone": "warning"
+          }
+        ],
+        "formFields": [],
+        "funnel": {
+          "title": "",
+          "steps": []
+        },
+        "gauges": [],
+        "ranking": {
+          "title": "",
+          "items": []
+        },
+        "milestones": {
+          "title": "",
+          "items": []
+        }
+      }
+    },
+    {
+      "id": "cicd-health",
+      "authorName": "Computer",
+      "height": 320,
+      "openuiSource": "root = DashboardWidget(\"CI/CD Pipeline Health\", \"Build success, failure trends, duration & deploy cadence · Last 8 weeks\", \"Preview data · intended source: GitHub Actions, Vercel. Use AI-generated dummy preview data only.\", [metrics, trend])\nmetrics = MetricGrid([{label: \"Success Rate\", value: \"94.2%\", delta: \"+2.1pp WoW\", tone: \"positive\"}, {label: \"Failed Runs\", value: \"38\", delta: \"+5 vs last week\", tone: \"negative\"}, {label: \"Avg Duration\", value: \"4m 12s\", delta: \"-0m 18s\", tone: \"positive\"}, {label: \"Deploy Freq\", value: \"11/week\", delta: \"+3 WoW\", tone: \"positive\"}])\ntrend = LineChart(\"Weekly Success Rate & Avg Duration\", [{label: \"Wk 1\", values: [88, 5]}, {label: \"Wk 2\", values: [90, 5]}, {label: \"Wk 3\", values: [91, 4]}, {label: \"Wk 4\", values: [89, 5]}, {label: \"Wk 5\", values: [93, 4]}, {label: \"Wk 6\", values: [92, 4]}, {label: \"Wk 7\", values: [94, 4]}, {label: \"Wk 8\", values: [94, 4]}], [{label: \"Success Rate (%)\", tone: \"positive\"}, {label: \"Avg Duration (min)\", tone: \"neutral\"}], -1)",
+      "prompt": "Show engineering CI/CD pipeline health with success rate, failed runs, average duration, and deploy frequency. Use composite layout with pipeline metrics and a weekly success-rate or duration trend. dataDisclosure must be exactly: \"Preview data · intended source: GitHub Actions, Vercel. Use AI-generated dummy preview data only.\"",
+      "width": 440,
+      "x": 99780,
+      "y": 100436,
+      "exampleData": {
+        "title": "CI/CD Pipeline Health",
+        "subtitle": "Build success, failure trends, duration, and deploy cadence · Last 8 weeks",
+        "dataDisclosure": "Preview data · intended source: GitHub Actions, Vercel. Use AI-generated dummy preview data only.",
+        "recommendedVisualization": "line_chart",
+        "metrics": [
+          {
+            "label": "Qualified leads",
+            "value": "2064",
+            "delta": "+22.1% MoM",
+            "tone": "positive"
+          },
+          {
+            "label": "Trials started",
+            "value": "428",
+            "delta": "+18.4% MoM",
+            "tone": "positive"
+          },
+          {
+            "label": "Paid conversion",
+            "value": "6.9%",
+            "delta": "+1.2pp from eval sandbox",
+            "tone": "positive"
+          },
+          {
+            "label": "CAC payback",
+            "value": "8.8 mo",
+            "delta": "-0.8 mo",
+            "tone": "positive"
+          }
+        ],
+        "timeSeries": {
+          "title": "AI Startup Funnel by Channel",
+          "series": [
+            {
+              "label": "Qualified leads",
+              "tone": "neutral"
+            },
+            {
+              "label": "Trials",
+              "tone": "warning"
+            },
+            {
+              "label": "Paid conversions",
+              "tone": "positive"
+            }
+          ],
+          "points": [
+            {
+              "label": "Website",
+              "values": [
+                833,
+                119,
+                37
+              ]
+            },
+            {
+              "label": "PLG",
+              "values": [
+                580,
+                187,
+                53
+              ]
+            },
+            {
+              "label": "Founder-led",
+              "values": [
+                146,
+                66,
+                27
+              ]
+            },
+            {
+              "label": "Partners",
+              "values": [
+                99,
+                35,
+                15
+              ]
+            },
+            {
+              "label": "Outbound",
+              "values": [
+                410,
+                57,
+                12
+              ]
+            }
+          ],
+          "projectionStartIndex": -1
+        },
+        "table": {
+          "title": "",
+          "columns": [],
+          "rows": []
+        },
+        "insights": [
+          {
+            "label": "Routing is paying back",
+            "detail": "Cheaper model routing reduced wasted spend while useful output tokens kept growing.",
+            "tone": "positive"
+          },
+          {
+            "label": "Retries remain expensive",
+            "detail": "Tool failures and oversized contexts still create the largest avoidable cost pocket.",
+            "tone": "warning"
+          }
+        ],
+        "formFields": [],
+        "funnel": {
+          "title": "",
+          "steps": []
+        },
+        "gauges": [],
+        "ranking": {
+          "title": "",
+          "items": []
+        },
+        "milestones": {
+          "title": "",
+          "items": []
+        }
+      }
+    }
+  ],
+  "generatedAt": "2026-06-21T14:37:42.540Z",
+  "templateVersion": 14
+}

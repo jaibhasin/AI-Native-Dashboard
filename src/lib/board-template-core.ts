@@ -13,6 +13,8 @@ import type {
   MetricData,
   MilestoneItemData,
   MilestonesData,
+  DonutData,
+  DonutSegmentData,
   RankingData,
   RankingItemData,
   TableData,
@@ -24,7 +26,7 @@ export const BLANK_BOARD_ID = "blank";
 // Increment when prebuilt template content/layout changes. On load, every board in
 // BOARD_TEMPLATES (Founder, Engineering, Sales, Ops) is replaced if its stored
 // templateVersion does not match — personal boards are untouched.
-export const BOARD_TEMPLATE_VERSION = 12;
+export const BOARD_TEMPLATE_VERSION = 14;
 export const TEMPLATE_DISCLOSURE = "AI-generated preview data.";
 
 const TEMPLATE_WIDGET_WIDTH = 440;
@@ -90,6 +92,7 @@ type ExampleWidgetDataInput = {
   insights?: InsightData[];
   metrics?: MetricData[];
   milestones?: MilestonesData;
+  donut?: DonutData;
   ranking?: RankingData;
   recommendedVisualization: TemplateVisualization;
   subtitle: string;
@@ -371,12 +374,13 @@ export function buildWidgetClusterFromRect(
   widgetRect: GridSpanPosition,
   exampleData: ExampleWidgetData,
   supplements?: WidgetAnnotationSupplement[],
+  openuiSource?: string,
 ): WidgetCluster {
   const noteSpecs = planWidgetAnnotations(prompt, exampleData, supplements);
 
   return {
     notes: notesAroundWidget(id, widgetRect, noteSpecs),
-    widget: widgetSized(id, prompt, widgetRect, exampleData),
+    widget: widgetSizedWithSource(id, prompt, widgetRect, exampleData, openuiSource),
   };
 }
 
@@ -427,11 +431,21 @@ export function widgetSized(
   position: GridSpanPosition,
   exampleData: ExampleWidgetData,
 ): TemplateWidgetDefinition {
+  return widgetSizedWithSource(id, prompt, position, exampleData);
+}
+
+export function widgetSizedWithSource(
+  id: string,
+  prompt: string,
+  position: GridSpanPosition,
+  exampleData: ExampleWidgetData,
+  openuiSource?: string,
+): TemplateWidgetDefinition {
   return {
     id,
     authorName: TEMPLATE_AUTHOR_NAME,
     height: position.height,
-    openuiSource: openuiSourceForData(exampleData),
+    openuiSource: openuiSource ?? openuiSourceForData(exampleData),
     prompt,
     width: position.width,
     x: position.x,
@@ -512,9 +526,17 @@ function emptyMilestones(): MilestonesData {
   };
 }
 
+function emptyDonut(): DonutData {
+  return {
+    segments: [],
+    title: "",
+  };
+}
+
 export function exampleWidgetData(input: ExampleWidgetDataInput): ExampleWidgetData {
   return {
     dataDisclosure: input.disclosure ?? TEMPLATE_DISCLOSURE,
+    donut: input.donut ?? emptyDonut(),
     formFields: input.formFields ?? [],
     funnel: input.funnel ?? emptyFunnel(),
     gauges: input.gauges ?? [],
@@ -592,6 +614,10 @@ function hasMilestones(data: ExampleWidgetData) {
   return data.milestones.items.length > 0;
 }
 
+function hasDonut(data: ExampleWidgetData) {
+  return data.donut.segments.length > 0;
+}
+
 function funnelStepSource(step: FunnelStepData) {
   return `{label: ${openuiString(step.label)}, value: ${step.value}, dropoff: ${openuiString(step.dropoff)}, tone: ${openuiString(step.tone)}}`;
 }
@@ -606,6 +632,14 @@ function rankingItemSource(item: RankingItemData) {
 
 function milestoneItemSource(item: MilestoneItemData) {
   return `{label: ${openuiString(item.label)}, detail: ${openuiString(item.detail)}, status: ${openuiString(item.status)}}`;
+}
+
+function donutSegmentSource(segment: DonutSegmentData) {
+  return `{label: ${openuiString(segment.label)}, value: ${segment.value}, tone: ${openuiString(segment.tone)}}`;
+}
+
+function donutBlockSource(blockName: string, donut: DonutData) {
+  return `${blockName} = DonutChart(${openuiString(donut.title)}, ${openuiArray(donut.segments.map(donutSegmentSource))})`;
 }
 
 function statHeroBlockSource(blockName: string, data: ExampleWidgetData) {
@@ -684,6 +718,10 @@ function primaryBlockSource(blockName: string, data: ExampleWidgetData) {
 
   if (data.recommendedVisualization === "timeline" && hasMilestones(data)) {
     return milestoneBlockSource(blockName, data.milestones);
+  }
+
+  if (data.recommendedVisualization === "donut_chart" && hasDonut(data)) {
+    return donutBlockSource(blockName, data.donut);
   }
 
   if (data.recommendedVisualization === "metrics" && data.metrics.length > 0) {
@@ -765,6 +803,13 @@ function compositeBlocksSource(data: ExampleWidgetData) {
         ? "bar"
         : "line";
     blocks.push(chartBlockSource(blockName, data, chartType));
+    names.push(blockName);
+    index += 1;
+  }
+
+  if (hasDonut(data)) {
+    const blockName = `block${index}`;
+    blocks.push(donutBlockSource(blockName, data.donut));
     names.push(blockName);
     index += 1;
   }

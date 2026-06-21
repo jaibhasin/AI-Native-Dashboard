@@ -224,6 +224,7 @@ export function fallbackWidgetExampleData(prompt: string, index = 0): ExampleWid
     gauges: [],
     ranking: { title: "", items: [] },
     milestones: { title: "", items: [] },
+    donut: { title: "", segments: [] },
   };
 }
 

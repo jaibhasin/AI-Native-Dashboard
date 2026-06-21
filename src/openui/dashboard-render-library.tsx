@@ -21,6 +21,7 @@ import {
   formFieldSchema,
   funnelStepSchema,
   gaugeSchema,
+  donutSegmentSchema,
   insightSchema,
   metricSchema,
   milestoneItemSchema,
@@ -850,6 +851,78 @@ const MilestoneTracker = defineComponent({
   },
 });
 
+const DonutChart = defineComponent({
+  name: "DonutChart",
+  description: "A donut chart for part-to-whole splits such as AI vs human code contribution.",
+  props: z.object({
+    title: z.string(),
+    segments: z.array(donutSegmentSchema),
+  }),
+  component: ({ props }) => {
+    const segments = asArray(props.segments).slice(0, 6);
+    const total = Math.max(
+      segments.reduce((sum, segment) => sum + (typeof segment?.value === "number" ? segment.value : 0), 0),
+      1,
+    );
+    let cursor = 0;
+    const radius = 42;
+    const stroke = 16;
+    const center = 56;
+
+    return (
+      <BlockShell className="flex-1" title={props.title || undefined}>
+        <div className="flex items-center gap-3 px-2 pb-2">
+          <svg aria-hidden="true" className="shrink-0" height="112" viewBox="0 0 112 112" width="112">
+            <circle cx={center} cy={center} fill="none" r={radius} stroke="var(--surface-muted)" strokeWidth={stroke} />
+            {segments.map((segment, index) => {
+              const value = typeof segment?.value === "number" ? segment.value : 0;
+              const fraction = value / total;
+              const dash = fraction * (2 * Math.PI * radius);
+              const gap = 2 * Math.PI * radius;
+              const tone = safeTone(segment?.tone);
+              const rotation = cursor * 360 - 90;
+              cursor += fraction;
+
+              return (
+                <circle
+                  cx={center}
+                  cy={center}
+                  fill="none"
+                  key={`${safeText(segment?.label)}-${index}`}
+                  r={radius}
+                  stroke={seriesColors[tone]}
+                  strokeDasharray={`${dash} ${gap - dash}`}
+                  strokeDashoffset={0}
+                  strokeLinecap="butt"
+                  strokeWidth={stroke}
+                  transform={`rotate(${rotation} ${center} ${center})`}
+                />
+              );
+            })}
+          </svg>
+          <div className="min-w-0 flex-1 space-y-1.5">
+            {segments.map((segment, index) => {
+              const value = typeof segment?.value === "number" ? segment.value : 0;
+              const tone = safeTone(segment?.tone);
+              const percent = Math.round((value / total) * 100);
+
+              return (
+                <div className="flex items-center justify-between gap-2 text-[11px]" key={`${safeText(segment?.label)}-legend-${index}`}>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: seriesColors[tone] }} />
+                    <span className="truncate font-medium text-[var(--text-primary)]">{safeText(segment?.label)}</span>
+                  </div>
+                  <span className="shrink-0 font-semibold text-[var(--text-primary)]">{percent}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </BlockShell>
+    );
+  },
+});
+
 const DashboardBlock = z.union([
   MetricGrid.ref,
   StatHero.ref,
@@ -859,6 +932,7 @@ const DashboardBlock = z.union([
   ProgressGauge.ref,
   RankedList.ref,
   MilestoneTracker.ref,
+  DonutChart.ref,
   DataTable.ref,
   InsightList.ref,
   FormPreview.ref,
@@ -877,6 +951,11 @@ const DashboardWidget = defineComponent({
   component: ({ props, renderNode }) => (
     <div className="flex flex-col bg-[var(--surface)]">
       <div className="flex flex-col gap-1.5 p-2">{renderNode(props.blocks)}</div>
+      {props.dataDisclosure ? (
+        <div className="border-t border-[var(--border)] px-2 py-1.5 text-[10px] leading-snug text-[var(--text-muted)]">
+          {props.dataDisclosure}
+        </div>
+      ) : null}
     </div>
   ),
 });
@@ -893,6 +972,7 @@ export const dashboardRenderLibrary = createLibrary({
     ProgressGauge,
     RankedList,
     MilestoneTracker,
+    DonutChart,
     DataTable,
     InsightList,
     FormPreview,

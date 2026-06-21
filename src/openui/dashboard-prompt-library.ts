@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import {
   chartPointSchema,
   chartSeriesSchema,
+  donutSegmentSchema,
   formFieldSchema,
   funnelStepSchema,
   gaugeSchema,
@@ -99,6 +100,16 @@ const MilestoneTracker = defineComponent({
   component: Empty,
 });
 
+const DonutChart = defineComponent({
+  name: "DonutChart",
+  description: "A donut chart for part-to-whole splits such as AI-assisted vs human-written code.",
+  props: z.object({
+    title: z.string(),
+    segments: z.array(donutSegmentSchema),
+  }),
+  component: Empty,
+});
+
 const DataTable = defineComponent({
   name: "DataTable",
   description: "A small data table.",
@@ -136,6 +147,7 @@ const DashboardBlock = z.union([
   ProgressGauge.ref,
   RankedList.ref,
   MilestoneTracker.ref,
+  DonutChart.ref,
   DataTable.ref,
   InsightList.ref,
   FormPreview.ref,
@@ -166,6 +178,7 @@ export const dashboardLibrary = createLibrary({
     ProgressGauge,
     RankedList,
     MilestoneTracker,
+    DonutChart,
     DataTable,
     InsightList,
     FormPreview,
@@ -183,6 +196,7 @@ export const dashboardLibrary = createLibrary({
         "ProgressGauge",
         "RankedList",
         "MilestoneTracker",
+        "DonutChart",
         "DataTable",
         "InsightList",
         "FormPreview",
@@ -196,6 +210,7 @@ export const dashboardLibrary = createLibrary({
         "Use ProgressGauge for value-vs-target, utilization, margin-vs-goal, or efficiency prompts.",
         "Use RankedList for top-N, leaderboard, concentration, or account exposure prompts instead of a plain table.",
         "Use MilestoneTracker for readiness, roadmap, diligence, milestone, or status prompts.",
+        "Use DonutChart for part-to-whole splits such as AI vs human contribution, share mix, or category composition.",
         "Use MetricGrid only for multi-KPI scorecards with no single headline number.",
         "Use LineChart or BarChart for trend, forecast, comparison, graph, or chart requests.",
         "Use DataTable for task lists, owner tables, or multi-column operational lists.",
@@ -233,6 +248,7 @@ export const promptOptions: PromptOptions = {
     "Use ProgressGauge when recommendedVisualization is gauge or the prompt asks for value-vs-target, utilization, or margin-vs-goal.",
     "Use RankedList when recommendedVisualization is ranking or the prompt asks for top accounts, leaderboard, or concentration.",
     "Use MilestoneTracker when recommendedVisualization is timeline or the prompt asks for readiness, roadmap, diligence, or milestones.",
+    "Use DonutChart when recommendedVisualization is donut_chart or the prompt asks for donut, pie, share split, or AI vs human contribution.",
     "Use MetricGrid only for multi-KPI scorecards, not when one number should dominate.",
     "Use LineChart or BarChart for trend, forecast, comparison, graph, or chart requests.",
     "Use DataTable for multi-column operational lists with owners, statuses, or blockers.",

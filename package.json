@@ -5,6 +5,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "generate:openui-prompt": "openui generate src/openui/dashboard-prompt-library.ts --out src/generated/openui-dashboard-prompt.txt --no-interactive",
+    "generate:engineering-board": "tsx scripts/generate-engineering-board.ts",
     "dev": "pnpm generate:openui-prompt && next dev",
     "build": "pnpm generate:openui-prompt && next build",
     "start": "next start",
@@ -33,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   }
 }

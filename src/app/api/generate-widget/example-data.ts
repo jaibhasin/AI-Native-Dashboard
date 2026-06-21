@@ -292,8 +292,13 @@ function emptyMilestones(): ExampleWidgetData["milestones"] {
   return { title: "", items: [] };
 }
 
+function emptyDonut(): ExampleWidgetData["donut"] {
+  return { title: "", segments: [] };
+}
+
 function emptyExtendedFields() {
   return {
+    donut: emptyDonut(),
     funnel: emptyFunnel(),
     gauges: emptyGauges(),
     ranking: emptyRanking(),
@@ -842,6 +847,23 @@ function normalizeGauges(value: unknown) {
   });
 }
 
+function normalizeDonut(value: unknown) {
+  const record = asRecord(value);
+
+  return {
+    title: asString(record.title),
+    segments: asArray(record.segments).map((item, index) => {
+      const segment = asRecord(item);
+
+      return {
+        label: asString(segment.label, `Segment ${index + 1}`),
+        value: asNumber(segment.value) ?? 0,
+        tone: normalizeTone(segment.tone),
+      };
+    }),
+  };
+}
+
 function normalizeRanking(value: unknown) {
   const record = asRecord(value);
 
@@ -901,6 +923,10 @@ function normalizeRecommendedVisualization(value: unknown) {
     return "timeline";
   }
 
+  if (normalized.includes("donut") || normalized.includes("pie")) {
+    return "donut_chart";
+  }
+
   if (normalized.includes("stat") || normalized.includes("hero") || normalized.includes("headline")) {
     return "stat";
   }
@@ -940,7 +966,8 @@ function normalizeRecommendedVisualization(value: unknown) {
     normalized === "funnel" ||
     normalized === "gauge" ||
     normalized === "ranking" ||
-    normalized === "timeline"
+    normalized === "timeline" ||
+    normalized === "donut_chart"
     ? normalized
     : "composite";
 }
@@ -962,7 +989,19 @@ function normalizeExampleData(value: unknown) {
     gauges: normalizeGauges(record.gauges),
     ranking: normalizeRanking(record.ranking),
     milestones: normalizeMilestones(record.milestones),
+    donut: normalizeDonut(record.donut),
   };
+}
+
+function extractJsonContent(content: string) {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+
+  if (fenced) {
+    return fenced[1].trim();
+  }
+
+  return trimmed;
 }
 
 function parseExampleData(content: string | null | undefined, provider: AIProvider, prompt: string) {
@@ -970,7 +1009,10 @@ function parseExampleData(content: string | null | undefined, provider: AIProvid
     throw new Error(`${providerDisplayName(provider)} returned no example data.`);
   }
 
-  return enrichAiNativeStartupData(exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(content))), prompt);
+  return enrichAiNativeStartupData(
+    exampleWidgetDataSchema.parse(normalizeExampleData(JSON.parse(extractJsonContent(content)))),
+    prompt,
+  );
 }
 
 async function createStrictExampleData(client: ModelClient, provider: AIProvider, prompt: string) {
