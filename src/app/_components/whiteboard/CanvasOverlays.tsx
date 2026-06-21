@@ -1,6 +1,6 @@
 "use client";
 
-import { Expand, Minus, Moon, Plus, Sun } from "lucide-react";
+import { Minus, Moon, Plus, Presentation, Sun } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import type { ThemeMode } from "@/app/_lib/whiteboard/types";
 import { ZOOM_STEP_FACTOR } from "@/app/_lib/whiteboard/constants";
@@ -31,7 +31,7 @@ export function CanvasOverlays({
 }) {
   return (
     <>
-      <div className="absolute right-4 top-4 z-50 flex flex-col items-end gap-12 sm:right-6 sm:top-6">
+      <div className="absolute right-4 top-4 z-50 flex flex-col items-end gap-3 sm:right-6 sm:top-6">
         <div className="flex items-center gap-2 rounded-md border border-[var(--border-medium)] bg-[var(--panel-translucent)] px-2 py-1 text-sm font-medium shadow-sm backdrop-blur">
           <button
           aria-label={`Switch to ${nextTheme} mode`}
@@ -72,21 +72,29 @@ export function CanvasOverlays({
           <Plus className="h-3.5 w-3.5" />
         </button>
         </div>
-        <button
-          aria-label="Focus mode"
-          aria-pressed={isFocusModeActive}
-          className={`grid h-7 w-7 place-items-center rounded-md border bg-[var(--panel-translucent)] shadow-sm backdrop-blur transition disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--panel-translucent)] ${
-            isFocusModeActive
-              ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)]"
-              : "border-[var(--border-medium)] text-[var(--text-secondary)] hover:bg-[var(--control-hover)]"
-          }`}
-          disabled={!canOpenWidgetFocus}
-          onClick={onOpenWidgetFocus}
-          title={canOpenWidgetFocus ? "View one widget at a time with its notes" : "Add a widget to use focus mode"}
-          type="button"
-        >
-          <Expand className="h-3.5 w-3.5" />
-        </button>
+        <div className="group relative -translate-x-[36px] translate-y-1.5">
+          <button
+            aria-label="Present widgets"
+            aria-pressed={isFocusModeActive}
+            className={`inline-flex h-7 items-center gap-1 rounded-md border bg-[var(--panel-translucent)] px-2 text-xs font-semibold shadow-sm backdrop-blur transition disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--panel-translucent)] ${
+              isFocusModeActive
+                ? "border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)] hover:bg-[var(--primary-hover)]"
+                : "border-[var(--border-medium)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
+            }`}
+            disabled={!canOpenWidgetFocus}
+            onClick={onOpenWidgetFocus}
+            type="button"
+          >
+            <Presentation className="h-3 w-3 shrink-0" />
+            <span>Present</span>
+          </button>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-[var(--border-medium)] bg-[var(--panel-translucent-strong)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)] opacity-0 shadow-sm backdrop-blur transition duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            Present widgets
+          </span>
+        </div>
       </div>
 
       <div

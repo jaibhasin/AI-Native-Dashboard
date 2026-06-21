@@ -1,7 +1,7 @@
 "use client";
 
 import { Renderer, type OpenUIError } from "@openuidev/react-lang";
-import { Expand, GripVertical, Maximize2, RotateCcw, Trash2 } from "lucide-react";
+import { GripVertical, Maximize2, Presentation, RotateCcw, Trash2 } from "lucide-react";
 import {
   memo,
   useEffect,
@@ -302,17 +302,17 @@ export function WidgetFrame({
                 </button>
               ) : null}
               <button
-                aria-label="Focus widget"
+                aria-label="Present widget"
                 className="pointer-events-none grid h-6 w-6 shrink-0 place-items-center rounded-md border border-[var(--border)] text-[var(--text-secondary)] opacity-0 transition hover:bg-[var(--control-hover)] focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100"
                 data-widget-control
                 onClick={(event) => {
                   event.stopPropagation();
                   onFocus(widget.id);
                 }}
-                title="Focus"
+                title="Present"
                 type="button"
               >
-                <Expand className="h-3 w-3" />
+                <Presentation className="h-3 w-3" />
               </button>
               <button
                 aria-label="Delete widget"
