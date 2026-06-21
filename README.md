@@ -90,9 +90,8 @@ pnpm install
 Create `.env.local` with server-side provider keys:
 
 ```bash
-# Groq is the primary/default LLM provider.
+# Groq is the primary LLM provider for all runtime widget and board generation.
 GROQ_API_KEY=your_groq_api_key
-AI_PROVIDER=groq # optional; groq is used when AI_PROVIDER is unset
 
 # Optional Groq key pool for deployed demos.
 # Keep these server-side only. The app rotates to another key when a key returns 429.
@@ -104,9 +103,6 @@ GROQ_API_KEY_2=groq_key_2
 # OpenRouter is the backup LLM provider when Groq fails before streaming output.
 OPENROUTER_API_KEY=your_openrouter_api_key
 OPENROUTER_MODEL=provider/model-slug
-
-# Optional direct OpenRouter mode for testing.
-# AI_PROVIDER=openrouter
 ```
 
 Optional model overrides:
@@ -144,14 +140,14 @@ Vercel is the simplest deployment target because the app uses Next.js server rou
 Set these environment variables in Vercel:
 
 ```bash
-AI_PROVIDER=groq
 GROQ_API_KEY=your_groq_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_MODEL=provider/model-slug
 ```
 
 For showcase demos, you can provide a small server-side key pool. The app rotates to another key when Groq returns a rate-limit response:
 
 ```bash
-AI_PROVIDER=groq
 GROQ_API_KEYS=groq_key_1,groq_key_2,groq_key_3
 # or:
 GROQ_API_KEY_1=groq_key_1

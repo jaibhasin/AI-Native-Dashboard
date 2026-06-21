@@ -52,8 +52,6 @@ function loadEnvFile() {
 async function main() {
   loadEnvFile();
 
-  process.env.AI_PROVIDER = "openrouter";
-
   if (!process.env.OPENROUTER_MODEL) {
     process.env.OPENROUTER_MODEL = "anthropic/claude-sonnet-4.6";
   }
