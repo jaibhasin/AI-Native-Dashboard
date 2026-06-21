@@ -67,7 +67,7 @@ The prototype becomes more valuable when it moves from generated preview data to
 - React 19
 - TypeScript
 - Tailwind CSS 4
-- OpenAI and Groq SDKs for generation
+- Groq SDK for primary generation and the OpenAI SDK for OpenRouter-compatible backup generation
 - OpenUI Lang for generated widget markup
 - Recharts for generated chart components
 - Zod for runtime schemas
@@ -78,7 +78,8 @@ Prerequisites:
 
 - Node.js 20+
 - pnpm
-- A Groq API key, or an OpenAI API key if using the optional OpenAI provider
+- A Groq API key for primary generation
+- An OpenRouter API key and explicit OpenRouter model slug for backup generation
 
 Install dependencies:
 
@@ -86,32 +87,36 @@ Install dependencies:
 pnpm install
 ```
 
-Create `.env.local` with one or both provider keys:
+Create `.env.local` with server-side provider keys:
 
 ```bash
-# Groq is the default provider.
+# Groq is the primary/default LLM provider.
 GROQ_API_KEY=your_groq_api_key
 AI_PROVIDER=groq # optional; groq is used when AI_PROVIDER is unset
 
-# Optional Groq failover pool for deployed demos.
+# Optional Groq key pool for deployed demos.
 # Keep these server-side only. The app rotates to another key when a key returns 429.
 GROQ_API_KEYS=groq_key_1,groq_key_2,groq_key_3
 # You can also provide numbered Groq keys.
 GROQ_API_KEY_1=groq_key_1
 GROQ_API_KEY_2=groq_key_2
 
-# Optional OpenAI alternate provider.
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-5.5
-# AI_PROVIDER=openai
+# OpenRouter is the backup LLM provider when Groq fails before streaming output.
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_MODEL=provider/model-slug
+
+# Optional direct OpenRouter mode for testing.
+# AI_PROVIDER=openrouter
 ```
 
 Optional model overrides:
 
 ```bash
-OPENAI_MOCK_DATA_MODEL=gpt-5.5
-OPENAI_UI_MODEL=gpt-5.5
-OPENAI_BOARD_MODEL=gpt-5.5
+OPENROUTER_MOCK_DATA_MODEL=provider/model-slug
+OPENROUTER_UI_MODEL=provider/model-slug
+OPENROUTER_BOARD_MODEL=provider/model-slug
+OPENROUTER_SITE_URL=https://your-app.example
+OPENROUTER_APP_TITLE=New Dashboard
 GROQ_MOCK_DATA_MODEL=openai/gpt-oss-20b
 GROQ_UI_MODEL=llama-3.3-70b-versatile
 GROQ_BOARD_MODEL=openai/gpt-oss-20b
@@ -121,6 +126,8 @@ GROQ_STT_LANGUAGE=en
 # Browser analytics (safe to expose to the client).
 NEXT_PUBLIC_AMPLITUDE_API_KEY=your_amplitude_api_key
 ```
+
+Do not expose Groq or OpenRouter keys in the browser or commit `.env` files.
 
 Run the development server:
 
@@ -231,15 +238,16 @@ src/generated/openui-dashboard-prompt.txt Generated prompt bundle used by the AP
 ## Widget Generation Flow
 
 1. The client posts `{ prompt }` to `/api/generate-widget`.
-2. The API chooses `GROQ_API_KEYS`, numbered `GROQ_API_KEY_N` values, or `GROQ_API_KEY` by default, or `OPENAI_API_KEY` when `AI_PROVIDER=openai`.
-3. The selected provider generates structured preview data and the API validates it with Zod.
-4. The API streams the preview data followed by OpenUI Lang deltas as NDJSON.
-5. The client renders OpenUI Lang through `@openuidev/react-lang` using the local component library.
+2. The API uses `GROQ_API_KEYS`, numbered `GROQ_API_KEY_N` values, or `GROQ_API_KEY` by default.
+3. If Groq fails before any stream event is emitted, the API retries once with `OPENROUTER_API_KEY` and the configured OpenRouter model.
+4. The selected provider generates structured preview data and the API validates it with Zod.
+5. The API streams the preview data followed by OpenUI Lang deltas as NDJSON.
+6. The client renders OpenUI Lang through `@openuidev/react-lang` using the local component library.
 
 ## Board Generation Flow
 
 1. The client posts an AI whiteboard brief to `/api/generate-board`.
-2. The API chooses the configured provider and uses `GROQ_BOARD_MODEL`, `OPENAI_BOARD_MODEL`, or the provider defaults.
+2. The API uses Groq first with `GROQ_BOARD_MODEL` or the Groq defaults, then tries OpenRouter with `OPENROUTER_BOARD_MODEL` or `OPENROUTER_MODEL` if Groq planning fails.
 3. The provider returns a board plan with a board name, widget prompts, layout, and optional notes.
 4. The API validates and normalizes the plan with Zod.
 5. The client creates the board, then generates the planned widgets through the normal widget stream.

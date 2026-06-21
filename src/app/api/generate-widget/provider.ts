@@ -4,7 +4,7 @@ import { asRecord, asString, type AIProvider, aiProviderSchema } from "./shared"
 
 const DEFAULT_UI_MODEL = "llama-3.3-70b-versatile";
 const DEFAULT_MOCK_DATA_MODEL = "openai/gpt-oss-20b";
-const DEFAULT_OPENAI_MODEL = "gpt-5.5";
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const GROQ_RATE_LIMIT_COOLDOWN_MS = 60_000;
 
 let groqKeyCursor = 0;
@@ -33,7 +33,7 @@ export function resolveProvider(value: unknown): AIProvider {
 }
 
 export function providerDisplayName(provider: AIProvider) {
-  return provider === "openai" ? "OpenAI" : "Groq";
+  return provider === "openrouter" ? "OpenRouter" : "Groq";
 }
 
 function splitApiKeys(value: string | undefined) {
@@ -46,8 +46,8 @@ function splitApiKeys(value: string | undefined) {
 }
 
 export function getApiKeys(provider: AIProvider) {
-  if (provider === "openai") {
-    return splitApiKeys(process.env.OPENAI_API_KEY);
+  if (provider === "openrouter") {
+    return splitApiKeys(process.env.OPENROUTER_API_KEY);
   }
 
   const numberedKeys = Object.entries(process.env)
@@ -87,6 +87,10 @@ export function emittedUiDeltaBeforeError(error: unknown) {
   return asRecord(error).emittedUiDelta === true;
 }
 
+export function emittedOutputBeforeError(error: unknown) {
+  return asRecord(error).emittedOutput === true || emittedUiDeltaBeforeError(error);
+}
+
 export function chooseGroqKey(apiKeys: string[]) {
   const now = Date.now();
   const availableKeys = apiKeys
@@ -108,23 +112,57 @@ export function coolDownGroqKey(apiKey: string) {
 }
 
 export function getMockDataModel(provider: AIProvider) {
-  if (provider === "openai") {
-    return process.env.OPENAI_MOCK_DATA_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  if (provider === "openrouter") {
+    return requireOpenRouterModel("OPENROUTER_MOCK_DATA_MODEL");
   }
 
   return process.env.GROQ_MOCK_DATA_MODEL || DEFAULT_MOCK_DATA_MODEL;
 }
 
 export function getUIModel(provider: AIProvider) {
-  if (provider === "openai") {
-    return process.env.OPENAI_UI_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  if (provider === "openrouter") {
+    return requireOpenRouterModel("OPENROUTER_UI_MODEL");
   }
 
   return process.env.GROQ_UI_MODEL || DEFAULT_UI_MODEL;
 }
 
 export function createModelClient(provider: AIProvider, apiKey: string): ModelClient {
-  return provider === "openai" ? new OpenAI({ apiKey }) : new Groq({ apiKey, maxRetries: 0 });
+  if (provider === "openrouter") {
+    return new OpenAI({
+      apiKey,
+      baseURL: OPENROUTER_BASE_URL,
+      defaultHeaders: openRouterHeaders(),
+    });
+  }
+
+  return new Groq({ apiKey, maxRetries: 0 });
+}
+
+export function requireOpenRouterModel(routeOverrideEnvName: string) {
+  const model = process.env[routeOverrideEnvName] || process.env.OPENROUTER_MODEL;
+
+  if (!model) {
+    throw new Error(`Missing ${routeOverrideEnvName} or OPENROUTER_MODEL. Add an OpenRouter model slug to your environment and retry.`);
+  }
+
+  return model;
+}
+
+function openRouterHeaders() {
+  const headers: Record<string, string> = {};
+  const siteUrl = process.env.OPENROUTER_SITE_URL?.trim();
+  const appTitle = process.env.OPENROUTER_APP_TITLE?.trim();
+
+  if (siteUrl) {
+    headers["HTTP-Referer"] = siteUrl;
+  }
+
+  if (appTitle) {
+    headers["X-OpenRouter-Title"] = appTitle;
+  }
+
+  return headers;
 }
 
 export async function createChatCompletion(client: ModelClient, params: Record<string, unknown>) {

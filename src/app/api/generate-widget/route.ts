@@ -9,7 +9,7 @@ import {
   coolDownGroqKey,
   createChatCompletion,
   createModelClient,
-  emittedUiDeltaBeforeError,
+  emittedOutputBeforeError,
   getApiKeys,
   getUIModel,
   keyLabel,
@@ -19,6 +19,7 @@ import {
   type ModelClient,
 } from "./provider";
 import { errorMessage } from "./shared";
+import type { AIProvider } from "./shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,12 +29,14 @@ const OPENUI_PROMPT_PATH = join(process.cwd(), "src/generated/openui-dashboard-p
 let cachedOpenUIPrompt: string | null = null;
 
 class WidgetGenerationError extends Error {
+  emittedOutput: boolean;
   emittedUiDelta: boolean;
   rateLimited: boolean;
 
-  constructor(error: unknown, emittedUiDelta: boolean) {
+  constructor(error: unknown, emittedOutput: boolean, emittedUiDelta: boolean) {
     super(errorMessage(error));
     this.name = "WidgetGenerationError";
+    this.emittedOutput = emittedOutput;
     this.emittedUiDelta = emittedUiDelta;
     this.rateLimited = wasRateLimited(error);
   }
@@ -52,11 +55,11 @@ function streamEvent(controller: ReadableStreamDefaultController, event: WidgetS
 
 async function streamOpenUI(
   client: ModelClient,
-  provider: "openai" | "groq",
+  provider: AIProvider,
   prompt: string,
   exampleData: Parameters<typeof openuiUserPrompt>[1],
   controller: ReadableStreamDefaultController,
-  streamState?: { emittedUiDelta: boolean },
+  streamState?: { emittedOutput: boolean; emittedUiDelta: boolean },
 ) {
   const stream = (await createChatCompletion(client, {
     model: getUIModel(provider),
@@ -71,7 +74,7 @@ async function streamOpenUI(
       },
     ],
     max_completion_tokens: 1800,
-    ...(provider === "openai" ? { reasoning_effort: "low" } : { temperature: 0.15 }),
+    ...(provider === "groq" ? { temperature: 0.15 } : {}),
     stream: true,
   })) as ChatCompletionStream;
 
@@ -80,6 +83,7 @@ async function streamOpenUI(
 
     if (delta) {
       if (streamState) {
+        streamState.emittedOutput = true;
         streamState.emittedUiDelta = true;
       }
 
@@ -93,12 +97,12 @@ async function streamOpenUI(
 
 async function generateWithClient(
   client: ModelClient,
-  provider: "openai" | "groq",
+  provider: AIProvider,
   prompt: string,
   controller: ReadableStreamDefaultController,
   providedExampleData?: ExampleWidgetData | null,
 ) {
-  const streamState = { emittedUiDelta: false };
+  const streamState = { emittedOutput: false, emittedUiDelta: false };
 
   try {
     const exampleData = providedExampleData ?? await createExampleData(client, provider, prompt);
@@ -107,10 +111,11 @@ async function generateWithClient(
       type: "exampleData",
       data: exampleData,
     });
+    streamState.emittedOutput = true;
 
     await streamOpenUI(client, provider, prompt, exampleData, controller, streamState);
   } catch (error) {
-    throw new WidgetGenerationError(error, streamState.emittedUiDelta);
+    throw new WidgetGenerationError(error, streamState.emittedOutput, streamState.emittedUiDelta);
   }
 
   streamEvent(controller, {
@@ -139,7 +144,7 @@ async function generateWithGroqFailover(
       await generateWithClient(client, "groq", prompt, controller, providedExampleData);
       return;
     } catch (error) {
-      if (emittedUiDeltaBeforeError(error)) {
+      if (emittedOutputBeforeError(error)) {
         throw error;
       }
 
@@ -166,22 +171,45 @@ async function generateWithGroqFailover(
   throw new Error("All configured Groq API keys are cooling down. Wait a minute, then retry.");
 }
 
+async function generateWithGroqPrimary(
+  prompt: string,
+  controller: ReadableStreamDefaultController,
+  providedExampleData?: ExampleWidgetData | null,
+) {
+  const groqApiKeys = getApiKeys("groq");
+
+  if (groqApiKeys.length === 0) {
+    throw new Error("Missing GROQ_API_KEY or GROQ_API_KEYS. Add it to your environment and retry.");
+  }
+
+  try {
+    await generateWithGroqFailover(groqApiKeys, prompt, controller, providedExampleData);
+    return;
+  } catch (groqError) {
+    if (emittedOutputBeforeError(groqError)) {
+      throw groqError;
+    }
+
+    const openRouterApiKeys = getApiKeys("openrouter");
+
+    if (openRouterApiKeys.length === 0) {
+      throw new Error(`Groq failed before streaming output, and OpenRouter backup is not configured. Missing OPENROUTER_API_KEY. Groq error: ${errorMessage(groqError)}`);
+    }
+
+    try {
+      await generateWithClient(createModelClient("openrouter", openRouterApiKeys[0]), "openrouter", prompt, controller, providedExampleData);
+    } catch (openRouterError) {
+      throw new Error(`Groq failed before streaming output, and OpenRouter backup also failed. OpenRouter error: ${errorMessage(openRouterError)}. Groq error: ${errorMessage(groqError)}`);
+    }
+  }
+}
+
 export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
         const body = (await request.json()) as { exampleData?: unknown; prompt?: unknown };
         const provider = resolveProvider(process.env.AI_PROVIDER);
-        const apiKeys = getApiKeys(provider);
-
-        if (apiKeys.length === 0) {
-          streamEvent(controller, {
-            type: "error",
-            error: `Missing ${provider === "openai" ? "OPENAI_API_KEY" : "GROQ_API_KEY or GROQ_API_KEYS"}. Add it to your environment and retry.`,
-          });
-          return;
-        }
-
         const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
         const parsedExampleData = exampleWidgetDataSchema.safeParse(body.exampleData);
         const exampleData = parsedExampleData.success ? parsedExampleData.data : null;
@@ -195,8 +223,18 @@ export async function POST(request: Request) {
         }
 
         if (provider === "groq") {
-          await generateWithGroqFailover(apiKeys, prompt, controller, exampleData);
+          await generateWithGroqPrimary(prompt, controller, exampleData);
         } else {
+          const apiKeys = getApiKeys(provider);
+
+          if (apiKeys.length === 0) {
+            streamEvent(controller, {
+              type: "error",
+              error: "Missing OPENROUTER_API_KEY. Add it to your environment and retry.",
+            });
+            return;
+          }
+
           await generateWithClient(createModelClient(provider, apiKeys[0]), provider, prompt, controller, exampleData);
         }
       } catch (error) {

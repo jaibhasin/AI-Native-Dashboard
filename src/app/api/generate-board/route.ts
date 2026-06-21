@@ -17,6 +17,7 @@ import {
   getApiKeys,
   isRateLimitError,
   providerDisplayName,
+  requireOpenRouterModel,
   resolveProvider,
   wasRateLimited,
   type ChatCompletionResult,
@@ -28,7 +29,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_GROQ_BOARD_MODEL = "openai/gpt-oss-20b";
-const DEFAULT_OPENAI_BOARD_MODEL = "gpt-5.5";
 const AI_WIDGET_WIDTH = 440;
 const AI_WIDGET_HEIGHT = 320;
 const AI_WIDGET_GAP = 36;
@@ -82,8 +82,8 @@ function gridColumns(count: number) {
 }
 
 function getBoardModel(provider: AIProvider) {
-  if (provider === "openai") {
-    return process.env.OPENAI_BOARD_MODEL || process.env.OPENAI_MODEL || DEFAULT_OPENAI_BOARD_MODEL;
+  if (provider === "openrouter") {
+    return requireOpenRouterModel("OPENROUTER_BOARD_MODEL");
   }
 
   return process.env.GROQ_BOARD_MODEL || process.env.GROQ_MOCK_DATA_MODEL || DEFAULT_GROQ_BOARD_MODEL;
@@ -127,7 +127,7 @@ function parseJsonObject(content: string) {
 }
 
 function modelTuningParams(provider: AIProvider) {
-  return provider === "openai" ? { reasoning_effort: "low" } : { temperature: 0.2 };
+  return provider === "groq" ? { temperature: 0.2 } : {};
 }
 
 function fallbackBoardResponse(brief: AiBoardBrief, reason: string, error?: unknown) {
@@ -554,6 +554,30 @@ async function createBoardPlanWithGroqFailover(apiKeys: string[], brief: AiBoard
   throw new Error("All configured Groq API keys are cooling down. Wait a minute, then retry.");
 }
 
+async function createBoardPlanWithGroqPrimary(brief: AiBoardBrief) {
+  const groqApiKeys = getApiKeys("groq");
+
+  if (groqApiKeys.length === 0) {
+    throw new Error("Missing GROQ_API_KEY or GROQ_API_KEYS.");
+  }
+
+  try {
+    return await createBoardPlanWithGroqFailover(groqApiKeys, brief);
+  } catch (groqError) {
+    const openRouterApiKeys = getApiKeys("openrouter");
+
+    if (openRouterApiKeys.length === 0) {
+      throw groqError;
+    }
+
+    try {
+      return await createBoardPlan(createModelClient("openrouter", openRouterApiKeys[0]), "openrouter", brief);
+    } catch (openRouterError) {
+      throw new Error(`Groq board planning failed, and OpenRouter backup also failed. OpenRouter error: ${errorMessage(openRouterError)}. Groq error: ${errorMessage(groqError)}`);
+    }
+  }
+}
+
 const BRIEF_REFINEMENT_PURPOSE_THRESHOLD = 40;
 
 function briefNeedsRefinement(brief: AiBoardBrief) {
@@ -668,6 +692,40 @@ async function refineBriefSafely(provider: AIProvider, apiKeys: string[], brief:
   }
 }
 
+async function refineBriefWithGroqPrimary(brief: AiBoardBrief) {
+  if (!briefNeedsRefinement(brief)) {
+    return brief;
+  }
+
+  const groqApiKeys = getApiKeys("groq");
+  const selected = groqApiKeys.length > 0 ? chooseGroqKey(groqApiKeys) : null;
+
+  try {
+    if (selected) {
+      return await createRefinedBrief(createModelClient("groq", selected.apiKey), "groq", brief);
+    }
+  } catch (error) {
+    if (wasRateLimited(error) && selected) {
+      coolDownGroqKey(selected.apiKey);
+    }
+
+    console.warn("Groq brief refinement failed; trying OpenRouter backup.", error);
+  }
+
+  const openRouterApiKeys = getApiKeys("openrouter");
+
+  if (openRouterApiKeys.length === 0) {
+    return brief;
+  }
+
+  try {
+    return await createRefinedBrief(createModelClient("openrouter", openRouterApiKeys[0]), "openrouter", brief);
+  } catch (error) {
+    console.warn("OpenRouter brief refinement failed; using original brief.", error);
+    return brief;
+  }
+}
+
 export async function POST(request: Request) {
   let brief: AiBoardBrief;
 
@@ -684,18 +742,22 @@ export async function POST(request: Request) {
 
   try {
     const provider = resolveProvider(process.env.AI_PROVIDER);
-    const apiKeys = getApiKeys(provider);
 
-    if (apiKeys.length === 0) {
-      return fallbackBoardResponse(brief, "missing-api-key");
+    if (provider === "openrouter") {
+      const apiKeys = getApiKeys(provider);
+
+      if (apiKeys.length === 0) {
+        return fallbackBoardResponse(brief, "missing-api-key");
+      }
+
+      const planBrief = await refineBriefSafely(provider, apiKeys, brief);
+      const plan = await createBoardPlan(createModelClient(provider, apiKeys[0]), provider, planBrief);
+
+      return Response.json(plan);
     }
 
-    const planBrief = await refineBriefSafely(provider, apiKeys, brief);
-
-    const plan =
-      provider === "groq"
-        ? await createBoardPlanWithGroqFailover(apiKeys, planBrief)
-        : await createBoardPlan(createModelClient(provider, apiKeys[0]), provider, planBrief);
+    const planBrief = await refineBriefWithGroqPrimary(brief);
+    const plan = await createBoardPlanWithGroqPrimary(planBrief);
 
     return Response.json(plan);
   } catch (error) {

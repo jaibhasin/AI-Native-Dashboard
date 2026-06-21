@@ -996,7 +996,6 @@ async function createStrictExampleData(client: ModelClient, provider: AIProvider
         schema,
       },
     },
-    reasoning_effort: "low",
     ...(provider === "groq" ? { temperature: 0.2 } : {}),
   })) as {
     choices?: Array<{
@@ -1030,7 +1029,6 @@ async function createJsonObjectExampleData(client: ModelClient, provider: AIProv
     response_format: {
       type: "json_object",
     },
-    reasoning_effort: "low",
     ...(provider === "groq" ? { temperature: 0.2 } : {}),
   })) as {
     choices?: Array<{

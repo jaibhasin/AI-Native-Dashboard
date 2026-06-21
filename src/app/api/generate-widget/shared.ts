@@ -1,6 +1,6 @@
 import { ZodError, z } from "zod/v4";
 
-export const aiProviderSchema = z.enum(["openai", "groq"]);
+export const aiProviderSchema = z.enum(["groq", "openrouter"]);
 
 export type AIProvider = z.infer<typeof aiProviderSchema>;
 
